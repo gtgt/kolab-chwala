@@ -50,7 +50,6 @@ foreach ($config as $optname => $optval) {
 $include_path  = INSTALL_PATH . PATH_SEPARATOR;
 $include_path .= INSTALL_PATH . '/client' . PATH_SEPARATOR;
 $include_path .= INSTALL_PATH . '/ext' . PATH_SEPARATOR;
-$include_path .= INSTALL_PATH . '/ext/Roundcube' . PATH_SEPARATOR;
 $include_path .= ini_get('include_path');
 set_include_path($include_path);
 
@@ -64,7 +63,7 @@ if (extension_loaded('mbstring')) {
 }
 
 // include global functions from Roundcube Framework
-require_once 'rcube_shared.inc';
+require_once 'Roundcube/rcube_shared.inc';
 
 // Register main autoloader
 spl_autoload_register('kolab_sync_autoload');
@@ -89,13 +88,15 @@ function kolab_sync_autoload($classname)
             '/Net_(.+)/',
             '/Auth_(.+)/',
             '/^html_.+/',
+            '/^rcube(.*)/',
             '/^utf8$/',
         ),
         array(
             'Mail/\\1',
             'Net/\\1',
             'Auth/\\1',
-            'html',
+            'Roundcube/html',
+            'Roundcube/rcube\\1',
             'utf8.class',
         ),
         $classname
