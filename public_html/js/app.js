@@ -621,6 +621,7 @@ function file_ui()
         });
 
     $('span', td).text('').append(input);
+    input.focus();
   };
 
   this.file_rename_stop = function()
