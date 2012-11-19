@@ -89,10 +89,10 @@ class file_ui
             $language = 'en_US';
         }
 
-        @include INSTALL_PATH . '/locale/en_US.php';
+        @include INSTALL_PATH . '/lib/locale/en_US.php';
 
         if ($language != 'en_US') {
-            @include INSTALL_PATH . "/locale/$language.php";
+            @include INSTALL_PATH . "/lib/locale/$language.php";
         }
 
         setlocale(LC_ALL, $language . '.utf8', 'en_US.utf8');
@@ -106,11 +106,6 @@ class file_ui
     private function config_init()
     {
         $this->config = rcube::get_instance()->config;
-
-        // @TODO: fix logs dir path
-//        if (!$this->config->get('log_dir')) {
-            $this->config->set('log_dir', INSTALL_PATH . '/../logs');
-//        }
     }
 
     /**
@@ -170,12 +165,12 @@ class file_ui
             $lang = $lang[0];
             $lang = str_replace('-', '_', $lang);
 
-            if (file_exists(INSTALL_PATH . "/locale/$lang.php")) {
+            if (file_exists(INSTALL_PATH . "/lib/locale/$lang.php")) {
                 return $lang;
             }
 
             if (isset($aliases[$lang]) && ($alias = $aliases[$lang])
-                && file_exists(INSTALL_PATH . "/locale/$alias.php")
+                && file_exists(INSTALL_PATH . "/lib/locale/$alias.php")
             ) {
                 return $alias;
             }

@@ -69,8 +69,8 @@ class file_ui_output
         $SMARTY = new Smarty;
 
         $SMARTY->template_dir = 'skins/' . $this->skin . '/templates';
-        $SMARTY->compile_dir  = INSTALL_PATH . '/../cache';
-        $SMARTY->plugins_dir  = INSTALL_PATH . '/Smarty/plugins/';
+        $SMARTY->compile_dir  = INSTALL_PATH . '/cache';
+        $SMARTY->plugins_dir  = INSTALL_PATH . '/lib/ext/Smarty/plugins/';
         $SMARTY->debugging    = false;
 
         $this->tpl = $SMARTY;

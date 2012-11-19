@@ -1,6 +1,6 @@
 <?php
 
-define('RCMAIL_PLUGINS_DIR', INSTALL_PATH . '/kolab/plugins');
+define('RCMAIL_PLUGINS_DIR', INSTALL_PATH . '/lib/kolab/plugins');
 
 class kolab_file_storage implements file_storage
 {
@@ -20,7 +20,7 @@ class kolab_file_storage implements file_storage
      */
     public function __construct()
     {
-        $include_path = INSTALL_PATH . '/kolab' . PATH_SEPARATOR;
+        $include_path = INSTALL_PATH . '/lib/kolab' . PATH_SEPARATOR;
         $include_path .= ini_get('include_path');
         set_include_path($include_path);
 

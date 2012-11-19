@@ -27,8 +27,8 @@
 define('RCMAIL_START', microtime(true));
 define('RCMAIL_VERSION', '0.9-git');
 define('RCMAIL_CHARSET', 'UTF-8');
-define('INSTALL_PATH', realpath(dirname(__FILE__)) . '/');
-define('RCMAIL_CONFIG_DIR', INSTALL_PATH . '../config');
+define('INSTALL_PATH', realpath(dirname(__FILE__)) . '/../');
+define('RCMAIL_CONFIG_DIR', INSTALL_PATH . 'config');
 
 // PHP configuration
 $config = array(
@@ -47,9 +47,9 @@ foreach ($config as $optname => $optval) {
 }
 
 // Define include path
-$include_path  = INSTALL_PATH . PATH_SEPARATOR;
-$include_path .= INSTALL_PATH . '/client' . PATH_SEPARATOR;
-$include_path .= INSTALL_PATH . '/ext' . PATH_SEPARATOR;
+$include_path  = INSTALL_PATH . '/lib' . PATH_SEPARATOR;
+$include_path .= INSTALL_PATH . '/lib/ext' . PATH_SEPARATOR;
+$include_path .= INSTALL_PATH . '/lib/client' . PATH_SEPARATOR;
 $include_path .= ini_get('include_path');
 set_include_path($include_path);
 

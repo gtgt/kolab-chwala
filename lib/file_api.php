@@ -13,10 +13,6 @@ class file_api
 
     public function __construct()
     {
-        // @TODO: fix logs dir path
-        //        if (!$this->config->get('log_dir')) {
-        rcube::get_instance()->config->set('log_dir', INSTALL_PATH . '/../logs');
-        //
     }
 
     /**
