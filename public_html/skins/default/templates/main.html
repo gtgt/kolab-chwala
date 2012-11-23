@@ -20,7 +20,7 @@
     <div id="task_navigation">{$task_menu}</div>
     <div id="content">
         <div id="actionbar">
-            <a id="folder-create-button"><span>{$engine->translate('folder.create')}</span></a>
+            <a id="folder-create-button" onclick="ui.folder_create_start()"><span>{$engine->translate('folder.create')}</span></a>
             <form id="uploadform" name="uploadform" method="post" enctype="multipart/form-data">
                 <a id="file-upload-button"><span>{$engine->translate('file.upload')}</span></a>
             </form>
@@ -28,6 +28,24 @@
         </div>
         <div id="folderlist">
             <table></table>
+        </div>
+        <div id="forms">
+            <form id="folder-create-form">
+                <fieldset><legend>{$engine->translate('folder.create')}</legend>
+                    <table>
+                        <tr>
+                            <td>
+                                <input type="text" name="name" value="" />
+                                <input type="checkbox" name="parent" value="1" /> {$engine->translate('folder.under')}
+                            </td>
+                            <td class="buttons">
+                                <input type="button" value="{$engine->translate('form.submit')}" onclick="ui.folder_create_submit()" />
+                                <input type="button" value="{$engine->translate('form.cancel')}" onclick="ui.folder_create_stop()" />
+                            </td>
+                        </tr>
+                    </table>
+                </fieldset>
+            </form>
         </div>
         <div id="taskcontent">
             <table id="filelist" class="list">

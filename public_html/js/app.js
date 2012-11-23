@@ -478,6 +478,27 @@ function file_ui()
     return { left:mX, top:mY };
   };
 
+  this.serialize_form = function(id)
+  {
+    var i, v, json = {},
+      form = $(id),
+      query = form.serializeArray();
+
+    for (i in query)
+      json[query[i].name] = query[i].value;
+
+    // serializeArray() doesn't work properly for multi-select
+    $('select[multiple="multiple"]', form).each(function() {
+      var name = this.name;
+      json[name] = [];
+      $(':selected', this).each(function() {
+        json[name].push(this.value);
+      });
+    });
+
+    return json;
+  };
+
 
   /*********************************************************/
   /*********              Commands                 *********/
@@ -525,6 +546,9 @@ function file_ui()
           ui.command('file.list', i);
         });
 
+      if (i == ui.env.folder)
+        row.addClass('selected');
+
       table.append(row);
     });
 
@@ -532,83 +556,20 @@ function file_ui()
     this.folder_list_tree();
   };
 
-  this.folder_list_parse = function(list)
+  // folder create request
+  this.folder_create = function(folder)
   {
-    var i, n, items, items_len, f, tmp, folder, num = 1,
-      len = list.length, folders = {};
-
-    for (i=0; i<len; i++) {
-      folder = list[i];
-      items = folder.split(this.env.directory_separator);
-      items_len = items.length;
-
-      for (n=0; n<items_len-1; n++) {
-        tmp = items.slice(0,n+1);
-        f = tmp.join(this.env.directory_separator);
-        if (!folders[f])
-          folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
-      }
-
-      folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
-    }
-
-    return folders;
+    this.set_busy(true, 'saving');
+    this.api_get('folder_create', {folder: folder}, 'folder_create_response');
   };
 
-  this.folder_list_tree = function()
+  // folder create response handler
+  this.folder_create_response = function(response)
   {
-    var i, n, diff, tree = [], folder, folders = this.env.folders;
+    if (!this.api_response(response))
+      return;
 
-    for (i in folders) {
-      items = i.split(this.env.directory_separator);
-      items_len = items.length;
-
-      // skip root
-      if (items_len < 2) {
-        tree = [];
-        continue;
-      }
-
-      folders[i].tree = [1];
-
-      for (n=0; n<tree.length; n++) {
-        folder = tree[n];
-        diff = folders[folder].depth - (items_len - 1);
-        if (diff >= 0)
-          folders[folder].tree[diff] = folders[folder].tree[diff] ? folders[folder].tree[diff] + 2 : 2;
-      }
-
-      tree.push(i);
-    }
-
-    for (i in folders) {
-      if (tree = folders[i].tree) {
-        var html = '', divs = [];
-        for (n=0; n<folders[i].depth; n++) {
-          if (tree[n] > 2)
-            divs.push({'class': 'l3', width: 15});
-          else if (tree[n] > 1)
-            divs.push({'class': 'l2', width: 15});
-          else if (tree[n] > 0)
-            divs.push({'class': 'l1', width: 15});
-          // separator
-          else if (divs.length && !divs[divs.length-1]['class'])
-            divs[divs.length-1].width += 15;
-          else
-            divs.push({'class': null, width: 15});
-        }
-
-        for (n=divs.length-1; n>=0; n--) {
-          if (divs[n]['class'])
-            html += '<span class="tree '+divs[n]['class']+'" />';
-          else
-            html += '<span style="width:'+divs[n].width+'px" />';
-        }
-
-        if (html)
-          $('#' + folders[i].id + ' span.branch').html(html);
-      }
-    }
+    this.folder_list();
   };
 
   // file list request
@@ -647,19 +608,6 @@ function file_ui()
     });
   };
 
-  this.file_menu = function(e, file)
-  {
-    var menu = $('#file-menu');
-
-    $('li.file-open > a', menu)
-      .attr({target: '_blank', href: 'api/' + ui.url('file_get', {folder: this.env.folder, token: this.env.token, file: file})});
-
-    $('li.file-delete > a', menu).off('click').click(function() { ui.file_delete(file); });
-    $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(file); });
-
-    this.popup_show(e, menu);
-  };
-
   // file delete request
   this.file_delete = function(file)
   {
@@ -693,6 +641,19 @@ function file_ui()
       return;
 
     this.file_list(this.env.folder);
+  };
+
+  this.file_menu = function(e, file)
+  {
+    var menu = $('#file-menu');
+
+    $('li.file-open > a', menu)
+      .attr({target: '_blank', href: 'api/' + ui.url('file_get', {folder: this.env.folder, token: this.env.token, file: file})});
+
+    $('li.file-delete > a', menu).off('click').click(function() { ui.file_delete(file); });
+    $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(file); });
+
+    this.popup_show(e, menu);
   };
 
   this.file_rename_start = function(file)
@@ -800,6 +761,137 @@ function file_ui()
       .submit();
   };
 
+  // Display folder creation form
+  this.folder_create_start = function()
+  {
+    var form = this.form_show('folder-create');
+    $('input[name="name"]', form).val('').focus();
+    $('input[name="parent"]', form).prop('checked', this.env.folder);
+  };
+
+  // Display folder creation form
+  this.folder_create_stop = function()
+  {
+    this.form_hide('folder-create');
+  };
+
+  // Submit folder creation form
+  this.folder_create_submit = function()
+  {
+    var folder = '', data = this.serialize_form('#folder-create-form');
+
+    if (!data.name)
+      return;
+
+    if (data.parent && this.env.folder)
+      folder = this.env.folder + this.env.directory_separator;
+
+    folder += data.name;
+
+    this.folder_create_stop();
+    this.command('folder_create', folder);
+  };
+
+  // Display folder creation form
+  this.form_show = function(name)
+  {
+    var form = $('#' + name + '-form');
+    form.show();
+    $('#taskcontent').css('top', form.height() + 20);
+
+    return form;
+  };
+
+  // Display folder creation form
+  this.form_hide = function(name)
+  {
+    var form = $('#' + name + '-form');
+    form.hide();
+    $('#taskcontent').css('top', 10);
+  };
+
+  // Folder list parser, converts it into structure
+  this.folder_list_parse = function(list)
+  {
+    var i, n, items, items_len, f, tmp, folder, num = 1,
+      len = list.length, folders = {};
+
+    for (i=0; i<len; i++) {
+      folder = list[i];
+      items = folder.split(this.env.directory_separator);
+      items_len = items.length;
+
+      for (n=0; n<items_len-1; n++) {
+        tmp = items.slice(0,n+1);
+        f = tmp.join(this.env.directory_separator);
+        if (!folders[f])
+          folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
+      }
+
+      folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
+    }
+
+    return folders;
+  };
+
+  // folder structure presentation (structure icons)
+  this.folder_list_tree = function()
+  {
+    var i, n, diff, tree = [], folder, folders = this.env.folders;
+
+    for (i in folders) {
+      items = i.split(this.env.directory_separator);
+      items_len = items.length;
+
+      // skip root
+      if (items_len < 2) {
+        tree = [];
+        continue;
+      }
+
+      folders[i].tree = [1];
+
+      for (n=0; n<tree.length; n++) {
+        folder = tree[n];
+        diff = folders[folder].depth - (items_len - 1);
+        if (diff >= 0)
+          folders[folder].tree[diff] = folders[folder].tree[diff] ? folders[folder].tree[diff] + 2 : 2;
+      }
+
+      tree.push(i);
+    }
+
+    for (i in folders) {
+      if (tree = folders[i].tree) {
+        var html = '', divs = [];
+        for (n=0; n<folders[i].depth; n++) {
+          if (tree[n] > 2)
+            divs.push({'class': 'l3', width: 15});
+          else if (tree[n] > 1)
+            divs.push({'class': 'l2', width: 15});
+          else if (tree[n] > 0)
+            divs.push({'class': 'l1', width: 15});
+          // separator
+          else if (divs.length && !divs[divs.length-1]['class'])
+            divs[divs.length-1].width += 15;
+          else
+            divs.push({'class': null, width: 15});
+        }
+
+        for (n=divs.length-1; n>=0; n--) {
+          if (divs[n]['class'])
+            html += '<span class="tree '+divs[n]['class']+'" />';
+          else
+            html += '<span style="width:'+divs[n].width+'px" />';
+        }
+
+        if (html)
+          $('#' + folders[i].id + ' span.branch').html(html);
+      }
+    }
+  };
+
+  // convert content-type string into class name
   this.file_type_class = function(type)
   {
     if (!type)
@@ -810,6 +902,7 @@ function file_ui()
     return type;
   };
 
+  // convert bytes into number with size unit
   this.file_size = function(size)
   {
     if (size >= 1073741824)

@@ -956,6 +956,28 @@ td span.branch span.l3
   overflow: hidden;
 }
 
+#forms {
+  position: absolute;
+  left: 310px;
+  right: 10px;
+  top: 10px;
+}
+
+#forms fieldset {
+  margin: 0;
+}
+
+#forms table {
+  border-spacing: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#forms table td.buttons {
+  width: 1%;
+  white-space: nowrap;
+}
+
 #actionbar a {
   display: block;
   width: 80px;
