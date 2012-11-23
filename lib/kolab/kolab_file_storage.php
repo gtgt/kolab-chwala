@@ -314,21 +314,6 @@ class kolab_file_storage implements file_storage
      */
     public function file_list($folder_name)
     {
-/*
-        $dt = new DateTime;
-        return array(
-            'file1.txt' => array(
-                'size'  => 100,
-                'type'  => 'text/plain',
-                'mtime' => $dt->format($_SESSION['config']['date_format']),
-            ),
-            'file2.png' => array(
-                'size'  => 100,
-                'type'  => 'image/png',
-                'mtime' => $dt->format($_SESSION['config']['date_format']),
-            ),
-        );
-*/
         $folder = $this->get_folder_object($folder_name);
         $files  = $folder->select(array(array('type', '=', 'file')));
         $result = array();
@@ -348,7 +333,7 @@ class kolab_file_storage implements file_storage
             unset($files[$idx]);
         }
 
-        // @TODO: sort by filename, pagination, search (by filename, mimetype)
+        // @TODO: sort by size and mtime, pagination, search (by filename, mimetype)
 
         if (!$sort || $sort == 'name') {
             ksort($result, SORT_LOCALE_STRING);
