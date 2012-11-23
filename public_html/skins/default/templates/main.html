@@ -24,7 +24,7 @@
             <form id="uploadform" name="uploadform" method="post" enctype="multipart/form-data">
                 <a id="file-upload-button"><span>{$engine->translate('file.upload')}</span></a>
             </form>
-            <a id="search-button"><span>{$engine->translate('search')}</span></a>
+            <a id="search-button" onclick="ui.file_search_start()"><span>{$engine->translate('search')}</span></a>
         </div>
         <div id="folderlist">
             <table></table>
@@ -46,14 +46,29 @@
                     </table>
                 </fieldset>
             </form>
+            <form id="file-search-form">
+                <fieldset><legend>{$engine->translate('file.search')}</legend>
+                    <table>
+                        <tr>
+                            <td>
+                                <input type="text" name="name" value="" />
+                            </td>
+                            <td class="buttons">
+                                <input type="button" value="{$engine->translate('form.submit')}" onclick="ui.file_search_submit()" />
+                                <input type="button" value="{$engine->translate('form.cancel')}" onclick="ui.file_search_stop()" />
+                            </td>
+                        </tr>
+                    </table>
+                </fieldset>
+            </form>
         </div>
         <div id="taskcontent">
             <table id="filelist" class="list">
                 <thead>
                     <tr>
-                        <td class="filename">{$engine->translate('file.name')}</td>
-                        <td class="filemtime">{$engine->translate('file.mtime')}</td>
-                        <td class="filesize">{$engine->translate('file.size')}</td>
+                        <td class="filename" onclick="file_list_sort('name', this)">{$engine->translate('file.name')}</td>
+                        <td class="filemtime" onclick="file_list_sort('mtime', this)">{$engine->translate('file.mtime')}</td>
+                        <td class="filesize" onclick="file_list_sort('size', this)">{$engine->translate('file.size')}</td>
                     </tr>
                 </thead>
             </table>

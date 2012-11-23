@@ -259,7 +259,7 @@ td.label {
 }
 
 #topmenu .logout {
-  background: url(images/buttons.png) -100px -1px no-repeat;
+  background: url(images/buttons.png) -1px -100px no-repeat;
   padding-left: 20px;
   margin-right: 10px;
   color: white;
@@ -385,7 +385,7 @@ td.label {
   float: left;
   width: 18px;
   height: 18px;
-  background: url(images/buttons.png) 0 0 no-repeat;
+  background: url(images/buttons.png) -1px 0 no-repeat;
 }
 
 #search-reset:hover,
@@ -398,7 +398,7 @@ td.label {
 }
 
 #search-details {
-  background-position: -21px 0;
+  background-position: -1px 20px;
 }
 
 .searchdetails {
@@ -554,15 +554,15 @@ a.button {
 }
 
 a.button.edit {
-  background-position: -81px 0;
+  background-position: -1px -81px;
 }
 
 a.button.add {
-  background-position: -41px 0;
+  background-position: -1px -41px;
 }
 
 a.button.delete {
-  background-position: -1px 0;
+  background-position: -1px -1px;
 }
 
 .popup ul {
@@ -965,6 +965,7 @@ td span.branch span.l3
 
 #forms fieldset {
   margin: 0;
+  background-color: #f0f0f0;
 }
 
 #forms table {
@@ -1063,6 +1064,20 @@ td span.branch span.l3
 #filelist tbody td.filename span input {
   padding: 0 2px;
   height: 18px;
+}
+
+#filelist thead td {
+  cursor: pointer;
+}
+
+#filelist thead td.sorted {
+  padding-right: 16px;
+  text-decoration: underline;
+  background: url(images/buttons.png) right -120px no-repeat;
+}
+
+#filelist thead td.sorted.reverse {
+  background-position: right -140px;
 }
 
 #folderlist td span.name {

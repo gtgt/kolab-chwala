@@ -1,3 +1,25 @@
+function file_list_sort(name, elem)
+{
+  if (!ui.env.folder)
+    return;
+
+  if (ui.env.sort_column == name)
+    ui.env.sort_reverse = !ui.env.sort_reverse;
+  else
+    ui.env.sort_reverse = 0;
+  ui.env.sort_column = name;
+
+  var td = $(elem);
+
+  $('td', td.parent()).removeClass('sorted reverse');
+  td.addClass('sorted').removeClass('reverse');
+
+  if (ui.env.sort_reverse)
+    td.addClass('reverse');
+
+  ui.file_list(null, {sort: name, reverse: ui.env.sort_reverse});
+};
+
 function hack_file_input(id)
 {
   var link = $('#'+id);
@@ -16,8 +38,9 @@ function hack_file_input(id)
 
     // Note: now, I observe problem with cursor style on FF < 4 only
   link.css({overflow: 'hidden', cursor: 'pointer'}).append(file);
-}
+};
 
 $(window).load(function() {
   hack_file_input('file-upload-button');
+  $('#forms > form').hide();
 });

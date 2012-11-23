@@ -30,6 +30,8 @@ function file_ui()
   this.message_time = 3000;
   this.events = {};
   this.env = {
+    sort_column: 'name',
+    sort_reverse: 0,
     directory_separator: '/'
   };
 
@@ -542,9 +544,7 @@ function file_ui()
       if (f.virtual)
         row.addClass('virtual');
       else
-       span.click(function() {
-          ui.command('file.list', i);
-        });
+       span.click(function() { ui.command('file.list', i); });
 
       if (i == ui.env.folder)
         row.addClass('selected');
@@ -573,15 +573,28 @@ function file_ui()
   };
 
   // file list request
-  this.file_list = function(folder)
+  this.file_list = function(folder, params)
   {
+    if (!params)
+      params = {};
+
+    params.folder = folder ? folder : this.env.folder
+
+    if (params.sort == undefined)
+      params.sort = this.env.sort_col;
+    if (params.reverse == undefined)
+      params.reverse = this.env.sort_reverse;
+
+    this.env.folder = params.folder;
+    this.env.sort_col = params.sort;
+    this.env.sort_reverse = params.reverse;
+
     this.set_busy(true, 'loading');
-    this.env.folder = folder;
-    this.api_get('file_list', {folder: folder}, 'file_list_response');
+    this.api_get('file_list', params, 'file_list_response');
 
     var list = $('#folderlist');
     $('tr.selected', list).removeClass('selected');
-    $('#' + this.env.folders[folder].id, list).addClass('selected');
+    $('#' + this.env.folders[params.folder].id, list).addClass('selected');
   };
 
   // file list response handler
@@ -761,6 +774,19 @@ function file_ui()
       .submit();
   };
 
+  // Display file search form
+  this.file_search_start = function()
+  {
+    var form = this.form_show('file-search');
+    $('input[name="name"]', form).val('').focus();
+  };
+
+  // Hide file search form
+  this.file_search_stop = function()
+  {
+    this.form_hide('file-search');
+  };
+
   // Display folder creation form
   this.folder_create_start = function()
   {
@@ -769,7 +795,7 @@ function file_ui()
     $('input[name="parent"]', form).prop('checked', this.env.folder);
   };
 
-  // Display folder creation form
+  // Hide folder creation form
   this.folder_create_stop = function()
   {
     this.form_hide('folder-create');
@@ -796,6 +822,7 @@ function file_ui()
   this.form_show = function(name)
   {
     var form = $('#' + name + '-form');
+    $('#forms > form').hide();
     form.show();
     $('#taskcontent').css('top', form.height() + 20);
 

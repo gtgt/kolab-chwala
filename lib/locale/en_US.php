@@ -12,6 +12,7 @@ $LANG['file.size'] = 'Size';
 $LANG['file.open'] = 'Open';
 $LANG['file.delete'] = 'Delete';
 $LANG['file.rename'] = 'Rename';
+$LANG['file.search'] = 'Search file';
 
 $LANG['folder.create'] = 'Create Folder';
 $LANG['folder.under'] = 'under current folder';

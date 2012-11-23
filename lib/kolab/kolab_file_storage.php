@@ -308,16 +308,19 @@ class kolab_file_storage implements file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
+     * @param array  $params      List parameters ('sort', 'reverse')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception
      */
-    public function file_list($folder_name)
+    public function file_list($folder_name, $params = array())
     {
+        // get files list
         $folder = $this->get_folder_object($folder_name);
         $files  = $folder->select(array(array('type', '=', 'file')));
         $result = array();
 
+        // convert to kolab_storage files list data format
         foreach ($files as $idx => $file) {
             $file = $this->from_file_object($file);
 
@@ -333,10 +336,30 @@ class kolab_file_storage implements file_storage
             unset($files[$idx]);
         }
 
-        // @TODO: sort by size and mtime, pagination, search (by filename, mimetype)
+        // @TODO: pagination, search (by filename, mimetype)
 
-        if (!$sort || $sort == 'name') {
+        // Sorting
+        if (empty($params['sort']) || $params['sort'] == 'name') {
             ksort($result, SORT_LOCALE_STRING);
+        }
+        else {
+            $index = array();
+            if ($params['sort'] == 'size') {
+                foreach ($result as $key => $val) {
+                    $index[$key] = $val['size'];
+                }
+            }
+            else if ($params['sort'] == 'mtime') {
+                foreach ($result as $key => $val) {
+                    $index[$key] = strtotime($val['mtime']);
+                }
+            }
+
+            array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
+        }
+
+        if ($params['reverse']) {
+            $result = array_reverse($result, true);
         }
 
         return $result;
