@@ -902,6 +902,36 @@ fieldset.tabbed
   vertical-align: top;
 }
 
+/***** tree indicators *****/
+
+td span.branch span
+{
+  float: left;
+  height: 16px;
+}
+
+td span.branch span.tree
+{
+  height: 17px;
+  width: 15px;
+  background: url(images/tree.gif) 0 0 no-repeat;
+}
+
+td span.branch span.l1
+{
+  background-position: 0px 0px; /* L */
+}
+
+td span.branch span.l2
+{
+  background-position: -30px 0px; /* | */
+}
+
+td span.branch span.l3
+{
+  background-position: -15px 0px; /* |- */
+}
+
 /**** File manager elements ****/
 
 #taskcontent {
@@ -973,7 +1003,6 @@ fieldset.tabbed
   bottom: 10px;
   left: 98px;
   border: 1px solid #d0d0d0;
-  border-spacing: 0;
   border-radius: 3px;
   -moz-border-radius: 3px;
   -webkit-border-radius: 3px;
@@ -984,6 +1013,7 @@ fieldset.tabbed
 #folderlist table,
 #filelist table {
   width: 100%;
+  border-spacing: 0;
 }
 
 #filelist td {
@@ -994,7 +1024,7 @@ fieldset.tabbed
 #filelist td.filename {
   width: 98%;
   height: 20px;
-  padding: 1px 4px;
+  padding: 0 4px;
 }
 
 #filelist td.filesize {
@@ -1010,15 +1040,22 @@ fieldset.tabbed
 
 #filelist tbody td.filename span input {
   padding: 0 2px;
+  height: 18px;
 }
 
 #folderlist td span.name {
   background: url(images/folder.png) 0 0 no-repeat;
-  height: 20px;
+  height: 18px;
   padding-left: 20px;
+  margin-left: 3px;
   cursor: pointer;
 }
 
 #folderlist tr.selected td span.name {
   font-weight: bold;
+}
+
+#folderlist tr.virtual td span.name {
+  color: #bbb;
+  cursor: default;
 }

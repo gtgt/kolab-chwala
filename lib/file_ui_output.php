@@ -148,7 +148,7 @@ class file_ui_output
         $script = '';
 
         if (!empty($this->env)) {
-            $script[] = 'ui.env = ' . json_encode($this->env) . ';';
+            $script[] = 'ui.set_env(' . json_encode($this->env) . ');';
         }
 
         $this->labels = array_unique($this->labels);

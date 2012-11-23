@@ -25,11 +25,13 @@ function file_ui()
 {
   var ref = this;
 
-  this.env = {};
   this.translations = {};
   this.request_timeout = 300;
   this.message_time = 3000;
   this.events = {};
+  this.env = {
+    directory_separator: '/'
+  };
 
   // set jQuery ajax options
   $.ajaxSetup({
@@ -108,6 +110,9 @@ function file_ui()
 
   this.set_busy = function(a, message)
   {
+    if (a && this.busy)
+      return;
+
     if (a && message) {
       var msg = this.t(message);
       if (msg == message)
@@ -129,7 +134,7 @@ function file_ui()
       clearTimeout(this.request_timer);
 
     // set timer for requests
-    if (a && this.env.request_timeout)
+    if (a && this.request_timeout)
       this.request_timer = window.setTimeout(function() { ref.request_timed_out(); }, this.request_timeout * 1000);
   };
 
@@ -487,7 +492,7 @@ function file_ui()
   // folder list request
   this.folder_list = function()
   {
-    this.set_busy(true);
+    this.set_busy(true, 'loading');
     this.api_get('folder_list', {}, 'folder_list_response');
   };
 
@@ -499,32 +504,123 @@ function file_ui()
 
     var elem = $('#folderlist'), table = $('table', elem);
 
+    this.env.folders = this.folder_list_parse(response.result);
+
     table.empty();
 
-    // @TODO: folder tree structure
+    $.each(this.env.folders, function(i, f) {
+      var row = $('<tr><td><span class="branch"></span><span class="name"></span></td></tr>'),
+        span = $('span.name', row);
 
-    $.each(response.result, function() {
-      var row = $('<tr><td><span class="name"></span></td></tr>'),
-        folder = this;
+      span.text(f.name);
+      row.attr('id', f.id);
 
-      $('span.name', row).text(folder).click(function() {
-        ui.command('file.list', folder);
-      });
-      row.attr('data-folder', urlencode(folder));
+      if (f.depth)
+        $('span.branch', row).width(15 * f.depth);
+
+      if (f.virtual)
+        row.addClass('virtual');
+      else
+       span.click(function() {
+          ui.command('file.list', i);
+        });
+
       table.append(row);
     });
+
+    // add tree icons
+    this.folder_list_tree();
+  };
+
+  this.folder_list_parse = function(list)
+  {
+    var i, n, items, items_len, f, tmp, folder, num = 1,
+      len = list.length, folders = {};
+
+    for (i=0; i<len; i++) {
+      folder = list[i];
+      items = folder.split(this.env.directory_separator);
+      items_len = items.length;
+
+      for (n=0; n<items_len-1; n++) {
+        tmp = items.slice(0,n+1);
+        f = tmp.join(this.env.directory_separator);
+        if (!folders[f])
+          folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
+      }
+
+      folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
+    }
+
+    return folders;
+  };
+
+  this.folder_list_tree = function()
+  {
+    var i, n, diff, tree = [], folder, folders = this.env.folders;
+
+    for (i in folders) {
+      items = i.split(this.env.directory_separator);
+      items_len = items.length;
+
+      // skip root
+      if (items_len < 2) {
+        tree = [];
+        continue;
+      }
+
+      folders[i].tree = [1];
+
+      for (n=0; n<tree.length; n++) {
+        folder = tree[n];
+        diff = folders[folder].depth - (items_len - 1);
+        if (diff >= 0)
+          folders[folder].tree[diff] = folders[folder].tree[diff] ? folders[folder].tree[diff] + 2 : 2;
+      }
+
+      tree.push(i);
+    }
+
+    for (i in folders) {
+      if (tree = folders[i].tree) {
+        var html = '', divs = [];
+        for (n=0; n<folders[i].depth; n++) {
+          if (tree[n] > 2)
+            divs.push({'class': 'l3', width: 15});
+          else if (tree[n] > 1)
+            divs.push({'class': 'l2', width: 15});
+          else if (tree[n] > 0)
+            divs.push({'class': 'l1', width: 15});
+          // separator
+          else if (divs.length && !divs[divs.length-1]['class'])
+            divs[divs.length-1].width += 15;
+          else
+            divs.push({'class': null, width: 15});
+        }
+
+        for (n=divs.length-1; n>=0; n--) {
+          if (divs[n]['class'])
+            html += '<span class="tree '+divs[n]['class']+'" />';
+          else
+            html += '<span style="width:'+divs[n].width+'px" />';
+        }
+
+        if (html)
+          $('#' + folders[i].id + ' span.branch').html(html);
+      }
+    }
   };
 
   // file list request
   this.file_list = function(folder)
   {
-    this.set_busy(true);
+    this.set_busy(true, 'loading');
     this.env.folder = folder;
     this.api_get('file_list', {folder: folder}, 'file_list_response');
 
     var list = $('#folderlist');
     $('tr.selected', list).removeClass('selected');
-    $('tr[data-folder="' + urlencode(folder) + '"]', list).addClass('selected');
+    $('#' + this.env.folders[folder].id, list).addClass('selected');
   };
 
   // file list response handler
@@ -567,7 +663,7 @@ function file_ui()
   // file delete request
   this.file_delete = function(file)
   {
-    this.set_busy(true);
+    this.set_busy(true, 'deleting');
     this.api_get('file_delete', {folder: this.env.folder, file: file}, 'file_delete_response');
   };
 
@@ -586,7 +682,7 @@ function file_ui()
     if (file === newname)
       return;
 
-    this.set_busy(true);
+    this.set_busy(true, 'saving');
     this.api_get('file_rename', {folder: this.env.folder, file: file, 'new': newname}, 'file_rename_response');
   };
 
