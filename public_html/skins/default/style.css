@@ -427,6 +427,11 @@ div.vsplitter {
   min-height: 400px;
 }
 
+/* fix cursor on upload button */
+input[type="file"]::-webkit-file-upload-button {
+  cursor: pointer;
+}
+
 /**** Common classes ****/
 
 .nowrap {
