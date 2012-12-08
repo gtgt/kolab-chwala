@@ -23,7 +23,8 @@
 /**
  * Abstract skeleton of an address book/repository
  *
- * @package Addressbook
+ * @package    Framework
+ * @subpackage Addressbook
  */
 abstract class rcube_addressbook
 {
@@ -208,13 +209,13 @@ abstract class rcube_addressbook
      */
     public function validate(&$save_data, $autofix = false)
     {
-        $rcmail = rcmail::get_instance();
+        $rcube = rcube::get_instance();
 
         // check validity of email addresses
         foreach ($this->get_col_values('email', $save_data, true) as $email) {
             if (strlen($email)) {
                 if (!rcube_utils::check_email(rcube_utils::idn_to_ascii($email))) {
-                    $error = $rcmail->gettext(array('name' => 'emailformaterror', 'vars' => array('email' => $email)));
+                    $error = $rcube->gettext(array('name' => 'emailformaterror', 'vars' => array('email' => $email)));
                     $this->set_error(self::ERROR_VALIDATE, $error);
                     return false;
                 }
@@ -466,7 +467,7 @@ abstract class rcube_addressbook
      */
     public static function compose_display_name($contact, $full_email = false)
     {
-        $contact = rcmail::get_instance()->plugins->exec_hook('contact_displayname', $contact);
+        $contact = rcube::get_instance()->plugins->exec_hook('contact_displayname', $contact);
         $fn = $contact['name'];
 
         if (!$fn)  // default display name composition according to vcard standard
@@ -503,7 +504,7 @@ abstract class rcube_addressbook
         static $compose_mode;
 
         if (!isset($compose_mode))  // cache this
-            $compose_mode = rcmail::get_instance()->config->get('addressbook_name_listing', 0);
+            $compose_mode = rcube::get_instance()->config->get('addressbook_name_listing', 0);
 
         if ($compose_mode == 3)
             $fn = join(' ', array($contact['surname'] . ',', $contact['firstname'], $contact['middlename']));

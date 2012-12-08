@@ -25,7 +25,8 @@ define('SMTP_MIME_CRLF', "\r\n");
 /**
  * Class to provide SMTP functionality using PEAR Net_SMTP
  *
- * @package    Mail
+ * @package    Framework
+ * @subpackage Mail
  * @author     Thomas Bruederli <roundcube@gmail.com>
  * @author     Aleksander Machniak <alec@alec.pl>
  */
@@ -134,8 +135,8 @@ class rcube_smtp
       $this->conn->setTimeout($timeout);
     }
 
-    $smtp_user = str_replace('%u', $_SESSION['username'], $CONFIG['smtp_user']);
-    $smtp_pass = str_replace('%p', $rcube->decrypt($_SESSION['password']), $CONFIG['smtp_pass']);
+    $smtp_user = str_replace('%u', $rcube->get_user_name(), $CONFIG['smtp_user']);
+    $smtp_pass = str_replace('%p', $rcube->get_user_password(), $CONFIG['smtp_pass']);
     $smtp_auth_type = empty($CONFIG['smtp_auth_type']) ? NULL : $CONFIG['smtp_auth_type'];
 
     if (!empty($CONFIG['smtp_auth_cid'])) {

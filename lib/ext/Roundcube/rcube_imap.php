@@ -25,10 +25,10 @@
 /**
  * Interface class for accessing an IMAP server
  *
- * @package    Mail
+ * @package    Framework
+ * @subpackage Storage
  * @author     Thomas Bruederli <roundcube@gmail.com>
  * @author     Aleksander Machniak <alec@alec.pl>
- * @version    2.0
  */
 class rcube_imap extends rcube_storage
 {
@@ -141,10 +141,10 @@ class rcube_imap extends rcube_storage
             $this->set_debug(true);
 
             $this->options['ident'] = array(
-                'name' => 'Roundcube Webmail',
-                'version' => RCMAIL_VERSION,
-                'php' => PHP_VERSION,
-                'os' => PHP_OS,
+                'name'    => 'Roundcube',
+                'version' => RCUBE_VERSION,
+                'php'     => PHP_VERSION,
+                'os'      => PHP_OS,
                 'command' => $_SERVER['REQUEST_URI'],
             );
         }
@@ -2048,13 +2048,14 @@ class rcube_imap extends rcube_storage
      * @param  int                $uid    Message UID
      * @param  string             $part   Part number
      * @param  rcube_message_part $o_part Part object created by get_structure()
-     * @param  mixed              $print  True to print the part content
+     * @param  mixed              $print  True to print part, ressource to write part contents in
      * @param  resource           $fp     File pointer to save the message part
      * @param  boolean            $skip_charset_conv Disables charset conversion
+     * @param  int                $max_bytes  Only read this number of bytes
      *
      * @return string Message/part body if not printed
      */
-    public function get_message_part($uid, $part=1, $o_part=NULL, $print=NULL, $fp=NULL, $skip_charset_conv=false)
+    public function get_message_part($uid, $part=1, $o_part=NULL, $print=NULL, $fp=NULL, $skip_charset_conv=false, $max_bytes=0)
     {
         if (!$this->check_connection()) {
             return null;
@@ -2074,7 +2075,7 @@ class rcube_imap extends rcube_storage
 
         if ($o_part && $o_part->size) {
             $body = $this->conn->handlePartBody($this->folder, $uid, true,
-                $part ? $part : 'TEXT', $o_part->encoding, $print, $fp, $o_part->ctype_primary == 'text');
+                $part ? $part : 'TEXT', $o_part->encoding, $print, $fp, $o_part->ctype_primary == 'text', $max_bytes);
         }
 
         if ($fp || $print) {
@@ -2188,10 +2189,10 @@ class rcube_imap extends rcube_storage
             $result = $this->conn->flag($folder, $uids, $flag);
         }
 
-        if ($result) {
+        if ($result && !$skip_cache) {
             // reload message headers if cached
-            // @TODO: update flags instead removing from cache
-            if (!$skip_cache && ($mcache = $this->get_mcache_engine())) {
+            // update flags instead removing from cache
+            if ($mcache = $this->get_mcache_engine()) {
                 $status = strpos($flag, 'UN') !== 0;
                 $mflag  = preg_replace('/^UN/', '', $flag);
                 $mcache->change_flag($folder, $all_mode ? null : explode(',', $uids),
@@ -2203,8 +2204,12 @@ class rcube_imap extends rcube_storage
                 $this->clear_messagecount($folder, 'SEEN');
                 $this->clear_messagecount($folder, 'UNSEEN');
             }
-            else if ($flag == 'DELETED') {
+            else if ($flag == 'DELETED' || $flag == 'UNDELETED') {
                 $this->clear_messagecount($folder, 'DELETED');
+                // remove cached messages
+                if ($this->options['skip_deleted']) {
+                    $this->clear_message_cache($folder, $all_mode ? null : explode(',', $uids));
+                }
             }
         }
 

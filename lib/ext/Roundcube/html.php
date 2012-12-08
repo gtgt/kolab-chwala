@@ -23,7 +23,8 @@
 /**
  * Class for HTML code creation
  *
- * @package HTML
+ * @package    Framework
+ * @subpackage HTML
  */
 class html
 {
@@ -252,9 +253,9 @@ class html
      * @return string HTML code
      * @see html::tag()
      */
-    public static function br()
+    public static function br($attrib = array())
     {
-        return self::tag('br');
+        return self::tag('br', $attrib);
     }
 
     /**
@@ -334,7 +335,7 @@ class html
      */
     public static function quote($str)
     {
-        return @htmlspecialchars($str, ENT_COMPAT, RCMAIL_CHARSET);
+        return @htmlspecialchars($str, ENT_COMPAT, RCUBE_CHARSET);
     }
 }
 

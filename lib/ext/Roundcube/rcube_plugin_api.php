@@ -20,14 +20,15 @@
 */
 
 // location where plugins are loade from
-if (!defined('RCMAIL_PLUGINS_DIR'))
-  define('RCMAIL_PLUGINS_DIR', INSTALL_PATH . 'plugins/');
+if (!defined('RCUBE_PLUGINS_DIR'))
+  define('RCUBE_PLUGINS_DIR', RCUBE_INSTALL_PATH . 'plugins/');
 
 
 /**
  * The plugin loader and global API
  *
- * @package PluginAPI
+ * @package    Framework
+ * @subpackage PluginAPI
  */
 class rcube_plugin_api
 {
@@ -100,7 +101,7 @@ class rcube_plugin_api
    */
   protected function __construct()
   {
-    $this->dir = slashify(RCMAIL_PLUGINS_DIR);
+    $this->dir = slashify(RCUBE_PLUGINS_DIR);
   }
 
 
@@ -327,7 +328,7 @@ class rcube_plugin_api
     if (isset($this->actions[$action])) {
       call_user_func($this->actions[$action]);
     }
-    else {
+    else if (rcube::get_instance()->action != 'refresh') {
       rcube::raise_error(array('code' => 524, 'type' => 'php',
         'file' => __FILE__, 'line' => __LINE__,
         'message' => "No handler found for action $action"), true, true);
@@ -369,6 +370,10 @@ class rcube_plugin_api
    */
   public function register_task($task, $owner)
   {
+    // tasks are irrelevant in framework mode
+    if (!class_exists('rcmail', false))
+      return true;
+
     if ($task != asciiwords($task)) {
       rcube::raise_error(array('code' => 526, 'type' => 'php',
         'file' => __FILE__, 'line' => __LINE__,

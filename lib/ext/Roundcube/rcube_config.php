@@ -22,7 +22,8 @@
 /**
  * Configuration class for Roundcube
  *
- * @package Core
+ * @package    Framework
+ * @subpackage Core
  */
 class rcube_config
 {
@@ -43,6 +44,8 @@ class rcube_config
         'mail_pagesize'        => 'pagesize',
         'addressbook_pagesize' => 'pagesize',
         'reply_mode'           => 'top_posting',
+        'refresh_interval'     => 'keep_alive',
+        'min_refresh_interval' => 'min_keep_alive',
     );
 
 
@@ -68,11 +71,11 @@ class rcube_config
     private function load()
     {
         // load main config file
-        if (!$this->load_from_file(RCMAIL_CONFIG_DIR . '/main.inc.php'))
+        if (!$this->load_from_file(RCUBE_CONFIG_DIR . 'main.inc.php'))
             $this->errors[] = 'main.inc.php was not found.';
 
         // load database config
-        if (!$this->load_from_file(RCMAIL_CONFIG_DIR . '/db.inc.php'))
+        if (!$this->load_from_file(RCUBE_CONFIG_DIR . 'db.inc.php'))
             $this->errors[] = 'db.inc.php was not found.';
 
         // load host-specific configuration
@@ -93,16 +96,16 @@ class rcube_config
             $this->prop['skin'] = self::DEFAULT_SKIN;
 
         // fix paths
-        $this->prop['log_dir'] = $this->prop['log_dir'] ? realpath(unslashify($this->prop['log_dir'])) : INSTALL_PATH . 'logs';
-        $this->prop['temp_dir'] = $this->prop['temp_dir'] ? realpath(unslashify($this->prop['temp_dir'])) : INSTALL_PATH . 'temp';
+        $this->prop['log_dir'] = $this->prop['log_dir'] ? realpath(unslashify($this->prop['log_dir'])) : RCUBE_INSTALL_PATH . 'logs';
+        $this->prop['temp_dir'] = $this->prop['temp_dir'] ? realpath(unslashify($this->prop['temp_dir'])) : RCUBE_INSTALL_PATH . 'temp';
 
         // fix default imap folders encoding
         foreach (array('drafts_mbox', 'junk_mbox', 'sent_mbox', 'trash_mbox') as $folder)
-            $this->prop[$folder] = rcube_charset::convert($this->prop[$folder], RCMAIL_CHARSET, 'UTF7-IMAP');
+            $this->prop[$folder] = rcube_charset::convert($this->prop[$folder], RCUBE_CHARSET, 'UTF7-IMAP');
 
         if (!empty($this->prop['default_folders']))
             foreach ($this->prop['default_folders'] as $n => $folder)
-                $this->prop['default_folders'][$n] = rcube_charset::convert($folder, RCMAIL_CHARSET, 'UTF7-IMAP');
+                $this->prop['default_folders'][$n] = rcube_charset::convert($folder, RCUBE_CHARSET, 'UTF7-IMAP');
 
         // set PHP error logging according to config
         if ($this->prop['debug_level'] & 1) {
@@ -153,7 +156,7 @@ class rcube_config
         }
 
         if ($fname) {
-            $this->load_from_file(RCMAIL_CONFIG_DIR . '/' . $fname);
+            $this->load_from_file(RCUBE_CONFIG_DIR . $fname);
         }
     }
 
@@ -204,8 +207,15 @@ class rcube_config
 
         $rcube = rcube::get_instance();
 
-        if ($name == 'timezone' && isset($this->prop['_timezone_value']))
+        if ($name == 'timezone' && isset($this->prop['_timezone_value'])) {
             $result = $this->prop['_timezone_value'];
+        }
+        else if ($name == 'client_mimetypes') {
+            if ($result == null && $def == null)
+                $result = 'text/plain,text/html,text/xml,image/jpeg,image/gif,image/png,image/bmp,image/tiff,application/x-javascript,application/pdf,application/x-shockwave-flash';
+            if ($result && is_string($result))
+                $result = explode(',', $result);
+        }
 
         $plugin = $rcube->plugins->exec_hook('config_get', array(
             'name' => $name, 'default' => $def, 'result' => $result));
@@ -412,7 +422,20 @@ class rcube_config
      */
     private function client_timezone()
     {
-        return isset($_SESSION['timezone']) && ($ctz = timezone_name_from_abbr("", $_SESSION['timezone'] * 3600, 0)) ? $ctz : date_default_timezone_get();
+        if (isset($_SESSION['timezone']) && is_numeric($_SESSION['timezone'])
+              && ($ctz = timezone_name_from_abbr("", $_SESSION['timezone'] * 3600, 0))) {
+            return $ctz;
+        }
+        else if (!empty($_SESSION['timezone'])) {
+            try {
+                $tz = timezone_open($_SESSION['timezone']);
+                return $tz->getName();
+            }
+            catch (Exception $e) { /* gracefully ignore */ }
+        }
+
+        // fallback to server's timezone
+        return date_default_timezone_get();
     }
 
 }

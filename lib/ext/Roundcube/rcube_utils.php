@@ -24,7 +24,8 @@
 /**
  * Utility class providing common functions
  *
- * @package Core
+ * @package    Framework
+ * @subpackage Utils
  */
 class rcube_utils
 {
@@ -133,12 +134,12 @@ class rcube_utils
             }
 
             // find MX record(s)
-            if (getmxrr($domain_part, $mx_records)) {
+            if (!function_exists('getmxrr') || getmxrr($domain_part, $mx_records)) {
                 return true;
             }
 
             // find any DNS record
-            if (checkdnsrr($domain_part, 'ANY')) {
+            if (!function_exists('checkdnsrr') || checkdnsrr($domain_part, 'ANY')) {
                 return true;
             }
         }
@@ -433,59 +434,6 @@ class rcube_utils
 
 
     /**
-     * Create an edit field for inclusion on a form
-     *
-     * @param string col field name
-     * @param string value field value
-     * @param array attrib HTML element attributes for field
-     * @param string type HTML element type (default 'text')
-     *
-     * @return string HTML field definition
-     */
-    public static function get_edit_field($col, $value, $attrib, $type = 'text')
-    {
-        static $colcounts = array();
-
-        $fname = '_'.$col;
-        $attrib['name']  = $fname . ($attrib['array'] ? '[]' : '');
-        $attrib['class'] = trim($attrib['class'] . ' ff_' . $col);
-
-        if ($type == 'checkbox') {
-            $attrib['value'] = '1';
-            $input = new html_checkbox($attrib);
-        }
-        else if ($type == 'textarea') {
-            $attrib['cols'] = $attrib['size'];
-            $input = new html_textarea($attrib);
-        }
-        else if ($type == 'select') {
-            $input = new html_select($attrib);
-            $input->add('---', '');
-            $input->add(array_values($attrib['options']), array_keys($attrib['options']));
-        }
-        else if ($attrib['type'] == 'password') {
-            $input = new html_passwordfield($attrib);
-        }
-        else {
-            if ($attrib['type'] != 'text' && $attrib['type'] != 'hidden') {
-                $attrib['type'] = 'text';
-            }
-            $input = new html_inputfield($attrib);
-        }
-
-        // use value from post
-        if (isset($_POST[$fname])) {
-            $postvalue = self::get_input_value($fname, self::INPUT_POST, true);
-            $value = $attrib['array'] ? $postvalue[intval($colcounts[$col]++)] : $postvalue;
-        }
-
-        $out = $input->show($value);
-
-        return $out;
-    }
-
-
-    /**
      * Replace all css definitions with #container [def]
      * and remove css-inlined scripting
      *
@@ -761,7 +709,7 @@ class rcube_utils
             }
         }
 
-        $result[] = substr($string, $p);
+        $result[] = (string) substr($string, $p);
 
         return $result;
     }
@@ -880,6 +828,97 @@ class rcube_utils
         }
 
         return $as_array ? $arr : join(" ", $arr);
+    }
+
+    /**
+     * Parse commandline arguments into a hash array
+     *
+     * @param array $aliases Argument alias names
+     *
+     * @return array Argument values hash
+     */
+    public static function get_opt($aliases = array())
+    {
+        $args = array();
+
+        for ($i=1; $i < count($_SERVER['argv']); $i++) {
+            $arg   = $_SERVER['argv'][$i];
+            $value = true;
+            $key   = null;
+
+            if ($arg[0] == '-') {
+                $key = preg_replace('/^-+/', '', $arg);
+                $sp  = strpos($arg, '=');
+                if ($sp > 0) {
+                    $key   = substr($key, 0, $sp - 2);
+                    $value = substr($arg, $sp+1);
+                }
+                else if (strlen($_SERVER['argv'][$i+1]) && $_SERVER['argv'][$i+1][0] != '-') {
+                    $value = $_SERVER['argv'][++$i];
+                }
+
+                $args[$key] = is_string($value) ? preg_replace(array('/^["\']/', '/["\']$/'), '', $value) : $value;
+            }
+            else {
+                $args[] = $arg;
+            }
+
+            if ($alias = $aliases[$key]) {
+                $args[$alias] = $args[$key];
+            }
+        }
+
+        return $args;
+    }
+
+    /**
+     * Safe password prompt for command line
+     * from http://blogs.sitepoint.com/2009/05/01/interactive-cli-password-prompt-in-php/
+     *
+     * @return string Password
+     */
+    public static function prompt_silent($prompt = "Password:")
+    {
+        if (preg_match('/^win/i', PHP_OS)) {
+            $vbscript  = sys_get_temp_dir() . 'prompt_password.vbs';
+            $vbcontent = 'wscript.echo(InputBox("' . addslashes($prompt) . '", "", "password here"))';
+            file_put_contents($vbscript, $vbcontent);
+
+            $command  = "cscript //nologo " . escapeshellarg($vbscript);
+            $password = rtrim(shell_exec($command));
+            unlink($vbscript);
+
+            return $password;
+        }
+        else {
+            $command = "/usr/bin/env bash -c 'echo OK'";
+            if (rtrim(shell_exec($command)) !== 'OK') {
+                echo $prompt;
+                $pass = trim(fgets(STDIN));
+                echo chr(8)."\r" . $prompt . str_repeat("*", strlen($pass))."\n";
+                return $pass;
+            }
+
+            $command = "/usr/bin/env bash -c 'read -s -p \"" . addslashes($prompt) . "\" mypassword && echo \$mypassword'";
+            $password = rtrim(shell_exec($command));
+            echo "\n";
+            return $password;
+        }
+    }
+
+
+    /**
+     * Find out if the string content means true or false
+     *
+     * @param string $str Input value
+     *
+     * @return boolean Boolean value
+     */
+    public static function get_boolean($str)
+    {
+        $str = strtolower($str);
+
+        return !in_array($str, array('false', '0', 'no', 'off', 'nein', ''), true);
     }
 
 }

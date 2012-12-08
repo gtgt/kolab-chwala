@@ -1,7 +1,5 @@
 <?php
 
-define('RCMAIL_PLUGINS_DIR', INSTALL_PATH . '/lib/kolab/plugins');
-
 class kolab_file_storage implements file_storage
 {
     /**
@@ -20,7 +18,7 @@ class kolab_file_storage implements file_storage
      */
     public function __construct()
     {
-        $include_path = INSTALL_PATH . '/lib/kolab' . PATH_SEPARATOR;
+        $include_path = RCUBE_INSTALL_PATH . '/lib/kolab' . PATH_SEPARATOR;
         $include_path .= ini_get('include_path');
         set_include_path($include_path);
 
@@ -209,7 +207,7 @@ class kolab_file_storage implements file_storage
             $this->rc->config->set_user_prefs((array)$this->rc->user->get_prefs());
 
             $storage = $this->rc->get_storage();
-            $storage->set_charset($this->rc->config->get('default_charset', RCMAIL_CHARSET));
+            $storage->set_charset($this->rc->config->get('default_charset', RCUBE_CHARSET));
 
             setlocale(LC_ALL, 'en_US.utf8', 'en_US.UTF-8');
         }
@@ -430,7 +428,7 @@ class kolab_file_storage implements file_storage
      */
     public function folder_create($folder_name)
     {
-        $folder_name = rcube_charset::convert($folder_name, RCMAIL_CHARSET, 'UTF7-IMAP');
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
         $success     = kolab_storage::folder_create($folder_name, 'file');
 
         if (!$success) {
@@ -447,7 +445,7 @@ class kolab_file_storage implements file_storage
      */
     public function folder_delete($folder_name)
     {
-        $folder_name = rcube_charset::convert($folder_name, RCMAIL_CHARSET, 'UTF7-IMAP');
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
         $success     = kolab_storage::folder_delete($folder_name);
 
         if (!$success) {
@@ -465,8 +463,8 @@ class kolab_file_storage implements file_storage
      */
     public function folder_rename($folder_name, $new_name)
     {
-        $folder_name = rcube_charset::convert($folder_name, RCMAIL_CHARSET, 'UTF7-IMAP');
-        $new_name    = rcube_charset::convert($new_name, RCMAIL_CHARSET, 'UTF7-IMAP');
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+        $new_name    = rcube_charset::convert($new_name, RCUBE_CHARSET, 'UTF7-IMAP');
         $success     = kolab_storage::folder_rename($folder_name, $new_name);
 
         if (!$success) {
@@ -490,7 +488,7 @@ class kolab_file_storage implements file_storage
         }
 
         foreach ($folders as $folder) {
-            $folder = rcube_charset::convert($folder_name, 'UTF7-IMAP', RCMAIL_CHARSET);
+            $folder = rcube_charset::convert($folder_name, 'UTF7-IMAP', RCUBE_CHARSET);
         }
 
         return $folders;
@@ -528,7 +526,7 @@ class kolab_file_storage implements file_storage
     protected function get_folder_object($folder_name)
     {
         if (empty($this->folders[$folder_name])) {
-            $imap_name = rcube_charset::convert($folder_name, RCMAIL_CHARSET, 'UTF7-IMAP');
+            $imap_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
             $folder    = kolab_storage::get_folder($imap_name);
 
             if (!$folder) {

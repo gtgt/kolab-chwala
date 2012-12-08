@@ -23,8 +23,9 @@
 /**
  * Struct representing an e-mail message header
  *
- * @package Mail
- * @author  Aleksander Machniak <alec@alec.pl>
+ * @package    Framework
+ * @subpackage Storage
+ * @author     Aleksander Machniak <alec@alec.pl>
  */
 class rcube_message_header
 {
@@ -194,6 +195,7 @@ class rcube_message_header
         'content-transfer-encoding' => 'encoding',
         'in-reply-to'               => 'in_reply_to',
         'content-type'              => 'ctype',
+        'charset'                   => 'charset',
         'references'                => 'references',
         'return-receipt-to'         => 'mdn_to',
         'disposition-notification-to' => 'mdn_to',

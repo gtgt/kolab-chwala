@@ -5,7 +5,7 @@
  | program/include/rcube_user.inc                                        |
  |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
- | Copyright (C) 2005-2010, The Roundcube Dev Team                       |
+ | Copyright (C) 2005-2012, The Roundcube Dev Team                       |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
@@ -17,6 +17,7 @@
  |                                                                       |
  +-----------------------------------------------------------------------+
  | Author: Thomas Bruederli <roundcube@gmail.com>                        |
+ | Author: Aleksander Machniak <alec@alec.pl>                            |
  +-----------------------------------------------------------------------+
 */
 
@@ -24,8 +25,8 @@
 /**
  * Class representing a system user
  *
- * @package    Core
- * @author     Thomas Bruederli <roundcube@gmail.com>
+ * @package    Framework
+ * @subpackage Core
  */
 class rcube_user
 {
@@ -85,12 +86,17 @@ class rcube_user
     /**
      * Build a user name string (as e-mail address)
      *
-     * @param  string $part Username part (empty or 'local' or 'domain')
+     * @param  string $part Username part (empty or 'local' or 'domain', 'mail')
      * @return string Full user name or its part
      */
     function get_username($part = null)
     {
         if ($this->data['username']) {
+            // return real name
+            if (!$part) {
+                return $this->data['username'];
+            }
+
             list($local, $domain) = explode('@', $this->data['username']);
 
             // at least we should always have the local part
@@ -170,7 +176,7 @@ class rcube_user
 
         // don't save prefs with default values if they haven't been changed yet
         foreach ($a_user_prefs as $key => $value) {
-            if (!isset($old_prefs[$key]) && ($value == $config->get($key)))
+            if ($value === null || (!isset($old_prefs[$key]) && ($value == $config->get($key))))
                 unset($save_prefs[$key]);
         }
 
@@ -234,10 +240,12 @@ class rcube_user
     /**
      * Return a list of all identities linked with this user
      *
-     * @param string $sql_add Optional WHERE clauses
+     * @param string $sql_add   Optional WHERE clauses
+     * @param bool   $formatted Format identity email and name
+     *
      * @return array List of identities
      */
-    function list_identities($sql_add = '')
+    function list_identities($sql_add = '', $formatted = false)
     {
         $result = array();
 
@@ -249,6 +257,15 @@ class rcube_user
             $this->ID);
 
         while ($sql_arr = $this->db->fetch_assoc($sql_result)) {
+            if ($formatted) {
+                $ascii_email = format_email($sql_arr['email']);
+                $utf8_email  = format_email(rcube_utils::idn_to_utf8($ascii_email));
+
+                $sql_arr['email_ascii'] = $ascii_email;
+                $sql_arr['email']       = $utf8_email;
+                $sql_arr['ident']       = format_email_recipient($ascii_email, $sql_arr['name']);
+            }
+
             $result[] = $sql_arr;
         }
 

@@ -5,7 +5,7 @@
  | program/include/rcube_string_replacer.php                             |
  |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
- | Copyright (C) 2009, The Roundcube Dev Team                            |
+ | Copyright (C) 2009-2012, The Roundcube Dev Team                       |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
@@ -23,7 +23,8 @@
 /**
  * Helper class for string replacements based on preg_replace_callback
  *
- * @package Core
+ * @package    Framework
+ * @subpackage Utils
  */
 class rcube_string_replacer
 {
@@ -95,7 +96,7 @@ class rcube_string_replacer
       $i = $this->add($prefix . html::a(array(
           'href' => $url_prefix . $url,
           'target' => '_blank'
-        ), rcmail::Q($url)) . $suffix);
+        ), rcube::Q($url)) . $suffix);
     }
 
     // Return valid link for recognized schemes, otherwise, return the unmodified string for unrecognized schemes.
@@ -112,11 +113,7 @@ class rcube_string_replacer
   {
     $href   = $matches[1];
     $suffix = $this->parse_url_brackets($href);
-
-    $i = $this->add(html::a(array(
-        'href' => 'mailto:' . $href,
-        'onclick' => "return ".rcmail::JS_OBJECT_NAME.".command('compose','".rcmail::JQ($href)."',this)",
-      ), rcmail::Q($href)) . $suffix);
+    $i = $this->add(html::a('mailto:' . $href, rcube::Q($href)) . $suffix);
 
     return $i >= 0 ? $this->get_replacement($i) : '';
   }

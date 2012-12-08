@@ -63,7 +63,6 @@ class kolab_auth extends rcube_plugin
             $rcmail->config->set('smtp_debug', true);
 
         }
-
     }
 
     public function startup($args) {

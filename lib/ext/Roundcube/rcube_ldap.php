@@ -6,7 +6,7 @@
  |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
  | Copyright (C) 2006-2012, The Roundcube Dev Team                       |
- | Copyright (C) 2011, Kolab Systems AG                                  |
+ | Copyright (C) 2011-2012, Kolab Systems AG                             |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
@@ -26,7 +26,8 @@
 /**
  * Model class to access an LDAP address directory
  *
- * @package Addressbook
+ * @package    Framework
+ * @subpackage Addressbook
  */
 class rcube_ldap extends rcube_addressbook
 {
@@ -160,7 +161,8 @@ class rcube_ldap extends rcube_addressbook
         }
 
         // make sure LDAP_rdn field is required
-        if (!empty($this->prop['LDAP_rdn']) && !in_array($this->prop['LDAP_rdn'], $this->prop['required_fields'])) {
+        if (!empty($this->prop['LDAP_rdn']) && !in_array($this->prop['LDAP_rdn'], $this->prop['required_fields'])
+            && !in_array($this->prop['LDAP_rdn'], array_keys((array)$this->prop['autovalues']))) {
             $this->prop['required_fields'][] = $this->prop['LDAP_rdn'];
         }
 
@@ -267,11 +269,11 @@ class rcube_ldap extends rcube_addressbook
         if ($this->prop['user_specific']) {
             // No password set, use the session password
             if (empty($bind_pass)) {
-                $bind_pass = $rcube->decrypt($_SESSION['password']);
+                $bind_pass = $rcube->get_user_password();
             }
 
             // Get the pieces needed for variable replacement.
-            if ($fu = $rcube->get_user_name())
+            if ($fu = $rcube->get_user_email())
                 list($u, $d) = explode('@', $fu);
             else
                 $d = $this->mail_domain;
@@ -1086,6 +1088,9 @@ class rcube_ldap extends rcube_addressbook
         $newentry = $this->_map_data($save_cols);
         $newentry['objectClass'] = $this->prop['LDAP_Object_Classes'];
 
+        // add automatically generated attributes
+        $this->add_autovalues($newentry);
+
         // Verify that the required fields are set.
         $missing = null;
         foreach ($this->prop['required_fields'] as $fld) {
@@ -1389,6 +1394,30 @@ class rcube_ldap extends rcube_addressbook
         }
     }
 
+    /**
+     * Generate missing attributes as configured
+     *
+     * @param array LDAP record attributes
+     */
+    protected function add_autovalues(&$attrs)
+    {
+        $attrvals = array();
+        foreach ($attrs as $k => $v) {
+            $attrvals['{'.$k.'}'] = is_array($v) ? $v[0] : $v;
+        }
+
+        foreach ((array)$this->prop['autovalues'] as $lf => $templ) {
+            if (empty($attrs[$lf])) {
+                // replace {attr} placeholders with concrete attribute values
+                $templ = preg_replace('/\{\w+\}/', '', strtr($templ, $attrvals));
+
+                if (strpos($templ, '(') !== false)
+                    $attrs[$lf] = eval("return ($templ);");
+                else
+                    $attrs[$lf] = $templ;
+            }
+        }
+    }
 
     /**
      * Execute the LDAP search based on the stored credentials

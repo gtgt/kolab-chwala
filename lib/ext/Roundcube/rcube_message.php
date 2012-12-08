@@ -24,7 +24,8 @@
  * Logical representation of a mail message with all its data
  * and related functions
  *
- * @package    Mail
+ * @package    Framework
+ * @subpackage Storage
  * @author     Thomas Bruederli <roundcube@gmail.com>
  */
 class rcube_message
@@ -172,10 +173,11 @@ class rcube_message
      * @param string   $mime_id           Part MIME-ID
      * @param resource $fp File           pointer to save the message part
      * @param boolean  $skip_charset_conv Disables charset conversion
+     * @param int      $max_bytes         Only read this number of bytes
      *
      * @return string Part content
      */
-    public function get_part_content($mime_id, $fp = null, $skip_charset_conv = false)
+    public function get_part_content($mime_id, $fp = null, $skip_charset_conv = false, $max_bytes = 0)
     {
         if ($part = $this->mime_parts[$mime_id]) {
             // stored in message structure (winmail/inline-uuencode)
@@ -189,7 +191,7 @@ class rcube_message
             // get from IMAP
             $this->storage->set_folder($this->folder);
 
-            return $this->storage->get_message_part($this->uid, $mime_id, $part, NULL, $fp, $skip_charset_conv);
+            return $this->storage->get_message_part($this->uid, $mime_id, $part, NULL, $fp, $skip_charset_conv, $max_bytes);
         }
     }
 
@@ -198,38 +200,29 @@ class rcube_message
      * Determine if the message contains a HTML part
      *
      * @param bool $recursive Enables checking in all levels of the structure
+     * @param bool $enriched  Enables checking for text/enriched parts too
      *
      * @return bool True if a HTML is available, False if not
      */
-    function has_html_part($recursive = true)
+    function has_html_part($recursive = true, $enriched = false)
     {
         // check all message parts
         foreach ($this->parts as $part) {
-            if ($part->mimetype == 'text/html') {
+            if ($part->mimetype == 'text/html' || ($enriched && $part->mimetype == 'text/enriched')) {
                 // Level check, we'll skip e.g. HTML attachments
                 if (!$recursive) {
                     $level = explode('.', $part->mime_id);
 
-                    // Level too high
-                    if (count($level) > 2) {
+                    // Skip if level too deep or part has a file name
+                    if (count($level) > 2 || $part->filename) {
                         continue;
                     }
 
                     // HTML part can be on the lower level, if not...
                     if (count($level) > 1) {
-                        // It can be an alternative or related message part
-                        // find parent part
-                        $parent = null;
-                        foreach ($this->mime_parts as $part) {
-                            if ($part->mime_id == $level[0]) {
-                                $parent = $part;
-                            }
-                        }
-
-                        if (!$parent) {
-                            continue;
-                        }
-
+                        array_pop($level);
+                        $parent = $this->mime_parts[join('.', $level)];
+                        // ... parent isn't multipart/alternative or related
                         if ($parent->mimetype != 'multipart/alternative' && $parent->mimetype != 'multipart/related') {
                             continue;
                         }
@@ -279,10 +272,6 @@ class rcube_message
             }
             else if ($part->mimetype == 'text/html') {
                 $out = $this->get_part_content($mime_id);
-
-                // remove special chars encoding
-                $trans = array_flip(get_html_translation_table(HTML_ENTITIES));
-                $out = strtr($out, $trans);
 
                 // create instance of html2text class
                 $txt = new html2text($out);
@@ -493,7 +482,7 @@ class rcube_message
                     if ($plugin['abort'])
                         continue;
 
-                    if ($part_mimetype == 'text/html') {
+                    if ($part_mimetype == 'text/html' && $mail_part->size) {
                         $got_html_part = true;
                     }
 

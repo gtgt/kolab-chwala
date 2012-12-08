@@ -5,7 +5,7 @@
  | program/include/rcube_vcard.php                                       |
  |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
- | Copyright (C) 2008-2011, The Roundcube Dev Team                       |
+ | Copyright (C) 2008-2012, The Roundcube Dev Team                       |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
@@ -15,6 +15,7 @@
  |   Logical representation of a vcard address record                    |
  +-----------------------------------------------------------------------+
  | Author: Thomas Bruederli <roundcube@gmail.com>                        |
+ | Author: Aleksander Machniak <alec@alec.pl>                            |
  +-----------------------------------------------------------------------+
 */
 
@@ -23,8 +24,8 @@
  * Logical representation of a vcard-based address record
  * Provides functions to parse and export vCard data format
  *
- * @package    Addressbook
- * @author     Thomas Bruederli <roundcube@gmail.com>
+ * @package    Framework
+ * @subpackage Addressbook
  */
 class rcube_vcard
 {
@@ -51,7 +52,7 @@ class rcube_vcard
     'edit'        => 'X-AB-EDIT',
   );
   private $typemap = array('IPHONE' => 'mobile', 'CELL' => 'mobile', 'WORK,FAX' => 'workfax');
-  private $phonetypemap = array('HOME1' => 'HOME', 'BUSINESS1' => 'WORK', 'BUSINESS2' => 'WORK2', 'BUSINESSFAX' => 'WORK,FAX');
+  private $phonetypemap = array('HOME1' => 'HOME', 'BUSINESS1' => 'WORK', 'BUSINESS2' => 'WORK2', 'BUSINESSFAX' => 'WORK,FAX', 'MOBILE' => 'CELL');
   private $addresstypemap = array('BUSINESS' => 'WORK');
   private $immap = array('X-JABBER' => 'jabber', 'X-ICQ' => 'icq', 'X-MSN' => 'msn', 'X-AIM' => 'aim', 'X-YAHOO' => 'yahoo', 'X-SKYPE' => 'skype', 'X-SKYPE-USERNAME' => 'skype');
 
@@ -62,7 +63,6 @@ class rcube_vcard
   public $middlename;
   public $nickname;
   public $organization;
-  public $notes;
   public $email = array();
 
   public static $eol = "\r\n";
@@ -70,7 +70,7 @@ class rcube_vcard
   /**
    * Constructor
    */
-  public function __construct($vcard = null, $charset = RCMAIL_CHARSET, $detect = false, $fieldmap = array())
+  public function __construct($vcard = null, $charset = RCUBE_CHARSET, $detect = false, $fieldmap = array())
   {
     if (!empty($fielmap))
       $this->extend_fieldmap($fieldmap);
@@ -87,7 +87,7 @@ class rcube_vcard
    * @param string Charset of string values
    * @param boolean True if loading a 'foreign' vcard and extra heuristics for charset detection is required
    */
-  public function load($vcard, $charset = RCMAIL_CHARSET, $detect = false)
+  public function load($vcard, $charset = RCUBE_CHARSET, $detect = false)
   {
     self::$values_decoded = false;
     $this->raw = self::vcard_decode($vcard);
@@ -98,10 +98,10 @@ class rcube_vcard
     }
     // vcard has encoded values and charset should be detected
     else if ($detect && self::$values_decoded &&
-      ($detected_charset = self::detect_encoding(self::vcard_encode($this->raw))) && $detected_charset != RCMAIL_CHARSET) {
+      ($detected_charset = self::detect_encoding(self::vcard_encode($this->raw))) && $detected_charset != RCUBE_CHARSET) {
         $this->raw = self::charset_convert($this->raw, $detected_charset);
     }
-    
+
     // consider FN empty if the same as the primary e-mail address
     if ($this->raw['FN'][0][0] == $this->raw['EMAIL'][0][0])
       $this->raw['FN'][0][0] = '';
@@ -265,26 +265,25 @@ class rcube_vcard
    */
   public function set($field, $value, $type = 'HOME')
   {
-    $field = strtolower($field);
+    $field   = strtolower($field);
     $type_uc = strtoupper($type);
-    $typemap = array_flip($this->typemap);
 
     switch ($field) {
       case 'name':
       case 'displayname':
-        $this->raw['FN'][0][0] = $value;
+        $this->raw['FN'][0][0] = $this->displayname = $value;
         break;
 
       case 'surname':
-        $this->raw['N'][0][0] = $value;
+        $this->raw['N'][0][0] = $this->surname = $value;
         break;
 
       case 'firstname':
-        $this->raw['N'][0][1] = $value;
+        $this->raw['N'][0][1] = $this->firstname = $value;
         break;
 
       case 'middlename':
-        $this->raw['N'][0][2] = $value;
+        $this->raw['N'][0][2] = $this->middlename = $value;
         break;
 
       case 'prefix':
@@ -296,11 +295,11 @@ class rcube_vcard
         break;
 
       case 'nickname':
-        $this->raw['NICKNAME'][0][0] = $value;
+        $this->raw['NICKNAME'][0][0] = $this->nickname = $value;
         break;
 
       case 'organization':
-        $this->raw['ORG'][0][0] = $value;
+        $this->raw['ORG'][0][0] = $this->organization = $value;
         break;
 
       case 'photo':
@@ -348,8 +347,10 @@ class rcube_vcard
         if (($tag = self::$fieldmap[$field]) && (is_array($value) || strlen($value))) {
           $index = count($this->raw[$tag]);
           $this->raw[$tag][$index] = (array)$value;
-          if ($type)
+          if ($type) {
+            $typemap = array_flip($this->typemap);
             $this->raw[$tag][$index]['type'] = explode(',', ($typemap[$type_uc] ? $typemap[$type_uc] : $type));
+          }
         }
         break;
     }
@@ -435,10 +436,10 @@ class rcube_vcard
     if (preg_match('/charset=/i', substr($data, 0, 2048)))
       $charset = null;
     // detect charset and convert to utf-8
-    else if (($charset = self::detect_encoding($data)) && $charset != RCMAIL_CHARSET) {
+    else if (($charset = self::detect_encoding($data)) && $charset != RCUBE_CHARSET) {
       $data = rcube_charset::convert($data, $charset);
       $data = preg_replace(array('/^[\xFE\xFF]{2}/', '/^\xEF\xBB\xBF/', '/^\x00+/'), '', $data); // also remove BOM
-      $charset = RCMAIL_CHARSET;
+      $charset = RCUBE_CHARSET;
     }
 
     $vcard_block = '';
@@ -784,42 +785,9 @@ class rcube_vcard
    */
   private static function detect_encoding($string)
   {
-    if (substr($string, 0, 4) == "\0\0\xFE\xFF") return 'UTF-32BE';  // Big Endian
-    if (substr($string, 0, 4) == "\xFF\xFE\0\0") return 'UTF-32LE';  // Little Endian
-    if (substr($string, 0, 2) == "\xFE\xFF")     return 'UTF-16BE';  // Big Endian
-    if (substr($string, 0, 2) == "\xFF\xFE")     return 'UTF-16LE';  // Little Endian
-    if (substr($string, 0, 3) == "\xEF\xBB\xBF") return 'UTF-8';
+    $fallback = rcube::get_instance()->config->get('default_charset', 'ISO-8859-1'); // fallback to Latin-1
 
-    // heuristics
-    if ($string[0] == "\0" && $string[1] == "\0" && $string[2] == "\0" && $string[3] != "\0") return 'UTF-32BE';
-    if ($string[0] != "\0" && $string[1] == "\0" && $string[2] == "\0" && $string[3] == "\0") return 'UTF-32LE';
-    if ($string[0] == "\0" && $string[1] != "\0" && $string[2] == "\0" && $string[3] != "\0") return 'UTF-16BE';
-    if ($string[0] != "\0" && $string[1] == "\0" && $string[2] != "\0" && $string[3] == "\0") return 'UTF-16LE';
-
-    // use mb_detect_encoding()
-    $encodings = array('UTF-8', 'ISO-8859-1', 'ISO-8859-2', 'ISO-8859-3',
-      'ISO-8859-4', 'ISO-8859-5', 'ISO-8859-6', 'ISO-8859-7', 'ISO-8859-8', 'ISO-8859-9',
-      'ISO-8859-10', 'ISO-8859-13', 'ISO-8859-14', 'ISO-8859-15', 'ISO-8859-16',
-      'WINDOWS-1252', 'WINDOWS-1251', 'BIG5', 'GB2312');
-
-    if (function_exists('mb_detect_encoding') && ($enc = mb_detect_encoding($string, $encodings)))
-      return $enc;
-
-    // No match, check for UTF-8
-    // from http://w3.org/International/questions/qa-forms-utf-8.html
-    if (preg_match('/\A(
-        [\x09\x0A\x0D\x20-\x7E]
-        | [\xC2-\xDF][\x80-\xBF]
-        | \xE0[\xA0-\xBF][\x80-\xBF]
-        | [\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}
-        | \xED[\x80-\x9F][\x80-\xBF]
-        | \xF0[\x90-\xBF][\x80-\xBF]{2}
-        | [\xF1-\xF3][\x80-\xBF]{3}
-        | \xF4[\x80-\x8F][\x80-\xBF]{2}
-        )*\z/xs', substr($string, 0, 2048)))
-      return 'UTF-8';
-
-    return rcube::get_instance()->config->get('default_charset', 'ISO-8859-1'); # fallback to Latin-1
+    return rcube_charset::detect($string, $fallback);
   }
 
 }

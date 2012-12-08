@@ -56,6 +56,7 @@ class file_ui_api
      */
     public function init()
     {
+        require_once 'HTTP/Request2.php';
         $this->request = new HTTP_Request2();
         self::configure($this->request);
     }

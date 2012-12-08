@@ -36,7 +36,7 @@ class rcube
     /**
      * Singleton instace of rcube
      *
-     * @var rcmail
+     * @var rcube
      */
     static protected $instance;
 
@@ -379,7 +379,7 @@ class rcube
     {
         $storage = $this->get_storage();
 
-        $storage->set_charset($this->config->get('default_charset', RCMAIL_CHARSET));
+        $storage->set_charset($this->config->get('default_charset', RCUBE_CHARSET));
 
         if ($default_folders = $this->config->get('default_folders')) {
             $storage->set_default_folders($default_folders);
@@ -434,37 +434,13 @@ class rcube
         $this->session->register_gc_handler(array($this, 'temp_gc'));
         $this->session->register_gc_handler(array($this, 'cache_gc'));
 
+        $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
+        $this->session->set_ip_check($this->config->get('ip_check'));
+
         // start PHP session (if not in CLI mode)
         if ($_SERVER['REMOTE_ADDR']) {
             session_start();
         }
-    }
-
-
-    /**
-     * Configure session object internals
-     */
-    public function session_configure()
-    {
-        if (!$this->session) {
-            return;
-        }
-
-        $lifetime   = $this->config->get('session_lifetime', 0) * 60;
-        $keep_alive = $this->config->get('keep_alive');
-
-        // set keep-alive/check-recent interval
-        if ($keep_alive) {
-            // be sure that it's less than session lifetime
-            if ($lifetime) {
-                $keep_alive = min($keep_alive, $lifetime - 30);
-            }
-            $keep_alive = max(60, $keep_alive);
-            $this->session->set_keep_alive($keep_alive);
-        }
-
-        $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
-        $this->session->set_ip_check($this->config->get('ip_check'));
     }
 
 
@@ -620,8 +596,8 @@ class rcube
             ob_start();
 
             // get english labels (these should be complete)
-            @include(INSTALL_PATH . 'program/localization/en_US/labels.inc');
-            @include(INSTALL_PATH . 'program/localization/en_US/messages.inc');
+            @include(RCUBE_LOCALIZATION_DIR . 'en_US/labels.inc');
+            @include(RCUBE_LOCALIZATION_DIR . 'en_US/messages.inc');
 
             if (is_array($labels))
                 $this->texts = $labels;
@@ -629,9 +605,9 @@ class rcube
                 $this->texts = array_merge($this->texts, $messages);
 
             // include user language files
-            if ($lang != 'en' && $lang != 'en_US' && is_dir(INSTALL_PATH . 'program/localization/' . $lang)) {
-                include_once(INSTALL_PATH . 'program/localization/' . $lang . '/labels.inc');
-                include_once(INSTALL_PATH . 'program/localization/' . $lang . '/messages.inc');
+            if ($lang != 'en' && $lang != 'en_US' && is_dir(RCUBE_LOCALIZATION_DIR . $lang)) {
+                include_once(RCUBE_LOCALIZATION_DIR . $lang . '/labels.inc');
+                include_once(RCUBE_LOCALIZATION_DIR . $lang . '/messages.inc');
 
                 if (is_array($labels))
                     $this->texts = array_merge($this->texts, $labels);
@@ -669,7 +645,7 @@ class rcube
         }
 
         if (empty($rcube_languages)) {
-            @include(INSTALL_PATH . 'program/localization/index.inc');
+            @include(RCUBE_LOCALIZATION_DIR . 'index.inc');
         }
 
         // check if we have an alias for that language
@@ -690,7 +666,7 @@ class rcube
             }
         }
 
-        if (!isset($rcube_languages[$lang]) || !is_dir(INSTALL_PATH . 'program/localization/' . $lang)) {
+        if (!isset($rcube_languages[$lang]) || !is_dir(RCUBE_LOCALIZATION_DIR . $lang)) {
             $lang = 'en_US';
         }
 
@@ -708,11 +684,11 @@ class rcube
         static $sa_languages = array();
 
         if (!sizeof($sa_languages)) {
-            @include(INSTALL_PATH . 'program/localization/index.inc');
+            @include(RCUBE_LOCALIZATION_DIR . 'index.inc');
 
-            if ($dh = @opendir(INSTALL_PATH . 'program/localization')) {
+            if ($dh = @opendir(RCUBE_LOCALIZATION_DIR)) {
                 while (($name = readdir($dh)) !== false) {
-                    if ($name[0] == '.' || !is_dir(INSTALL_PATH . 'program/localization/' . $name)) {
+                    if ($name[0] == '.' || !is_dir(RCUBE_LOCALIZATION_DIR . $name)) {
                         continue;
                     }
 
@@ -918,6 +894,30 @@ class rcube
 
 
     /**
+     * Quote a given string.
+     * Shortcut function for rcube_utils::rep_specialchars_output()
+     *
+     * @return string HTML-quoted string
+     */
+    public static function Q($str, $mode = 'strict', $newlines = true)
+    {
+        return rcube_utils::rep_specialchars_output($str, 'html', $mode, $newlines);
+    }
+
+
+    /**
+     * Quote a given string for javascript output.
+     * Shortcut function for rcube_utils::rep_specialchars_output()
+     *
+     * @return string JS-quoted string
+     */
+    public static function JQ($str)
+    {
+        return rcube_utils::rep_specialchars_output($str, 'js');
+    }
+
+
+    /**
      * Construct shell command, execute it and return output as string.
      * Keywords {keyword} are replaced with arguments
      *
@@ -1041,7 +1041,7 @@ class rcube
         $log_dir  = self::$instance ? self::$instance->config->get('log_dir') : null;
 
         if (empty($log_dir)) {
-            $log_dir = INSTALL_PATH . 'logs';
+            $log_dir = RCUBE_INSTALL_PATH . 'logs';
         }
 
         // try to open specific log file for writing
@@ -1227,8 +1227,38 @@ class rcube
         if (is_object($this->user)) {
             return $this->user->get_username();
         }
+        else if (isset($_SESSION['username'])) {
+            return $_SESSION['username'];
+        }
+    }
 
-        return null;
+
+    /**
+     * Getter for logged user email (derived from user name not identity).
+     *
+     * @return string User email address
+     */
+    public function get_user_email()
+    {
+        if (is_object($this->user)) {
+            return $this->user->get_username('mail');
+        }
+    }
+
+
+    /**
+     * Getter for logged user password.
+     *
+     * @return string User password
+     */
+    public function get_user_password()
+    {
+        if ($this->password) {
+            return $this->password;
+        }
+        else if ($_SESSION['password']) {
+            return $this->decrypt($_SESSION['password']);
+        }
     }
 }
 

@@ -23,11 +23,10 @@
 
 /**
  * Database independent query interface
- *
  * This is a wrapper for the PHP PDO
  *
- * @package Database
- * @version 1.0
+ * @package    Framework
+ * @subpackage Database
  */
 class rcube_db_sqlite extends rcube_db
 {
@@ -67,7 +66,7 @@ class rcube_db_sqlite extends rcube_db
 
         // Initialize database structure in file is empty
         if (!empty($dsn['database']) && !filesize($dsn['database'])) {
-            $data = file_get_contents(INSTALL_PATH . 'SQL/sqlite.initial.sql');
+            $data = file_get_contents(RCUBE_INSTALL_PATH . 'SQL/sqlite.initial.sql');
 
             if (strlen($data)) {
                 $this->debug('INITIALIZE DATABASE');
