@@ -548,10 +548,11 @@ abstract class rcube_storage
      * @param boolean $is_file True if $message is a filename
      * @param array   $flags   Message flags
      * @param mixed   $date    Message internal date
+     * @param bool    $binary  Enables BINARY append
      *
      * @return int|bool Appended message UID or True on success, False on error
      */
-    abstract function save_message($folder, &$message, $headers = '', $is_file = false, $flags = array(), $date = null);
+    abstract function save_message($folder, &$message, $headers = '', $is_file = false, $flags = array(), $date = null, $binary = false);
 
 
     /**
