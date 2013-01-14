@@ -23,7 +23,6 @@ class kolab_file_storage implements file_storage
         set_include_path($include_path);
 
         $this->rc = rcube::get_instance();
-        $this->init();
 
         // Get list of plugins
         // WARNING: We can use only plugins that are prepared for this
@@ -36,6 +35,8 @@ class kolab_file_storage implements file_storage
         $this->rc->plugins = kolab_file_plugin_api::get_instance();
         $this->rc->plugins->init($this, '');
         $this->rc->plugins->load_plugins($plugins, $required);
+
+        $this->init();
     }
 
     /**
