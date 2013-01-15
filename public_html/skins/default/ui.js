@@ -22,22 +22,27 @@ function file_list_sort(name, elem)
 
 function hack_file_input(id)
 {
-  var link = $('#'+id);
-  var file = $('<input>');
+  var link = $('#'+id),
+    file = $('<input>'),
+    offset = link.offset();
 
-  file.attr({name: 'file[]', type: 'file', multiple: 'multiple'})
+  file.attr({name: 'file[]', type: 'file', multiple: 'multiple', size: 5})
     .change(function() { ui.file_upload(); })
     // opacity:0 does the trick, display/visibility doesn't work
-    .css({opacity: 0, height: link.height(), width: link.width(), cursor: 'pointer'});
+    .css({opacity: 0, cursor: 'pointer', position: 'relative'});
 
-    // cursor:pointer doesn't fit the whole button area in some browsers (webkit, FF)
-    // for webkit we have style definition above
-    // In FF we can move the browser file-input's button to fit our button area
+  // In FF we need to move the browser file-input's button under the cursor
+  // Thanks to the size attribute above we know the length of the input field
   if (navigator.userAgent.indexOf('Firefox') > -1)
-    file.css({marginLeft: '-190px'});
+    file.css({marginLeft: '-75px'});
 
-    // Note: now, I observe problem with cursor style on FF < 4 only
-  link.css({overflow: 'hidden', cursor: 'pointer'}).append(file);
+  // Note: now, I observe problem with cursor style on FF < 4 only
+  link.css({overflow: 'hidden', cursor: 'pointer'})
+    // place button under the cursor
+    .mousemove(function(e) {
+      file.css({top: (e.pageY - offset.top - 10) + 'px', left: (e.pageX - offset.left - 10) + 'px'});
+    })
+    .append(file);
 };
 
 $(window).load(function() {
