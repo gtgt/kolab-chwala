@@ -71,9 +71,11 @@ class kolab_format_task extends kolab_format_xcal
     /**
      * Convert the Configuration object into a hash array data structure
      *
+     * @param array Additional data for merge
+     *
      * @return array  Config object data as hash array
      */
-    public function to_array()
+    public function to_array($data = array())
     {
         // return cached result
         if (!empty($this->data))
@@ -99,21 +101,6 @@ class kolab_format_task extends kolab_format_xcal
 
         $this->data = $object;
         return $this->data;
-    }
-
-    /**
-     * Load data from old Kolab2 format
-     */
-    public function fromkolab2($record)
-    {
-        $object = array(
-            'uid'     => $record['uid'],
-            'changed' => $record['last-modification-date'],
-        );
-
-        // TODO: implement this
-
-        $this->data = $object;
     }
 
     /**

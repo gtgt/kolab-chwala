@@ -5,6 +5,7 @@
  *
  * @version @package_version@
  * @author Thomas Bruederli <bruederli@kolabsys.com>
+ * @author Aleksander Machniak <machniak@kolabsys.com>
  *
  * Copyright (C) 2012, Kolab Systems AG <contact@kolabsys.com>
  *
@@ -191,6 +192,24 @@ class kolab_storage_folder
 
 
     /**
+     * Get the color value stores in metadata
+     *
+     * @param string Default color value to return if not set
+     * @return mixed Color value from IMAP metadata or $default is not set
+     */
+    public function get_color($default = null)
+    {
+        // color is defined in folder METADATA
+        $metadata = $this->get_metadata(array(kolab_storage::COLOR_KEY_PRIVATE, kolab_storage::COLOR_KEY_SHARED));
+        if (($color = $metadata[kolab_storage::COLOR_KEY_PRIVATE]) || ($color = $metadata[kolab_storage::COLOR_KEY_SHARED])) {
+            return $color;
+        }
+
+        return $default;
+    }
+
+
+    /**
      * Compose a unique resource URI for this IMAP folder
      */
     public function get_resource_uri()
@@ -218,46 +237,47 @@ class kolab_storage_folder
     }
 
     /**
+     * Check activation status of this folder
+     *
+     * @return boolean True if enabled, false if not
+     */
+    public function is_active()
+    {
+        return kolab_storage::folder_is_active($this->name);
+    }
+
+    /**
+     * Change activation status of this folder
+     *
+     * @param boolean The desired subscription status: true = active, false = not active
+     *
+     * @return True on success, false on error
+     */
+    public function activate($active)
+    {
+        return $active ? kolab_storage::folder_activate($this->name) : kolab_storage::folder_deactivate($this->name);
+    }
+
+    /**
      * Check subscription status of this folder
      *
-     * @param string Subscription type (kolab_storage::SERVERSIDE_SUBSCRIPTION or kolab_storage::CLIENTSIDE_SUBSCRIPTION)
      * @return boolean True if subscribed, false if not
      */
-    public function is_subscribed($type = 0)
+    public function is_subscribed()
     {
-        static $subscribed;  // local cache
-
-        if ($type == kolab_storage::SERVERSIDE_SUBSCRIPTION) {
-            if (!$subscribed)
-                $subscribed = $this->imap->list_folders_subscribed();
-
-            return in_array($this->name, $subscribed);
-        }
-        else if (kolab_storage::CLIENTSIDE_SUBSCRIPTION) {
-            // TODO: implement this
-            return true;
-        }
-
-        return false;
+        return kolab_storage::folder_is_subscribed($this->name);
     }
 
     /**
      * Change subscription status of this folder
      *
      * @param boolean The desired subscription status: true = subscribed, false = not subscribed
-     * @param string  Subscription type (kolab_storage::SERVERSIDE_SUBSCRIPTION or kolab_storage::CLIENTSIDE_SUBSCRIPTION)
+     *
      * @return True on success, false on error
      */
-    public function subscribe($subscribed, $type = 0)
+    public function subscribe($subscribed)
     {
-        if ($type == kolab_storage::SERVERSIDE_SUBSCRIPTION) {
-            return $subscribed ? $this->imap->subscribe($this->name) : $this->imap->unsubscribe($this->name);
-        }
-        else {
-          // TODO: implement this
-        }
-
-        return false;
+        return $subscribed ? kolab_storage::folder_subscribe($this->name) : kolab_storage::folder_unsubscribe($this->name);
     }
 
 
@@ -504,11 +524,10 @@ class kolab_storage_folder
         $format->load($xml);
 
         if ($format->is_valid()) {
-            $object = $format->to_array();
-            $object['_type'] = $object_type;
-            $object['_msguid'] = $msguid;
-            $object['_mailbox'] = $this->name;
-            $object['_attachments'] = array_merge((array)$object['_attachments'], $attachments);
+            $object = $format->to_array(array('_attachments' => $attachments));
+            $object['_type']      = $object_type;
+            $object['_msguid']    = $msguid;
+            $object['_mailbox']   = $this->name;
             $object['_formatobj'] = $format;
 
             return $object;
@@ -564,7 +583,7 @@ class kolab_storage_folder
         }
 
         // save contact photo to attachment for Kolab2 format
-        if (kolab_storage::$version == 2.0 && $object['photo'] && !$existing_photo) {
+        if (kolab_storage::$version == '2.0' && $object['photo'] && !$existing_photo) {
             $attkey = 'kolab-picture.png';  // this file name is hard-coded in libkolab/kolabformatV2/contact.cpp
             $object['_attachments'][$attkey] = array(
                 'mimetype'=> rc_image_content_type($object['photo']),
@@ -746,7 +765,7 @@ class kolab_storage_folder
         $object['uid'] = $format->uid;  // read UID from format
         $object['_formatobj'] = $format;
 
-        if (!$format->is_valid() || empty($object['uid'])) {
+        if (empty($xml) || !$format->is_valid() || empty($object['uid'])) {
             return false;
         }
 
@@ -789,7 +808,7 @@ class kolab_storage_folder
             . "To view this object you will need an email client that understands the Kolab Groupware format. "
             . "For a list of such email clients please visit http://www.kolab.org/\n\n");
 
-        $ctype = kolab_storage::$version == 2.0 ? $format->CTYPEv2 : $format->CTYPE;
+        $ctype = kolab_storage::$version == '2.0' ? $format->CTYPEv2 : $format->CTYPE;
         // Convert new lines to \r\n, to wrokaround "NO Message contains bare newlines"
         // when APPENDing from temp file
         $xml = preg_replace('/\r?\n/', "\r\n", $xml);
@@ -800,7 +819,7 @@ class kolab_storage_folder
             false,                  // is_file
             '8bit',                 // encoding
             'attachment',           // disposition
-            RCUBE_CHARSET           // charset
+            RCUBE_CHARSET          // charset
         );
         $part_id++;
 

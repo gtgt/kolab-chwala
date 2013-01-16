@@ -386,16 +386,11 @@ abstract class kolab_format
     /**
      * Convert the Kolab object into a hash array data structure
      *
+     * @param array Additional data for merge
+     *
      * @return array  Kolab object data as hash array
      */
-    abstract public function to_array();
-
-    /**
-     * Load object data from Kolab2 format
-     *
-     * @param array Hash array with object properties (produced by Horde Kolab_Format classes)
-     */
-    abstract public function fromkolab2($object);
+    abstract public function to_array($data = array());
 
     /**
      * Callback for kolab_storage_cache to get object specific tags to cache

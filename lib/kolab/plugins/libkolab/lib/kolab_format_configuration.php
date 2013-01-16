@@ -88,9 +88,11 @@ class kolab_format_configuration extends kolab_format
     /**
      * Convert the Configuration object into a hash array data structure
      *
+     * @param array Additional data for merge
+     *
      * @return array  Config object data as hash array
      */
-    public function to_array()
+    public function to_array($data = array())
     {
         // return cached result
         if (!empty($this->data))
@@ -126,19 +128,6 @@ class kolab_format_configuration extends kolab_format
 
         $this->data = $object;
         return $this->data;
-    }
-
-    /**
-     * Load data from old Kolab2 format
-     */
-    public function fromkolab2($record)
-    {
-        $object = array(
-            'uid'     => $record['uid'],
-            'changed' => $record['last-modification-date'],
-        );
-
-        $this->data = $object + $record;
     }
 
     /**
