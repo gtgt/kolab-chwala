@@ -2,8 +2,6 @@
 
 /*
  +-----------------------------------------------------------------------+
- | program/include/html.php                                              |
- |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
  | Copyright (C) 2005-2011, The Roundcube Dev Team                       |
  |                                                                       |
@@ -13,7 +11,6 @@
  |                                                                       |
  | PURPOSE:                                                              |
  |   Helper class to create valid XHTML code                             |
- |                                                                       |
  +-----------------------------------------------------------------------+
  | Author: Thomas Bruederli <roundcube@gmail.com>                        |
  +-----------------------------------------------------------------------+
@@ -172,7 +169,7 @@ class html
             $attr = array('href' => $attr);
         }
         return self::tag('a', $attr, $cont, array_merge(self::$common_attrib,
-        array('href','target','name','rel','onclick','onmouseover','onmouseout','onmousedown','onmouseup')));
+            array('href','target','name','rel','onclick','onmouseover','onmouseout','onmousedown','onmouseup')));
     }
 
     /**
@@ -290,7 +287,7 @@ class html
             }
 
             // attributes with no value
-            if (in_array($key, array('checked', 'multiple', 'disabled', 'selected'))) {
+            if (in_array($key, array('checked', 'multiple', 'disabled', 'selected', 'autofocus'))) {
                 if ($value) {
                     $attrib_arr[] = $key . '="' . $key . '"';
                 }
@@ -353,6 +350,7 @@ class html_inputfield extends html
         'type','name','value','size','tabindex','autocapitalize',
         'autocomplete','checked','onchange','onclick','disabled','readonly',
         'spellcheck','results','maxlength','src','multiple','placeholder',
+        'autofocus',
     );
 
     /**
@@ -678,7 +676,7 @@ class html_table extends html
         }
 
         $cell = new stdClass;
-        $cell->attrib = $attr;
+        $cell->attrib  = $attr;
         $cell->content = $cont;
 
         $this->rows[$this->rowindex]->cells[$this->colindex] = $cell;
@@ -702,16 +700,16 @@ class html_table extends html
         }
 
         $cell = new stdClass;
-        $cell->attrib = $attr;
-        $cell->content = $cont;
+        $cell->attrib   = $attr;
+        $cell->content  = $cont;
         $this->header[] = $cell;
     }
 
-     /**
+    /**
      * Remove a column from a table
      * Useful for plugins making alterations
-     * 
-     * @param string $class 
+     *
+     * @param string $class
      */
     public function remove_column($class)
     {
@@ -791,8 +789,9 @@ class html_table extends html
      */
     public function show($attrib = null)
     {
-        if (is_array($attrib))
+        if (is_array($attrib)) {
             $this->attrib = array_merge($this->attrib, $attrib);
+        }
 
         $thead = $tbody = "";
 
@@ -834,7 +833,7 @@ class html_table extends html
      */
     public function size()
     {
-      return count($this->rows);
+        return count($this->rows);
     }
 
     /**

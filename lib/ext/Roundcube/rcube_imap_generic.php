@@ -2,8 +2,6 @@
 
 /**
  +-----------------------------------------------------------------------+
- | program/include/rcube_imap_generic.php                                |
- |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
  | Copyright (C) 2005-2012, The Roundcube Dev Team                       |
  | Copyright (C) 2011-2012, Kolab Systems AG                             |
@@ -19,13 +17,11 @@
  |   functionality built-in.                                             |
  |                                                                       |
  |   Based on Iloha IMAP Library. See http://ilohamail.org/ for details  |
- |                                                                       |
  +-----------------------------------------------------------------------+
  | Author: Aleksander Machniak <alec@alec.pl>                            |
  | Author: Ryo Chijiiwa <Ryo@IlohaMail.org>                              |
  +-----------------------------------------------------------------------+
 */
-
 
 /**
  * PHP based wrapper class to connect to an IMAP server
@@ -757,12 +753,16 @@ class rcube_imap_generic
         $this->fp = @fsockopen($host, $this->prefs['port'], $errno, $errstr, $this->prefs['timeout']);
 
         if (!$this->fp) {
+            if (!$errstr) {
+                $errstr = "Unknown reason (fsockopen() function disabled?)";
+            }
             $this->setError(self::ERROR_BAD, sprintf("Could not connect to %s:%d: %s", $host, $this->prefs['port'], $errstr));
             return false;
         }
 
-        if ($this->prefs['timeout'] > 0)
+        if ($this->prefs['timeout'] > 0) {
             stream_set_timeout($this->fp, $this->prefs['timeout']);
+        }
 
         $line = trim(fgets($this->fp, 8192));
 
@@ -1310,6 +1310,11 @@ class rcube_imap_generic
                 // * LIST (<options>) <delimiter> <mailbox>
                 if ($cmd == 'LIST' || $cmd == 'LSUB') {
                     list($opts, $delim, $mailbox) = $this->tokenizeResponse($line, 3);
+
+                    // Remove redundant separator at the end of folder name, UW-IMAP bug? (#1488879)
+                    if ($delim) {
+                        $mailbox = rtrim($mailbox, $delim);
+                    }
 
                     // Add to result array
                     if (!$lstatus) {

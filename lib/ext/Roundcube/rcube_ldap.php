@@ -2,8 +2,6 @@
 
 /*
  +-----------------------------------------------------------------------+
- | program/include/rcube_ldap.php                                        |
- |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
  | Copyright (C) 2006-2012, The Roundcube Dev Team                       |
  | Copyright (C) 2011-2012, Kolab Systems AG                             |
@@ -14,14 +12,12 @@
  |                                                                       |
  | PURPOSE:                                                              |
  |   Interface to an LDAP address directory                              |
- |                                                                       |
  +-----------------------------------------------------------------------+
  | Author: Thomas Bruederli <roundcube@gmail.com>                        |
  |         Andreas Dick <andudi (at) gmx (dot) ch>                       |
  |         Aleksander Machniak <machniak@kolabsys.com>                   |
  +-----------------------------------------------------------------------+
 */
-
 
 /**
  * Model class to access an LDAP address directory
@@ -798,27 +794,14 @@ class rcube_ldap extends rcube_addressbook
             $this->_debug("S: ".ldap_count_entries($this->conn, $this->ldap_result)." record(s)");
 
             // get all entries of this page and post-filter those that really match the query
-            $search = mb_strtolower($value);
+            $search  = mb_strtolower($value);
             $entries = ldap_get_entries($this->conn, $this->ldap_result);
 
             for ($i = 0; $i < $entries['count']; $i++) {
                 $rec = $this->_ldap2result($entries[$i]);
                 foreach ($fields as $f) {
                     foreach ((array)$rec[$f] as $val) {
-                        $val = mb_strtolower($val);
-                        switch ($mode) {
-                        case 1:
-                            $got = ($val == $search);
-                            break;
-                        case 2:
-                            $got = ($search == substr($val, 0, strlen($search)));
-                            break;
-                        default:
-                            $got = (strpos($val, $search) !== false);
-                            break;
-                        }
-
-                        if ($got) {
+                        if ($this->compare_search_value($f, $val, $search, $mode)) {
                             $this->result->add($rec);
                             $this->result->count++;
                             break 2;
@@ -1455,6 +1438,7 @@ class rcube_ldap extends rcube_addressbook
                 if ($this->vlv_active && function_exists('ldap_parse_virtuallist_control')) {
                     if (ldap_parse_result($this->conn, $this->ldap_result,
                         $errcode, $matcheddn, $errmsg, $referrals, $serverctrls)
+                        && $serverctrls // can be null e.g. in case of adm. limit error
                     ) {
                         ldap_parse_virtuallist_control($this->conn, $serverctrls,
                             $last_offset, $this->vlv_count, $vresult);

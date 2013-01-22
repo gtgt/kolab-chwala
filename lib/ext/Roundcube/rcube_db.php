@@ -2,8 +2,6 @@
 
 /**
  +-----------------------------------------------------------------------+
- | program/include/rcube_db.php                                          |
- |                                                                       |
  | This file is part of the Roundcube Webmail client                     |
  | Copyright (C) 2005-2012, The Roundcube Dev Team                       |
  |                                                                       |
@@ -13,19 +11,17 @@
  |                                                                       |
  | PURPOSE:                                                              |
  |   Database wrapper class that implements PHP PDO functions            |
- |                                                                       |
  +-----------------------------------------------------------------------+
  | Author: Aleksander Machniak <alec@alec.pl>                            |
  +-----------------------------------------------------------------------+
 */
-
 
 /**
  * Database independent query interface.
  * This is a wrapper for the PHP PDO.
  *
  * @package   Framework
- * @sbpackage Database
+ * @subpackage Database
  */
 class rcube_db
 {
@@ -404,6 +400,11 @@ class rcube_db
 
         $this->debug($query);
 
+        // destroy reference to previous result, required for SQLite driver (#1488874)
+        $this->last_result = null;
+        $this->db_error_msg = null;
+
+        // send query
         $query = $this->dbh->query($query);
 
         if ($query === false) {
@@ -426,7 +427,7 @@ class rcube_db
      *
      * @param mixed $result Optional query handle
      *
-     * @return int Number of rows or false on failure
+     * @return int Number of (matching) rows
      */
     public function affected_rows($result = null)
     {
