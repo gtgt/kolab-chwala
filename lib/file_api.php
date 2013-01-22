@@ -161,7 +161,7 @@ class file_api
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
 
-                $params = array('reverse' => !empty($_GET['reverse']) && get_boolean($_GET['reverse']));
+                $params = array('reverse' => !empty($_GET['reverse']) && rcube_utils::get_boolean($_GET['reverse']));
                 if (!empty($_GET['sort'])) {
                     $params['sort'] = strtolower($_GET['sort']);
                 }
