@@ -58,7 +58,7 @@ interface file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception

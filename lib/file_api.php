@@ -34,8 +34,8 @@ class file_api
     }
 
     /**
-      * Process the request and dispatch it to the requested service
-      */
+     * Process the request and dispatch it to the requested service
+     */
     public function run()
     {
         $request  = $_GET['method'];
@@ -164,6 +164,13 @@ class file_api
                 $params = array('reverse' => !empty($_GET['reverse']) && rcube_utils::get_boolean($_GET['reverse']));
                 if (!empty($_GET['sort'])) {
                     $params['sort'] = strtolower($_GET['sort']);
+                }
+
+                if (!empty($_GET['search'])) {
+                    $params['search'] = $_GET['search'];
+                    if (!is_array($params['search'])) {
+                        $params['search'] = array('name' => $params['search']);
+                    }
                 }
 
                 return $this->api->file_list($_GET['folder'], $params);

@@ -544,7 +544,7 @@ function file_ui()
       if (f.virtual)
         row.addClass('virtual');
       else
-       span.click(function() { ui.command('file.list', i); });
+       span.click(function() { ui.folder_select(i); });
 
       if (i == ui.env.folder)
         row.addClass('selected');
@@ -554,6 +554,13 @@ function file_ui()
 
     // add tree icons
     this.folder_list_tree();
+  };
+
+  this.folder_select = function(folder)
+  {
+    this.env.search = null;
+    this.file_search_stop();
+    this.command('file.list', folder);
   };
 
   // folder create request
@@ -584,6 +591,8 @@ function file_ui()
       params.sort = this.env.sort_col;
     if (params.reverse == undefined)
       params.reverse = this.env.sort_reverse;
+    if (params.search == undefined)
+      params.search = this.env.search;
 
     this.env.folder = params.folder;
     this.env.sort_col = params.sort;
@@ -784,7 +793,25 @@ function file_ui()
   // Hide file search form
   this.file_search_stop = function()
   {
+    if (this.env.search)
+      this.file_list(null, {search: null});
+
     this.form_hide('file-search');
+    this.env.search = null;
+  };
+
+  // Execute file search
+  this.file_search_submit = function()
+  {
+    var form = this.form_show('file-search'),
+      value = $('input[name="name"]', form).val();
+
+    if (value) {
+      this.env.search = {name: value};
+      this.file_list(null, {search: this.env.search});
+    }
+    else
+      this.file_search_stop();
   };
 
   // Display folder creation form

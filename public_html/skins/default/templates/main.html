@@ -30,7 +30,7 @@
             <table></table>
         </div>
         <div id="forms">
-            <form id="folder-create-form">
+            <form id="folder-create-form" onsubmit="ui.folder_create_submit(); return false">
                 <fieldset><legend>{$engine->translate('folder.create')}</legend>
                     <table>
                         <tr>
@@ -46,7 +46,7 @@
                     </table>
                 </fieldset>
             </form>
-            <form id="file-search-form">
+            <form id="file-search-form" onsubmit="ui.file_search_submit(); return false">
                 <fieldset><legend>{$engine->translate('file.search')}</legend>
                     <table>
                         <tr>

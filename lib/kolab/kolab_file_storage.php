@@ -307,16 +307,29 @@ class kolab_file_storage implements file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception
      */
     public function file_list($folder_name, $params = array())
     {
+        $filter = array(array('type', '=', 'file'));
+
+        if (!empty($params['search'])) {
+            foreach ($params['search'] as $idx => $value) {
+                switch ($idx) {
+                case 'name':
+                    // we keep filename in 'words' column, remember?
+                    $filter[] = array('words', '~', $value);
+                    break;
+                }
+            }
+        }
+
         // get files list
         $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select(array(array('type', '=', 'file')));
+        $files  = $folder->select($filter);
         $result = array();
 
         // convert to kolab_storage files list data format
