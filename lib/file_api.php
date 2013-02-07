@@ -38,7 +38,7 @@ class file_api
      */
     public function run()
     {
-        $request  = $_GET['method'];
+        $request = strtolower($_GET['method']);
 
         // Check the session, authenticate the user
         if (!$this->session_validate()) {
@@ -153,6 +153,10 @@ class file_api
      */
     private function request($request)
     {
+        if ($request == 'ping') {
+            return array();
+        }
+
         $this->api_init();
 
         switch ($request) {
