@@ -208,6 +208,17 @@ class file_api
 
                 return $this->api->file_delete($_GET['folder'], $_GET['file']);
 
+            case 'file_info':
+                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
+                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing folder name");
+                }
+
+                if (!isset($_GET['file']) || $_GET['file'] === '') {
+                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
+                }
+
+                return $this->api->file_info($_GET['folder'], $_GET['file']);
+
             case 'file_get':
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
                     header("HTTP/1.0 ".file_api::ERROR_CODE." Missing folder name");

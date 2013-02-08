@@ -68,7 +68,6 @@ class kolab_file_storage implements file_storage
         ));
     }
 
-
     /**
      * Storage host selection
      */
@@ -301,6 +300,26 @@ class kolab_file_storage implements file_storage
         header("Content-Disposition: inline; filename=\"$filename\"");
 
         $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
+    }
+
+    /**
+     * Returns file metadata.
+     *
+     * @param string $folder_name Name of a folder with full path
+     * @param string $file_name   Name of a file
+     *
+     * @throws Exception
+     */
+    public function file_info($folder_name, $file_name)
+    {
+        $file = $this->get_file_object($folder_name, $file_name, $folder);
+        if (empty($file)) {
+            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+        }
+
+        $file = $this->from_file_object($file);
+
+        return $file;
     }
 
     /**

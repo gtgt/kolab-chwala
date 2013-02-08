@@ -55,6 +55,16 @@ interface file_storage
     public function file_rename($folder_name, $file_name, $new_name);
 
     /**
+     * Returns file metadata.
+     *
+     * @param string $folder_name Name of a folder with full path
+     * @param string $file_name   Name of a file
+     *
+     * @throws Exception
+     */
+    public function file_info($folder_name, $file_name);
+
+    /**
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
