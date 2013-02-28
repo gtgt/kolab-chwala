@@ -228,8 +228,11 @@ class file_api
                     header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
                 }
 
+                $params = array(
+                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download']));
+
                 try {
-                    $this->api->file_get($_GET['folder'], $_GET['file']);
+                    $this->api->file_get($_GET['folder'], $_GET['file'], $params);
                 }
                 catch (Exception $e) {
                     header("HTTP/1.0 ".file_api::ERROR_CODE." " . $e->getMessage());

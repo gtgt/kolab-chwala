@@ -38,10 +38,11 @@ interface file_storage
      *
      * @param string $folder_name Name of a folder with full path
      * @param string $file_name   Name of a file
+     * @param array  $params      Parameters (force-download)
      *
      * @throws Exception
      */
-    public function file_get($folder_name, $file_name);
+    public function file_get($folder_name, $file_name, $params = array());
 
     /**
      * Rename a file.

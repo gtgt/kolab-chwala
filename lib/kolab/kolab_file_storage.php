@@ -280,10 +280,11 @@ class kolab_file_storage implements file_storage
      *
      * @param string $folder_name Name of a folder with full path
      * @param string $file_name   Name of a file
+     * @param array  $params      Parameters (force-download)
      *
      * @throws Exception
      */
-    public function file_get($folder_name, $file_name)
+    public function file_get($folder_name, $file_name, $params = array())
     {
         $file = $this->get_file_object($folder_name, $file_name, $folder);
         if (empty($file)) {
@@ -292,12 +293,32 @@ class kolab_file_storage implements file_storage
 
         $file = $this->from_file_object($file);
 
-        header("Content-Transfer-Encoding: binary");
-        header("Content-Type: " . $file['type']);
-        header("Content-Length: " . $file['size']);
+        if (!empty($params['force-download'])) {
+            $disposition = 'attachment';
+            header("Content-Type: application/octet-stream");
+// @TODO
+//            if ($browser->ie)
+//                header("Content-Type: application/force-download");
+        }
+        else {
+            $disposition = 'inline';
+            header("Content-Transfer-Encoding: binary");
+            header("Content-Type: " . $file['type']);
+        }
 
-        $filename = addcslashes($file['name'], '"');
-        header("Content-Disposition: inline; filename=\"$filename\"");
+        $filename    = addcslashes($file['name'], '"');
+
+        // Workaround for nasty IE bug (#1488844)
+        // If Content-Disposition header contains string "attachment" e.g. in filename
+        // IE handles data as attachment not inline
+/*
+@TODO
+        if ($disposition == 'inline' && $browser->ie && $browser->ver < 9) {
+            $filename = str_ireplace('attachment', 'attach', $filename);
+        }
+*/
+        header("Content-Length: " . $file['size']);
+        header("Content-Disposition: $disposition; filename=\"$filename\"");
 
         $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
     }
