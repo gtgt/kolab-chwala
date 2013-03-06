@@ -210,11 +210,11 @@ class file_api
 
             case 'file_info':
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing folder name");
+                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
 
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
-                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
+                    throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
                 return $this->api->file_info($_GET['folder'], $_GET['file']);
