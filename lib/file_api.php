@@ -202,11 +202,17 @@ class file_api
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
-                if (!isset($_GET['file']) || $_GET['file'] === '') {
+
+                $files = (array) $_GET['file'];
+
+                if (empty($files)) {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
-                return $this->api->file_delete($_GET['folder'], $_GET['file']);
+                foreach ($files as $file) {
+                    $this->api->file_delete($_GET['folder'], $file);
+                }
+                return;
 
             case 'file_info':
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
@@ -229,7 +235,8 @@ class file_api
                 }
 
                 $params = array(
-                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download']));
+                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download'])
+                );
 
                 try {
                     $this->api->file_get($_GET['folder'], $_GET['file'], $params);
