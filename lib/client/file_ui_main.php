@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2011-2012, Kolab Systems AG                                |
+ | Copyright (C) 2011-2013, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -40,7 +40,114 @@ class file_ui_main extends file_ui
 //        $this->output->assign('tasks', $this->menu);
 //        $this->output->assign('main_menu', $this->menu());
         $this->output->assign('user', $_SESSION['user']);
+    }
 
-        $this->output->command('command', 'folder.list');
+    public function folder_create_form()
+    {
+        $input_name = new html_inputfield(array(
+            'type'  => 'text',
+            'name'  => 'name',
+            'value' => '',
+        ));
+        $input_parent = new html_checkbox(array(
+            'name'  => 'parent',
+            'value' => '1',
+        ));
+        $submit = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_create_submit()',
+            'value'   => $this->translate('form.submit'),
+        ));
+        $cancel = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_create_stop()',
+            'value'   => $this->translate('form.cancel'),
+        ));
+
+        $table = new html_table;
+
+        $table->add(null, $input_name->show() . $input_parent->show() . $this->translate('folder.under'));
+        $table->add('buttons', $submit->show() . $cancel->show());
+
+        $content = html::tag('fieldset', null,
+            html::tag('legend', null,
+                $this->translate('folder.create')) . $table->show());
+
+        $form = html::tag('form', array(
+            'id'       => 'folder-create-form',
+            'onsubmit' => 'ui.folder_create_submit(); return false'),
+            $content);
+
+        return $form;
+    }
+
+    public function folder_edit_form()
+    {
+        $input_name = new html_inputfield(array(
+            'type'  => 'text',
+            'name'  => 'name',
+            'value' => '',
+        ));
+        $submit = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_edit_submit()',
+            'value'   => $this->translate('form.submit'),
+        ));
+        $cancel = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_edit_stop()',
+            'value'   => $this->translate('form.cancel'),
+        ));
+
+        $table = new html_table;
+
+        $table->add(null, $input_name->show());
+        $table->add('buttons', $submit->show() . $cancel->show());
+
+        $content = html::tag('fieldset', null,
+            html::tag('legend', null,
+                $this->translate('folder.edit')) . $table->show());
+
+        $form = html::tag('form', array(
+            'id'       => 'folder-edit-form',
+            'onsubmit' => 'ui.folder_edit_submit(); return false'),
+            $content);
+
+        return $form;
+    }
+
+    public function file_search_form()
+    {
+        $input_name = new html_inputfield(array(
+            'type'  => 'text',
+            'name'  => 'name',
+            'value' => '',
+        ));
+        $submit = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_edit_submit()',
+            'value'   => $this->translate('form.submit'),
+        ));
+        $cancel = new html_inputfield(array(
+            'type'    => 'button',
+            'onclick' => 'ui.folder_edit_stop()',
+            'value'   => $this->translate('form.cancel'),
+        ));
+
+        $table = new html_table;
+
+        $table->add(null, $input_name->show());
+        $table->add('buttons', $submit->show() . $cancel->show());
+
+        $content = html::tag('fieldset', null,
+            html::tag('legend', null,
+                $this->translate('file.search')) . $table->show());
+
+        $form = html::tag('form', array(
+            'id'       => 'file-search-form',
+            'onsubmit' => 'ui.file_search_submit(); return false'),
+            $content);
+
+        return $form;
     }
 }

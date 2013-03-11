@@ -46,6 +46,10 @@ table.list td {
   border: 1px solid white;
   border-left: none;
   border-top: none;
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
 }
 
 table.list thead tr {
@@ -129,6 +133,10 @@ td.label {
   text-align: right;
   font-weight: bold;
   white-space: nowrap;
+}
+
+table tbody tr.selected {
+  background-color: #d6efff;
 }
 
 /**** Common UI elements ****/
@@ -434,6 +442,11 @@ input[type="file"]::-webkit-file-upload-button {
 
 /**** Common classes ****/
 
+a.disabled {
+  opacity: 0.5;
+  filter: alpha(opacity=50);
+}
+
 .nowrap {
   white-space: nowrap;
 }
@@ -475,6 +488,16 @@ input.inactive {
 
 .formbuttons input {
   margin: 5px;
+}
+
+div.scroller {
+  left: 0;
+  top: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: absolute;
+  bottom: 19px;
 }
 
 .listnav {
@@ -590,6 +613,25 @@ a.button.delete {
 
 .popup ul li:hover {
   background-color: #d6efff;
+}
+
+div.boxfooter {
+  position: absolute;
+  height: 18px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #e0e0e0;
+  border-top: 1px solid #d0d0d0;
+}
+
+div.boxfooter a.button {
+  width: auto;
+  white-space: nowrap;
+  color: #514949;
+  display: inline;
+  line-height: 18px;
+  padding: 0 5px 0 20px;
 }
 
 /********* Form smart inputs *********/
@@ -1020,7 +1062,7 @@ td span.branch span.l3
   background: url(images/file_new.png) center 6px no-repeat;
 }
 
-#search-button {
+#file-search-button {
   background: url(images/search.png) center 6px no-repeat;
 }
 
@@ -1091,6 +1133,10 @@ td span.branch span.l3
   padding-left: 20px;
   margin-left: 3px;
   cursor: pointer;
+}
+
+#folderlist tr.selected {
+  background-color: inherit;
 }
 
 #folderlist tr.selected td span.name {

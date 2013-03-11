@@ -21,58 +21,41 @@
     <div id="task_navigation">{$task_menu}</div>
     <div id="content">
         <div id="actionbar">
-            <a id="folder-create-button" onclick="ui.folder_create_start()"><span>{$engine->translate('folder.create')}</span></a>
+            <a id="folder-create-button" onclick="ui.command('folder.create')" class="disabled"><span>{$engine->translate('folder.create')}</span></a>
             <form id="uploadform" name="uploadform" method="post" enctype="multipart/form-data">
-                <a id="file-upload-button"><span>{$engine->translate('file.upload')}</span></a>
+                <a id="file-upload-button" class="disabled"><span>{$engine->translate('file.upload')}</span></a>
             </form>
-            <a id="search-button" onclick="ui.file_search_start()"><span>{$engine->translate('search')}</span></a>
+            <a id="file-search-button" onclick="ui.command('file.search')" class="disabled"><span>{$engine->translate('search')}</span></a>
         </div>
         <div id="folderlist">
-            <table></table>
+            <div class="scroller">
+                <table></table>
+            </div>
+            <div class="boxfooter">
+                <a href="#" onclick="ui.command('folder.edit')" alt="" id="folder-edit-button" class="button edit disabled">{$engine->translate('folder.edit')}</a>
+                <a href="#" onclick="ui.command('folder.delete')" alt="" id="folder-delete-button" class="button delete disabled">{$engine->translate('folder.delete')}</a>
+            </div>
         </div>
         <div id="forms">
-            <form id="folder-create-form" onsubmit="ui.folder_create_submit(); return false">
-                <fieldset><legend>{$engine->translate('folder.create')}</legend>
-                    <table>
-                        <tr>
-                            <td>
-                                <input type="text" name="name" value="" />
-                                <input type="checkbox" name="parent" value="1" /> {$engine->translate('folder.under')}
-                            </td>
-                            <td class="buttons">
-                                <input type="button" value="{$engine->translate('form.submit')}" onclick="ui.folder_create_submit()" />
-                                <input type="button" value="{$engine->translate('form.cancel')}" onclick="ui.folder_create_stop()" />
-                            </td>
-                        </tr>
-                    </table>
-                </fieldset>
-            </form>
-            <form id="file-search-form" onsubmit="ui.file_search_submit(); return false">
-                <fieldset><legend>{$engine->translate('file.search')}</legend>
-                    <table>
-                        <tr>
-                            <td>
-                                <input type="text" name="name" value="" />
-                            </td>
-                            <td class="buttons">
-                                <input type="button" value="{$engine->translate('form.submit')}" onclick="ui.file_search_submit()" />
-                                <input type="button" value="{$engine->translate('form.cancel')}" onclick="ui.file_search_stop()" />
-                            </td>
-                        </tr>
-                    </table>
-                </fieldset>
-            </form>
+            {$engine->folder_create_form()}
+            {$engine->folder_edit_form()}
+            {$engine->file_search_form()}
         </div>
         <div id="taskcontent">
-            <table id="filelist" class="list">
-                <thead>
-                    <tr>
-                        <td class="filename" onclick="file_list_sort('name', this)">{$engine->translate('file.name')}</td>
-                        <td class="filemtime" onclick="file_list_sort('mtime', this)">{$engine->translate('file.mtime')}</td>
-                        <td class="filesize" onclick="file_list_sort('size', this)">{$engine->translate('file.size')}</td>
-                    </tr>
-                </thead>
-            </table>
+            <div class="scroller">
+                <table id="filelist" class="list">
+                    <thead>
+                        <tr>
+                            <td class="filename" onclick="file_list_sort('name', this)">{$engine->translate('file.name')}</td>
+                            <td class="filemtime" onclick="file_list_sort('mtime', this)">{$engine->translate('file.mtime')}</td>
+                            <td class="filesize" onclick="file_list_sort('size', this)">{$engine->translate('file.size')}</td>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+            <div class="boxfooter">
+                <a href="#" onclick="ui.command('file.delete')" alt="" id="file-delete-button" class="button delete disabled">{$engine->translate('file.delete')}</a>
+            </div>
         </div>
     </div>
     <div id="footer">
@@ -80,9 +63,9 @@
     </div>
     <div id="file-menu" class="popup">
         <ul>
-            <li class="file-open"><a href="#">{$engine->translate('file.open')}</a></li>
-            <li class="file-delete"><a href="#">{$engine->translate('file.delete')}</a></li>
-            <li class="file-rename"><a href="#">{$engine->translate('file.rename')}</a></li>
+            <li class="file-open"><a id="file-open-button" href="#">{$engine->translate('file.open')}</a></li>
+            <li class="file-delete"><a id="file-delete-button" href="#">{$engine->translate('file.delete')}</a></li>
+            <li class="file-rename"><a id="file-rename-button" href="#">{$engine->translate('file.rename')}</a></li>
         </ul>
     </div>
 {$script}

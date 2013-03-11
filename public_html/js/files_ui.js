@@ -28,6 +28,7 @@ function files_ui()
   this.request_timeout = 300;
   this.message_time = 3000;
   this.events = {};
+  this.commands = {};
   this.env = {
     url: 'api/',
     sort_column: 'name',
@@ -42,9 +43,20 @@ function files_ui()
     beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
   });
 
+
   /*********************************************************/
   /*********          basic utilities              *********/
   /*********************************************************/
+
+  // initialize interface
+  this.init = function()
+  {
+    if (!this.env.token)
+      return;
+
+    this.enable_command('folder.list', 'folder.create', true);
+    this.command('folder.list');
+  };
 
   // set environment variable(s)
   this.set_env = function(p, value)
@@ -65,7 +77,8 @@ function files_ui()
     if (this.busy)
       return false;
 
-    this.set_busy(true, 'loading');
+    if (!this.commands[command])
+      return;
 
     var ret = undefined,
       func = command.replace(/[^a-z]/g, '_'),
@@ -74,9 +87,10 @@ function files_ui()
     if (this[func] && typeof this[func] === 'function') {
       ret = this[func](props);
     }
-    else {
-      this.http_post(command, props);
-    }
+//    else {
+//      this.set_busy(true, 'loading');
+//      this.http_post(command, props);
+//    }
 
     // update menu state
 //    $('li', $('#navigation')).removeClass('active');
@@ -155,6 +169,42 @@ function files_ui()
       this.events[event] = [];
 
     this.events[event].push(func);
+  };
+
+  this.buttons = function(p)
+  {
+    $.each(p, function(i, v) {
+      if (!ui.buttons[i])
+        ui.buttons[i] = [];
+
+      if (typeof v == 'object')
+        ui.buttons[i] = $.merge(ui.buttons[i], v);
+      else
+        ui.buttons[i].push(v);
+    });
+  };
+
+  this.enable_command = function()
+  {
+    var i, n, args = Array.prototype.slice.call(arguments),
+      enable = args.pop(), cmd;
+
+    for (n=0; n<args.length; n++) {
+      cmd = args[n];
+      // argument of type array
+      if (typeof cmd === 'string') {
+        this.commands[cmd] = enable;
+        if (this.buttons[cmd])
+          $.each(this.buttons[cmd], function (i, button) {
+            $('#'+button)[enable ? 'removeClass' : 'addClass']('disabled');
+          });
+      }
+      // push array elements into commands array
+      else {
+        for (i in cmd)
+          args.push(cmd[i]);
+      }
+    }
   };
 
 
@@ -454,12 +504,23 @@ function files_ui()
   {
     this.env.search = null;
     this.file_search_stop();
-    this.command('file.list', folder);
+
+    var list = $('#folderlist');
+    $('tr.selected', list).removeClass('selected');
+    var found = $('#' + this.env.folders[folder].id, list).addClass('selected');
+
+    this.enable_command('file.list', 'file.search', 'folder.delete', 'folder.edit', 'file.upload', found.length);
+    this.command('file.list', {folder: folder});
   };
 
   // folder create request
   this.folder_create = function(folder)
   {
+    if (!folder) {
+      this.folder_create_start();
+      return;
+    }
+
     this.set_busy(true, 'saving');
     this.get('folder_create', {folder: folder}, 'folder_create_response');
   };
@@ -473,14 +534,63 @@ function files_ui()
     this.folder_list();
   };
 
+  // folder edit (rename) request
+  this.folder_edit = function(folder)
+  {
+    if (!folder) {
+      this.folder_edit_start();
+      return;
+    }
+
+    this.set_busy(true, 'saving');
+    this.get('folder_rename', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
+  };
+
+  // folder rename response handler
+  this.folder_rename_response = function(response)
+  {
+    if (!this.response(response))
+      return;
+
+    this.env.folder = this.env.folder_rename;
+    this.folder_list();
+  };
+
+  // folder delete request
+  this.folder_delete = function(folder)
+  {
+    if (folder === undefined)
+      folder = this.env.folder;
+
+    if (!folder)
+      return;
+
+    // @todo: confirm
+
+    this.set_busy(true, 'saving');
+    this.get('folder_delete', {folder: folder}, 'folder_delete_response');
+  };
+
+  // folder delete response handler
+  this.folder_delete_response = function(response)
+  {
+    if (!this.response(response))
+      return;
+
+    this.env.folder = null;
+    $('#filelist tbody').empty();
+    this.enable_command('folder.delete', 'folder.edit', 'file.list', 'file.search', 'file.upload', false);
+    this.folder_list();
+  };
+
   // file list request
-  this.file_list = function(folder, params)
+  this.file_list = function(params)
   {
     if (!params)
       params = {};
 
-    params.folder = folder ? folder : this.env.folder
-
+    if (params.folder == undefined)
+      params.folder = this.env.folder;
     if (params.sort == undefined)
       params.sort = this.env.sort_col;
     if (params.reverse == undefined)
@@ -494,10 +604,6 @@ function files_ui()
 
     this.set_busy(true, 'loading');
     this.get('file_list', params, 'file_list_response');
-
-    var list = $('#folderlist');
-    $('tr.selected', list).removeClass('selected');
-    $('#' + this.env.folders[params.folder].id, list).addClass('selected');
   };
 
   // file list response handler
@@ -509,6 +615,7 @@ function files_ui()
     var table = $('#filelist');
 
     $('tbody', table).empty();
+    this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
 
     $.each(response.result, function(key, data) {
       var row = $('<tr><td class="filename"></td>'
@@ -520,13 +627,38 @@ function files_ui()
       $('td.filesize', row).text(ui.file_size(data.size));
       row.attr('data-file', urlencode(key));
 
+      row.click(function(e) { ui.file_list_click(e, this); });
+
       table.append(row);
     });
+  };
+
+  this.file_list_click = function(e, row)
+  {
+    var list = $('#filelist'), ctrl = e.ctrlKey, row = $(row);
+
+    if (ctrl)
+      row.toggleClass('selected');
+    else {
+      $('tr.selected', list).removeClass('selected');
+      $(row).addClass('selected');
+    }
+
+    var selected = $('tr.selected', list).length;
+    this.enable_command('file.delete', selected);
+    this.enable_command('file.open', 'file.get', 'file.rename', selected == 1);
   };
 
   // file delete request
   this.file_delete = function(file)
   {
+    if (!file) {
+      var file = [];
+      $('#filelist tr.selected').each(function() {
+        file.push($(this).data('file'));
+      });
+    }
+
     this.set_busy(true, 'deleting');
     this.get('file_delete', {folder: this.env.folder, file: file}, 'file_delete_response');
   };
@@ -537,7 +669,7 @@ function files_ui()
     if (!this.response(response))
       return;
 
-    this.file_list(this.env.folder);
+    this.file_list();
   };
 
   // file rename request
@@ -556,7 +688,7 @@ function files_ui()
     if (!this.response(response))
       return;
 
-    this.file_list(this.env.folder);
+    this.file_list();
   };
 
   this.file_menu = function(e, file)
@@ -629,7 +761,7 @@ function files_ui()
         }
 
         if (ui.response_parse(response))
-          ui.file_list(ui.env.folder);
+          ui.file_list();
       });
     }
   };
@@ -678,7 +810,7 @@ function files_ui()
   };
 
   // Display file search form
-  this.file_search_start = function()
+  this.file_search = function()
   {
     var form = this.form_show('file-search');
     $('input[name="name"]', form).val('').focus();
@@ -736,7 +868,43 @@ function files_ui()
     folder += data.name;
 
     this.folder_create_stop();
-    this.command('folder_create', folder);
+    this.command('folder.create', folder);
+  };
+
+  // Display folder edit form
+  this.folder_edit_start = function()
+  {
+    var form = this.form_show('folder-edit'),
+      arr = this.env.folder.split(this.env.directory_separator),
+      name = arr.pop();
+
+    this.env.folder_edit_path = arr.join(this.env.directory_separator);
+
+    $('input[name="name"]', form).val(name).focus();
+  };
+
+  // Hide folder edit form
+  this.folder_edit_stop = function()
+  {
+    this.form_hide('folder-edit');
+  };
+
+  // Submit folder edit form
+  this.folder_edit_submit = function()
+  {
+    var folder = '', data = this.serialize_form('#folder-edit-form');
+
+    if (!data.name)
+      return;
+
+    if (this.env.folder_edit_path)
+      folder = this.env.folder_edit_path + this.env.directory_separator;
+
+    folder += data.name;
+    this.env.folder_rename = folder;
+
+    this.folder_edit_stop();
+    this.command('folder.edit', {folder: this.env.folder, 'new': folder});
   };
 
   // Display folder creation form
@@ -766,4 +934,6 @@ var ui = $.extend(new files_api(), new files_ui());
 $(document).click(function() {
   $('.popup').hide();
   ui.file_rename_stop();
+}).ready(function() {
+  ui.init();
 });
