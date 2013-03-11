@@ -746,15 +746,21 @@ function files_ui()
 
     if (files) {
       // submit form and read server response
-      this.async_upload_form(form, 'file_create', function() {
+      this.async_upload_form(form, 'file_create', function(e) {
         var doc, response;
+
         try {
           doc = this.contentDocument ? this.contentDocument : this.contentWindow.document;
           response = doc.body.innerHTML;
+
+          // in Opera onload is called twice, once with empty body
+          if (!response)
+            return;
           // response may be wrapped in <pre> tag
-          if (response.slice(0, 5).toLowerCase() == '<pre>' && response.slice(-6).toLowerCase() == '</pre>') {
-            response = doc.body.firstChild.firstChild.nodeValue;
+          if (response.match(/^<pre[^>]*>(.*)<\/pre>$/i)) {
+            response = RegExp.$1;
           }
+
           response = eval('(' + response + ')');
         } catch (err) {
           response = {status: 'ERROR'};

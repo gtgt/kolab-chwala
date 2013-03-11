@@ -2,14 +2,17 @@
 
 class file_api
 {
+    const ERROR_CODE = 500;
+    const OUTPUT_JSON = 'application/json';
+    const OUTPUT_HTML = 'text/html';
+
     private $app_name = 'Kolab File API';
     private $api;
+    private $output_type = self::OUTPUT_JSON;
     private $config = array(
         'date_format' => 'Y-m-d H:i',
         'language'    => 'en_US',
     );
-
-    const ERROR_CODE = 500;
 
     public function __construct()
     {
@@ -180,6 +183,9 @@ class file_api
                 return $this->api->file_list($_GET['folder'], $params);
 
             case 'file_create':
+                // for Opera upload frame response cannot be application/json
+                $this->output_type = self::OUTPUT_HTML;
+
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
@@ -226,6 +232,8 @@ class file_api
                 return $this->api->file_info($_GET['folder'], $_GET['file']);
 
             case 'file_get':
+                $this->output_type = self::OUTPUT_HTML;
+
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
                     header("HTTP/1.0 ".file_api::ERROR_CODE." Missing folder name");
                 }
@@ -380,7 +388,7 @@ class file_api
     protected function output_send($data)
     {
         // Send response
-        header("Content-Type: application/json; charset=utf-8");
+        header("Content-Type: {$this->output_type}; charset=utf-8");
         echo json_encode($data);
         exit;
     }
