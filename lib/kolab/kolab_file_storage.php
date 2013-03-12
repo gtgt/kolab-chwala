@@ -376,8 +376,10 @@ class kolab_file_storage implements file_storage
                 continue;
             }
 
-            $result[$file['name']] = array(
-                'folder' => $folder_name,
+            $filename = $folder_name . file_api::PATH_SEPARATOR . $file['name'];
+
+            $result[$filename] = array(
+                'name'   => $file['name'],
                 'size'   => (int) $file['size'],
                 'type'   => (string) $file['type'],
                 'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
@@ -388,22 +390,19 @@ class kolab_file_storage implements file_storage
         // @TODO: pagination, search (by filename, mimetype)
 
         // Sorting
-        if (empty($params['sort']) || $params['sort'] == 'name') {
-            ksort($result, SORT_LOCALE_STRING);
-        }
-        else {
-            $index = array();
-            if ($params['sort'] == 'size') {
-                foreach ($result as $key => $val) {
-                    $index[$key] = $val['size'];
-                }
-            }
-            else if ($params['sort'] == 'mtime') {
-                foreach ($result as $key => $val) {
-                    $index[$key] = strtotime($val['mtime']);
-                }
-            }
+        $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
+        $index = array();
 
+        if (in_array($sort, array('name', 'size'))) {
+            foreach ($result as $key => $val) {
+                $index[$key] = $val[$sort];
+            }
+            array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
+        }
+        else if ($sort == 'mtime') {
+            foreach ($result as $key => $val) {
+                $index[$key] = strtotime($val['mtime']);
+            }
             array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
         }
 

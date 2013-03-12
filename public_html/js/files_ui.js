@@ -618,15 +618,14 @@ function files_ui()
     this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
 
     $.each(response.result, function(key, data) {
-      var fname = data.folder + ui.env.directory_separator + key,
-        row = $('<tr><td class="filename"></td>'
+      var row = $('<tr><td class="filename"></td>'
           +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
-        link = $('<span></span>').text(key).click(function(e) { ui.file_menu(e, fname); });
+        link = $('<span></span>').text(data.name).click(function(e) { ui.file_menu(e, key); });
 
       $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
       $('td.filemtime', row).text(data.mtime);
       $('td.filesize', row).text(ui.file_size(data.size));
-      row.attr('data-file', fname);
+      row.attr('data-file', key);
 
       row.click(function(e) { ui.file_list_click(e, this); });
 
