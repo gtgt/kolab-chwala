@@ -15,55 +15,60 @@ interface file_storage
     /**
      * Create a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param array  $file        File data (path, type)
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
      *
      * @throws Exception
      */
-    public function file_create($folder_name, $file_name, $file);
+    public function file_create($file_name, $file);
 
     /**
      * Delete a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
+     * @param string $file_name Name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_delete($folder_name, $file_name);
+    public function file_delete($file_name);
 
     /**
      * Returns file body.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param array  $params      Parameters (force-download)
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $params    Parameters (force-download)
      *
      * @throws Exception
      */
-    public function file_get($folder_name, $file_name, $params = array());
+    public function file_get($file_name, $params = array());
 
     /**
-     * Rename a file.
+     * Move (or rename) a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param string $new_name    New name of a file
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_rename($folder_name, $file_name, $new_name);
+    public function file_move($file_name, $new_name);
+
+    /**
+     * Copy a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_copy($file_name, $new_name);
 
     /**
      * Returns file metadata.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
+     * @param string $file_name Name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_info($folder_name, $file_name);
+    public function file_info($file_name);
 
     /**
      * List files in a folder.

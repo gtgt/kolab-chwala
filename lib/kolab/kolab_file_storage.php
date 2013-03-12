@@ -216,15 +216,14 @@ class kolab_file_storage implements file_storage
     /**
      * Create a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param array  $file        File data (path, type)
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
      *
      * @throws Exception
      */
-    public function file_create($folder_name, $file_name, $file)
+    public function file_create($file_name, $file)
     {
-        $exists = $this->get_file_object($folder_name, $file_name, $folder);
+        $exists = $this->get_file_object($file_name, $folder);
         if (!empty($exists)) {
             throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
         }
@@ -251,14 +250,13 @@ class kolab_file_storage implements file_storage
     /**
      * Delete a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
+     * @param string $file_name Name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_delete($folder_name, $file_name)
+    public function file_delete($file_name)
     {
-        $file = $this->get_file_object($folder_name, $file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
         }
@@ -278,15 +276,14 @@ class kolab_file_storage implements file_storage
     /**
      * Return file body.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param array  $params      Parameters (force-download)
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $params    Parameters (force-download)
      *
      * @throws Exception
      */
-    public function file_get($folder_name, $file_name, $params = array())
+    public function file_get($file_name, $params = array())
     {
-        $file = $this->get_file_object($folder_name, $file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
         }
@@ -326,14 +323,13 @@ class kolab_file_storage implements file_storage
     /**
      * Returns file metadata.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
+     * @param string $file_name Name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_info($folder_name, $file_name)
+    public function file_info($file_name)
     {
-        $file = $this->get_file_object($folder_name, $file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
         }
@@ -381,9 +377,10 @@ class kolab_file_storage implements file_storage
             }
 
             $result[$file['name']] = array(
-                'size'  => (int) $file['size'],
-                'type'  => (string) $file['type'],
-                'mtime' => $file['changed']->format($_SESSION['config']['date_format']),
+                'folder' => $folder_name,
+                'size'   => (int) $file['size'],
+                'type'   => (string) $file['type'],
+                'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
             );
             unset($files[$idx]);
         }
@@ -418,43 +415,84 @@ class kolab_file_storage implements file_storage
     }
 
     /**
-     * Rename a file.
+     * Copy a file.
      *
-     * @param string $folder_name Name of a folder with full path
-     * @param string $file_name   Name of a file
-     * @param string $new_name    New name of a file
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
      *
      * @throws Exception
      */
-    public function file_rename($folder_name, $file_name, $new_name)
+    public function file_copy($file_name, $new_name)
     {
-        $file = $this->get_file_object($folder_name, $file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
         }
 
-        $new = $this->get_file_object($folder_name, $new_name);
+        $new = $this->get_file_object($new_name, $new_folder);
         if (!empty($new)) {
             throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
+        }
+// @TODO
+    }
+
+    /**
+     * Move (or rename) a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_move($file_name, $new_name)
+    {
+        $file = $this->get_file_object($file_name, $folder);
+        if (empty($file)) {
+            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+        }
+
+        $new = $this->get_file_object($new_name, $new_folder);
+        if (!empty($new)) {
+            throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
+        }
+
+        // Move the file
+        if ($folder->name != $new_folder->name) {
+            $saved = $folder->move($file['uid'], $new_folder->name);
+            if (!$saved) {
+                rcube::raise_error(array(
+                    'code' => 600, 'type' => 'php',
+                    'file' => __FILE__, 'line' => __LINE__,
+                    'message' => "Error moving object on Kolab server"),
+                    true, false);
+
+                throw new Exception("Storage error. File move failed.", file_api::ERROR_CODE);
+            }
+
+            $folder = $new_folder;
+        }
+
+        if ($file_name === $new_name) {
+            return;
         }
 
         // Save to temp file
         $temp_dir  = unslashify($this->rc->config->get('temp_dir'));
         $file_path = tempnam($temp_dir, 'rcmAttmnt');
-        $fd        = fopen($file_path, 'w');
+        $fh        = fopen($file_path, 'w');
 
-        if (!$fd) {
+        if (!$fh) {
             throw new Exception("Storage error. File rename failed.", file_api::ERROR_CODE);
         }
 
-        $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fd);
-        fclose($fp);
+        $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fh);
+        fclose($fh);
 
         if (!file_exists($file_path)) {
             throw new Exception("Storage error. File rename failed.", file_api::ERROR_CODE);
         }
 
-        // Update object
+        // Update object (changing the name)
         $cid = key($file['_attachments']);
         $file['_attachments'][$cid]['name'] = $new_name;
         $file['_attachments'][$cid]['path'] = $file_path;
@@ -551,15 +589,24 @@ class kolab_file_storage implements file_storage
     /**
      * Get file object.
      *
-     * @param string               $folder_name Name of a folder with full path
-     * @param string               $file_name   Name of a file
-     * @param kolab_storage_folder $folder      Reference to folder object
+     * @param string               $file_name Name of a file (with folder path)
+     * @param kolab_storage_folder $folder    Reference to folder object
      *
      * @return array File data
      * @throws Exception
      */
-    protected function get_file_object($folder_name, $file_name, &$folder = null)
+    protected function get_file_object(&$file_name, &$folder = null)
     {
+        // extract file path and file name
+        $path        = explode(file_api::PATH_SEPARATOR, $file_name);
+        $file_name   = array_pop($path);
+        $folder_name = implode(file_api::PATH_SEPARATOR, $path);
+
+        if ($folder_name === '') {
+            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+        }
+
+        // get folder object
         $folder = $this->get_folder_object($folder_name);
         $files  = $folder->select(array(
             array('type', '=', 'file'),
@@ -579,9 +626,16 @@ class kolab_file_storage implements file_storage
      */
     protected function get_folder_object($folder_name)
     {
+        if ($folder_name === null || $folder_name === '') {
+            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+        }
+
         if (empty($this->folders[$folder_name])) {
-            $imap_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
-            $folder    = kolab_storage::get_folder($imap_name);
+            $storage     = $this->rc->get_storage();
+            $separator   = $storage->get_hierarchy_delimiter();
+            $folder_name = str_replace(file_api::PATH_SEPARATOR, $separator, $folder_name);
+            $imap_name   = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+            $folder      = kolab_storage::get_folder($imap_name);
 
             if (!$folder) {
                 throw new Exception("Storage error. Folder not found.", file_api::ERROR_CODE);

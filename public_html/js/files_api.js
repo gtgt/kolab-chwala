@@ -305,6 +305,22 @@ function files_api()
 
     return parseInt(size || 0)+ ' B';
   };
+
+  // Extract file name from full path
+  this.file_name = function(path)
+  {
+    var path = path.split(this.env.directory_separator);
+    return path.pop();
+  };
+
+  // Extract file path from full path
+  this.file_path = function(path)
+  {
+    var path = path.split(this.env.directory_separator);
+    path.pop();
+    return path.join(this.env.directory_separator);
+  };
+
 };
 
 // Add escape() method to RegExp object

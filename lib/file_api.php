@@ -6,6 +6,8 @@ class file_api
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
 
+    const PATH_SEPARATOR = '/';
+
     private $app_name = 'Kolab File API';
     private $api;
     private $output_type = self::OUTPUT_JSON;
@@ -164,10 +166,6 @@ class file_api
 
         switch ($request) {
             case 'file_list':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-
                 $params = array('reverse' => !empty($_GET['reverse']) && rcube_utils::get_boolean($_GET['reverse']));
                 if (!empty($_GET['sort'])) {
                     $params['sort'] = strtolower($_GET['sort']);
@@ -194,7 +192,7 @@ class file_api
                 $result  = array();
 
                 foreach ($uploads as $file) {
-                    $this->api->file_create($_GET['folder'], $file['name'], $file);
+                    $this->api->file_create($_GET['folder'] . self::PATH_SEPARATOR . $file['name'], $file);
                     unset($file['path']);
                     $result[$file['name']] = array(
                         'type' => $file['type'],
@@ -205,10 +203,6 @@ class file_api
                 return $result;
 
             case 'file_delete':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-
                 $files = (array) $_GET['file'];
 
                 if (empty($files)) {
@@ -216,27 +210,19 @@ class file_api
                 }
 
                 foreach ($files as $file) {
-                    $this->api->file_delete($_GET['folder'], $file);
+                    $this->api->file_delete($file);
                 }
                 return;
 
             case 'file_info':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
-                return $this->api->file_info($_GET['folder'], $_GET['file']);
+                return $this->api->file_info($_GET['file']);
 
             case 'file_get':
                 $this->output_type = self::OUTPUT_HTML;
-
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing folder name");
-                }
 
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
                     header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
@@ -247,17 +233,14 @@ class file_api
                 );
 
                 try {
-                    $this->api->file_get($_GET['folder'], $_GET['file'], $params);
+                    $this->api->file_get($_GET['file'], $params);
                 }
                 catch (Exception $e) {
-                    header("HTTP/1.0 ".file_api::ERROR_CODE." " . $e->getMessage());
+                    header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
                 }
                 exit;
 
-            case 'file_rename':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
+            case 'file_move':
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
@@ -268,7 +251,7 @@ class file_api
                     throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
                 }
 
-                return $this->api->file_rename($_GET['folder'], $_GET['file'], $_GET['new']);
+                return $this->api->file_move($_GET['file'], $_GET['new']);
 
             case 'folder_create':
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {

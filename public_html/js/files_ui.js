@@ -618,14 +618,15 @@ function files_ui()
     this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
 
     $.each(response.result, function(key, data) {
-      var row = $('<tr><td class="filename"></td>'
-        +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
-        link = $('<span></span>').text(key).click(function(e) { ui.file_menu(e, key); });
+      var fname = data.folder + ui.env.directory_separator + key,
+        row = $('<tr><td class="filename"></td>'
+          +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
+        link = $('<span></span>').text(key).click(function(e) { ui.file_menu(e, fname); });
 
       $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
       $('td.filemtime', row).text(data.mtime);
       $('td.filesize', row).text(ui.file_size(data.size));
-      row.attr('data-file', urlencode(key));
+      row.attr('data-file', fname);
 
       row.click(function(e) { ui.file_list_click(e, this); });
 
@@ -660,7 +661,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'deleting');
-    this.get('file_delete', {folder: this.env.folder, file: file}, 'file_delete_response');
+    this.get('file_delete', {file: file}, 'file_delete_response');
   };
 
   // file delete response handler
@@ -673,17 +674,17 @@ function files_ui()
   };
 
   // file rename request
-  this.file_rename = function(file, newname)
+  this.file_move = function(file, newname)
   {
     if (file === newname)
       return;
 
     this.set_busy(true, 'saving');
-    this.get('file_rename', {folder: this.env.folder, file: file, 'new': newname}, 'file_rename_response');
+    this.get('file_move', {file: file, 'new': newname}, 'file_move_response');
   };
 
   // file delete response handler
-  this.file_rename_response = function(response)
+  this.file_move_response = function(response)
   {
     if (!this.response(response))
       return;
@@ -696,21 +697,23 @@ function files_ui()
     var menu = $('#file-menu');
 
     $('li.file-open > a', menu)
-      .attr({target: '_blank', href: 'api/' + this.url('file_get', {folder: this.env.folder, token: this.env.token, file: file})});
+      .attr({target: '_blank', href: 'api/' + this.url('file_get', {token: this.env.token, file: file})});
 
     $('li.file-delete > a', menu).off('click').click(function() { ui.file_delete(file); });
-    $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(file); });
+    $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(e); });
 
     this.popup_show(e, menu);
   };
 
-  this.file_rename_start = function(file)
+  this.file_rename_start = function(e)
   {
     var list = $('#filelist'),
-      tr = $('tr[data-file="' + urlencode(file) + '"]', list),
+      tr = $(e.target).parents('tr'),
       td = $('td.filename', tr),
+      file = tr.data('file'),
+      name = this.file_name(file),
       input = $('<input>').attr({type: 'text', name: 'filename', 'class': 'filerename'})
-        .val(file).data('filename', file)
+        .val(name).data('file', file)
         .click(function(e) { e.stopPropagation(); })
         .keydown(function(e) {
           switch (e.which) {
@@ -718,8 +721,12 @@ function files_ui()
             ui.file_rename_stop();
             break;
           case 13: // Enter
-            var elem = $(this), newname = elem.val();
-            ui.file_rename(elem.data('filename'), newname);
+            var elem = $(this),
+              newname = elem.val(),
+              oldname = elem.data('file'),
+              path = ui.file_path(file);
+
+            ui.file_move(oldname, path + ui.env.directory_separator + newname);
             elem.parent().text(newname);
             break;
           }
@@ -732,8 +739,8 @@ function files_ui()
   this.file_rename_stop = function()
   {
     $('input.filerename').each(function() {
-      var elem = $(this);
-      elem.parent().text(elem.data('filename'));
+      var elem = $(this), name = this.file_name(elem.data('file'));
+      elem.parent().text(name);
     });
   };
 
@@ -931,6 +938,7 @@ function files_ui()
     form.hide();
     $('#taskcontent').css('top', 10);
   };
+
 };
 
 // Initialize application object (don't change var name!)
