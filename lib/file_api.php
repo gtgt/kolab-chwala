@@ -244,14 +244,33 @@ class file_api
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
-                if (!isset($_GET['new']) || $_GET['new'] === '') {
-                    throw new Exception("Missing new file name", file_api::ERROR_CODE);
+
+                if (is_array($_GET['file'])) {
+                    if (empty($_GET['file'])) {
+                        throw new Exception("Missing file name", file_api::ERROR_CODE);
+                    }
                 }
-                if ($_GET['new'] === $_GET['file']) {
-                    throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
+                else {
+                    if (!isset($_GET['new']) || $_GET['new'] === '') {
+                        throw new Exception("Missing new file name", file_api::ERROR_CODE);
+                    }
+                    $_GET['file'] = array($_GET['file'] => $_GET['new']);
                 }
 
-                return $this->api->file_move($_GET['file'], $_GET['new']);
+                $files = (array) $_GET['file'];
+
+                foreach ($files as $file => $new_file) {
+                    if ($new_file === '') {
+                        throw new Exception("Missing new file name", file_api::ERROR_CODE);
+                    }
+                    if ($new_file === $file) {
+                        throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
+                    }
+
+                    $this->api->file_move($file, $new_file);
+                }
+
+                return;
 
             case 'folder_create':
                 if (!isset($_GET['folder']) || $_GET['folder'] === '') {
