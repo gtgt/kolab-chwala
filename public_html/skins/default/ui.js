@@ -31,10 +31,10 @@ function hack_file_input(id)
     // opacity:0 does the trick, display/visibility doesn't work
     .css({opacity: 0, cursor: 'pointer', position: 'relative', top: '10000px', left: '10000px'});
 
-  // In FF we need to move the browser file-input's button under the cursor
+  // In FF and IE we need to move the browser file-input's button under the cursor
   // Thanks to the size attribute above we know the length of the input field
-  if (navigator.userAgent.indexOf('Firefox') > -1)
-    file.css({marginLeft: '-75px'});
+  if (navigator.userAgent.match(/Firefox|MSIE/))
+    file.css({marginLeft: '-80px'});
 
   // Note: now, I observe problem with cursor style on FF < 4 only
   link.css({overflow: 'hidden', cursor: 'pointer'})
