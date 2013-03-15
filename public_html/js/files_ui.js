@@ -625,9 +625,13 @@ function files_ui()
       $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
       $('td.filemtime', row).text(data.mtime);
       $('td.filesize', row).text(ui.file_size(data.size));
-      row.attr('data-file', key);
 
-      row.click(function(e) { ui.file_list_click(e, this); });
+      row.attr('data-file', key)
+        .click(function(e) { ui.file_list_click(e, this); });
+
+      // disables selection in IE
+      if (document.all)
+        row.on('selectstart', function() { return false; });
 
       table.append(row);
     });
