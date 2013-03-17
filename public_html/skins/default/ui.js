@@ -29,7 +29,7 @@ function hack_file_input(id)
   file.attr({name: 'file[]', type: 'file', multiple: 'multiple', size: 5})
     .change(function() { ui.file_upload(); })
     // opacity:0 does the trick, display/visibility doesn't work
-    .css({opacity: 0, cursor: 'pointer', position: 'relative', top: '10000px', left: '10000px'});
+    .css({opacity: 0, cursor: 'pointer', position: 'relative', outline: 'none', top: '10000px', left: '10000px'});
 
   // In FF and IE we need to move the browser file-input's button under the cursor
   // Thanks to the size attribute above we know the length of the input field
