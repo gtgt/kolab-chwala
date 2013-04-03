@@ -342,3 +342,11 @@ function urlencode(str)
     .replace('/', '%2F')
     .replace('@', '%40');
 };
+
+function escapeHTML(str)
+{
+  return str === undefined ? '' : String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/>/g, '&gt;')
+    .replace(/</g, '&lt;');
+};
