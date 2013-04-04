@@ -57,7 +57,10 @@ class file_api
                     $_SESSION['time']   = time();
                     $_SESSION['config'] = $this->config;
 
-                    $this->output_success(array('token' => session_id()));
+                    $this->output_success(array(
+                        'token'        => session_id(),
+                        'capabilities' => $this->capabilities(),
+                    ));
                 }
             }
 
@@ -312,6 +315,9 @@ class file_api
                 $_SESSION['config'] = $this->config;
 
                 return $this->config;
+
+            case 'capabilities':
+                return $this->capabilities();
         }
 
         if ($request) {
@@ -348,6 +354,24 @@ class file_api
         }
 
         return $files;
+    }
+
+    /*
+     * Returns storage (driver) capabilities
+     */
+    protected function capabilities()
+    {
+        $this->api_init();
+
+        $caps = array();
+        foreach ($this->api->capabilities() as $name => $value) {
+            // skip disabled capabilities
+            if ($value !== false) {
+                $caps[$name] = $value;
+            }
+        }
+
+        return $caps;
     }
 
     /**

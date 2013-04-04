@@ -214,6 +214,25 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Storage driver capabilities
+     *
+     * @return array List of capabilities
+     */
+    public function capabilities()
+    {
+        // find max filesize value
+        $max_filesize = parse_bytes(ini_get('upload_max_filesize'));
+        $max_postsize = parse_bytes(ini_get('post_max_size'));
+        if ($max_postsize && $max_postsize < $max_filesize) {
+            $max_filesize = $max_postsize;
+        }
+
+        return array(
+            file_storage::CAPS_MAX_UPLOAD => $max_filesize,
+        );
+    }
+
+    /**
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)

@@ -2,15 +2,25 @@
 
 interface file_storage
 {
+    const CAPS_MAX_UPLOAD = 'MAX_UPLOAD';
+    const CAPS_ACL        = 'ACL';
+
     /**
-      * Authenticates a user
-      *
-      * @param string $username User name
-      * @param string $password User password
-      *
-      * @param bool True on success, False on failure
-      */
+     * Authenticates a user
+     *
+     * @param string $username User name
+     * @param string $password User password
+     *
+     * @return bool True on success, False on failure
+     */
     public function authenticate($username, $password);
+
+    /**
+     * Storage driver capabilities
+     *
+     * @return array List of capabilities
+     */
+    public function capabilities();
 
     /**
      * Create a file.
