@@ -41,7 +41,7 @@ abstract class kolab_format
     protected $xmldata;
     protected $xmlobject;
     protected $loaded = false;
-    protected $version = 3.0;
+    protected $version = '3.0';
 
     const KTYPE_PREFIX = 'application/x-vnd.kolab.';
     const PRODUCT_ID = 'Roundcube-libkolab-0.9';
@@ -54,7 +54,7 @@ abstract class kolab_format
      * @param string Cached xml data to initialize with
      * @return object kolab_format
      */
-    public static function factory($type, $version = 3.0, $xmldata = null)
+    public static function factory($type, $version = '3.0', $xmldata = null)
     {
         if (!isset(self::$timezone))
             self::$timezone = new DateTimeZone('UTC');
@@ -79,7 +79,7 @@ abstract class kolab_format
      */
     public static function supports($version)
     {
-        if ($version == 2.0)
+        if ($version == '2.0')
             return class_exists('kolabobject');
         // default is version 3
         return class_exists('kolabformat');
@@ -299,7 +299,7 @@ abstract class kolab_format
     {
         if (class_exists('kolabobject')) {
             $version = $v ?: $this->version;
-            if ($version <= 2.0)
+            if ($version <= '2.0')
                 return kolabobject::KolabV2;
             else
                 return kolabobject::KolabV3;
@@ -381,12 +381,33 @@ abstract class kolab_format
      *
      * @param array  Object data as hash array
      */
-    abstract public function set(&$object);
+    public function set(&$object)
+    {
+        $this->init();
 
-    /**
-     *
-     */
-    abstract public function is_valid();
+        if (!empty($object['uid']))
+            $this->obj->setUid($object['uid']);
+
+        // set some automatic values if missing
+        if (method_exists($this->obj, 'setCreated') && !$this->obj->created()) {
+            if (empty($object['created']))
+                $object['created'] = new DateTime('now', self::$timezone);
+            $this->obj->setCreated(self::get_datetime($object['created']));
+        }
+
+        $object['changed'] = new DateTime('now', self::$timezone);
+        $this->obj->setLastModified(self::get_datetime($object['changed'], new DateTimeZone('UTC')));
+
+        // Save custom properties of the given object
+        if (!empty($object['x-custom'])) {
+            $vcustom = new vectorcs;
+            foreach ($object['x-custom'] as $cp) {
+                if (is_array($cp))
+                    $vcustom->push(new CustomProperty($cp[0], $cp[1]));
+            }
+            $this->obj->setCustomProperties($vcustom);
+        }
+    }
 
     /**
      * Convert the Kolab object into a hash array data structure
@@ -395,7 +416,35 @@ abstract class kolab_format
      *
      * @return array  Kolab object data as hash array
      */
-    abstract public function to_array($data = array());
+    public function to_array($data = array())
+    {
+        $this->init();
+
+        // read object properties into local data object
+        $object = array(
+            'uid'     => $this->obj->uid(),
+            'changed' => self::php_datetime($this->obj->lastModified()),
+        );
+
+        // not all container support the created property
+        if (method_exists($this->obj, 'created')) {
+            $object['created'] = self::php_datetime($this->obj->created());
+        }
+
+        // read custom properties
+        $vcustom = $this->obj->customProperties();
+        for ($i=0; $i < $vcustom->size(); $i++) {
+            $cp = $vcustom->get($i);
+            $object['x-custom'][] = array($cp->identifier, $cp->value);
+        }
+
+        return $object;
+    }
+
+    /**
+     * Object validation method to be implemented by derived classes
+     */
+    abstract public function is_valid();
 
     /**
      * Callback for kolab_storage_cache to get object specific tags to cache

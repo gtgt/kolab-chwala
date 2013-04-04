@@ -94,13 +94,13 @@ abstract class kolab_format_xcal extends kolab_format
      */
     public function to_array($data = array())
     {
+        // read common object props
+        $object = parent::to_array();
+
         $status_map = array_flip($this->status_map);
         $sensitivity_map = array_flip($this->sensitivity_map);
 
-        $object = array(
-            'uid'         => $this->obj->uid(),
-            'created'     => self::php_datetime($this->obj->created()),
-            'changed'     => self::php_datetime($this->obj->lastModified()),
+        $object += array(
             'sequence'    => intval($this->obj->sequence()),
             'title'       => $this->obj->summary(),
             'location'    => $this->obj->location(),
@@ -113,7 +113,7 @@ abstract class kolab_format_xcal extends kolab_format
         );
 
         // read organizer and attendees
-        if ($organizer = $this->obj->organizer()) {
+        if (($organizer = $this->obj->organizer()) && ($organizer->email() || $organizer->name())) {
             $object['organizer'] = array(
                 'email' => $organizer->email(),
                 'name' => $organizer->name(),
@@ -126,13 +126,15 @@ abstract class kolab_format_xcal extends kolab_format
         for ($i=0; $i < $attvec->size(); $i++) {
             $attendee = $attvec->get($i);
             $cr = $attendee->contact();
-            $object['attendees'][] = array(
-                'role' => $role_map[$attendee->role()],
-                'status' => $part_status_map[$attendee->partStat()],
-                'rsvp' => $attendee->rsvp(),
-                'email' => $cr->email(),
-                'name' => $cr->name(),
-            );
+            if ($cr->email() != $object['organizer']['email']) {
+                $object['attendees'][] = array(
+                    'role' => $role_map[$attendee->role()],
+                    'status' => $part_status_map[$attendee->partStat()],
+                    'rsvp' => $attendee->rsvp(),
+                    'email' => $cr->email(),
+                    'name' => $cr->name(),
+                );
+            }
         }
 
         // read recurrence rule
@@ -170,9 +172,9 @@ abstract class kolab_format_xcal extends kolab_format
                 $object['recurrence']['BYMONTH'] = join(',', self::vector2array($bymonth));
             }
 
-            if ($exceptions = $this->obj->exceptionDates()) {
-                for ($i=0; $i < $exceptions->size(); $i++) {
-                    if ($exdate = self::php_datetime($exceptions->get($i)))
+            if ($exdates = $this->obj->exceptionDates()) {
+                for ($i=0; $i < $exdates->size(); $i++) {
+                    if ($exdate = self::php_datetime($exdates->get($i)))
                         $object['recurrence']['EXDATE'][] = $exdate;
                 }
             }
@@ -216,20 +218,12 @@ abstract class kolab_format_xcal extends kolab_format
      */
     public function set(&$object)
     {
+        $this->init();
+
         $is_new = !$this->obj->uid();
 
-        // set some automatic values if missing
-        if (!$this->obj->created()) {
-            if (!empty($object['created']))
-                $object['created'] = new DateTime('now', self::$timezone);
-            $this->obj->setCreated(self::get_datetime($object['created']));
-        }
-
-        if (!empty($object['uid']))
-            $this->obj->setUid($object['uid']);
-
-        $object['changed'] = new DateTime('now', self::$timezone);
-        $this->obj->setLastModified(self::get_datetime($object['changed'], new DateTimeZone('UTC')));
+        // set common object properties
+        parent::set($object);
 
         // increment sequence on updates
         $object['sequence'] = !$is_new ? $this->obj->sequence()+1 : 0;
@@ -248,13 +242,13 @@ abstract class kolab_format_xcal extends kolab_format
             if ($attendee['role'] == 'ORGANIZER') {
                 $object['organizer'] = $attendee;
             }
-            else {
+            else if ($attendee['email'] != $object['organizer']['email']) {
                 $cr = new ContactReference(ContactReference::EmailReference, $attendee['email']);
                 $cr->setName($attendee['name']);
 
                 $att = new Attendee;
                 $att->setContact($cr);
-                $att->setPartStat($this->status_map[$attendee['status']]);
+                $att->setPartStat($this->part_status_map[$attendee['status']]);
                 $att->setRole($this->role_map[$attendee['role']] ? $this->role_map[$attendee['role']] : kolabformat::Required);
                 $att->setRSVP((bool)$attendee['rsvp']);
 

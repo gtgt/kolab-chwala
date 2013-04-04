@@ -85,20 +85,8 @@ class kolab_format_contact extends kolab_format
      */
     public function set(&$object)
     {
-        $this->init();
-
-        // set some automatic values if missing
-        if (false && !$this->obj->created()) {
-            if (!empty($object['created']))
-                $object['created'] = new DateTime('now', self::$timezone);
-            $this->obj->setCreated(self::get_datetime($object['created']));
-        }
-
-        if (!empty($object['uid']))
-            $this->obj->setUid($object['uid']);
-
-        $object['changed'] = new DateTime('now', self::$timezone);
-        $this->obj->setLastModified(self::get_datetime($object['changed'], new DateTimeZone('UTC')));
+        // set common object properties
+        parent::set($object);
 
         // do the hard work of setting object values
         $nc = new NameComponents;
@@ -109,6 +97,7 @@ class kolab_format_contact extends kolab_format
         $nc->setSuffixes(self::array2vector($object['suffix']));
         $this->obj->setNameComponents($nc);
         $this->obj->setName($object['name']);
+        $this->obj->setCategories(self::array2vector($object['categories']));
 
         if (isset($object['nickname']))
             $this->obj->setNickNames(self::array2vector($object['nickname']));
@@ -276,14 +265,10 @@ class kolab_format_contact extends kolab_format
         if (!empty($this->data))
             return $this->data;
 
-        $this->init();
+        // read common object props into local data object
+        $object = parent::to_array();
 
-        // read object properties into local data object
-        $object = array(
-            'uid'       => $this->obj->uid(),
-            'name'      => $this->obj->name(),
-            'changed'   => self::php_datetime($this->obj->lastModified()),
-        );
+        $object['name'] = $this->obj->name();
 
         $nc = $this->obj->nameComponents();
         $object['surname']    = join(' ', self::vector2array($nc->surnames()));
@@ -293,6 +278,7 @@ class kolab_format_contact extends kolab_format
         $object['suffix']     = join(' ', self::vector2array($nc->suffixes()));
         $object['nickname']   = join(' ', self::vector2array($this->obj->nickNames()));
         $object['profession'] = join(' ', self::vector2array($this->obj->titles()));
+        $object['categories'] = self::vector2array($this->obj->categories());
 
         // organisation related properties (affiliation)
         $orgs = $this->obj->affiliations();

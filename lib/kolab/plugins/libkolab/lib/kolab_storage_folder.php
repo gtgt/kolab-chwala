@@ -49,8 +49,10 @@ class kolab_storage_folder
     public $cache;
 
     private $type_annotation;
+    private $namespace;
     private $imap;
     private $info;
+    private $idata;
     private $owner;
     private $resource_uri;
     private $uid2msg = array();
@@ -99,6 +101,16 @@ class kolab_storage_folder
         return $this->info;
     }
 
+    /**
+     * Make IMAP folder data available for this folder
+     */
+    public function get_imap_data()
+    {
+        if (!isset($this->idata))
+            $this->idata = $this->imap->folder_data($this->name);
+
+        return $this->idata;
+    }
 
     /**
      * Returns IMAP metadata/annotations (GETMETADATA/GETANNOTATION)
@@ -171,7 +183,9 @@ class kolab_storage_folder
      */
     public function get_namespace()
     {
-        return $this->imap->folder_namespace($this->name);
+        if (!isset($this->namespace))
+            $this->namespace = $this->imap->folder_namespace($this->name);
+        return $this->namespace;
     }
 
 
@@ -192,7 +206,18 @@ class kolab_storage_folder
 
 
     /**
-     * Get the color value stores in metadata
+     * Get the display name value of this folder
+     *
+     * @return string Folder name
+     */
+    public function get_name()
+    {
+        return kolab_storage::object_name($this->name, $this->namespace);
+    }
+
+
+    /**
+     * Get the color value stored in metadata
      *
      * @param string Default color value to return if not set
      * @return mixed Color value from IMAP metadata or $default is not set
@@ -447,9 +472,37 @@ class kolab_storage_folder
         $this->imap->set_folder($folder);
 
         $headers = $this->imap->get_message_headers($msguid);
+        $message = null;
 
         // Message doesn't exist?
         if (empty($headers)) {
+            return false;
+        }
+
+        // extract the X-Kolab-Type header from the XML attachment part if missing
+        if (empty($headers->others['x-kolab-type'])) {
+            $message = new rcube_message($msguid);
+            foreach ((array)$message->attachments as $part) {
+                if (strpos($part->mimetype, kolab_format::KTYPE_PREFIX) === 0) {
+                    $headers->others['x-kolab-type'] = $part->mimetype;
+                    break;
+                }
+            }
+        }
+        // fix buggy messages stating the X-Kolab-Type header twice
+        else if (is_array($headers->others['x-kolab-type'])) {
+            $headers->others['x-kolab-type'] = reset($headers->others['x-kolab-type']);
+        }
+
+        // no object type header found: abort
+        if (empty($headers->others['x-kolab-type'])) {
+            rcube::raise_error(array(
+                'code' => 600,
+                'type' => 'php',
+                'file' => __FILE__,
+                'line' => __LINE__,
+                'message' => "No X-Kolab-Type information found in message $msguid ($this->name).",
+            ), true);
             return false;
         }
 
@@ -460,7 +513,7 @@ class kolab_storage_folder
         if ($type != '*' && $object_type != $type)
             return false;
 
-        $message = new rcube_message($msguid);
+        if (!$message) $message = new rcube_message($msguid);
         $attachments = array();
 
         // get XML part
@@ -509,9 +562,9 @@ class kolab_storage_folder
 
             // detect old Kolab 2.0 format
             if (strpos($xmlhead, '<' . $xmltype) !== false && strpos($xmlhead, 'xmlns=') === false)
-                $format_version = 2.0;
+                $format_version = '2.0';
             else
-                $format_version = 3.0; // assume 3.0
+                $format_version = '3.0'; // assume 3.0
         }
 
         // get Kolab format handler for the given type
@@ -548,7 +601,6 @@ class kolab_storage_folder
 
         return false;
     }
-
 
     /**
      * Save an object in this folder.
@@ -620,6 +672,11 @@ class kolab_storage_folder
             }
         }
 
+        // save recurrence exceptions as individual objects due to lack of support in Kolab v2 format
+        if (kolab_storage::$version == '2.0' && $object['recurrence']['EXCEPTIONS']) {
+            $this->save_recurrence_exceptions($object, $type);
+        }
+
         // check IMAP BINARY extension support for 'file' objects
         // allow configuration to workaround bug in Cyrus < 2.4.17
         $rcmail = rcube::get_instance();
@@ -627,6 +684,12 @@ class kolab_storage_folder
 
         // generate and save object message
         if ($raw_msg = $this->build_message($object, $type, $binary)) {
+            // resolve old msguid before saving
+            if ($uid && empty($object['_msguid']) && ($msguid = $this->cache->uid2msguid($uid))) {
+                $object['_msguid'] = $msguid;
+                $object['_mailbox'] = $this->name;
+            }
+
             if (is_array($raw_msg)) {
                 $result = $this->imap->save_message($this->name, $raw_msg[0], $raw_msg[1], true, null, null, $binary);
                 @unlink($raw_msg[0]);
@@ -640,10 +703,6 @@ class kolab_storage_folder
                 $this->imap->delete_message($object['_msguid'], $object['_mailbox']);
                 $this->cache->set($object['_msguid'], false, $object['_mailbox']);
             }
-            else if ($result && $uid && ($msguid = $this->cache->uid2msguid($uid))) {
-                $this->imap->delete_message($msguid, $this->name);
-                $this->cache->set($object['_msguid'], false);
-            }
 
             // update cache with new UID
             if ($result) {
@@ -655,6 +714,68 @@ class kolab_storage_folder
         return $result;
     }
 
+    /**
+     * Save recurrence exceptions as individual objects.
+     * The Kolab v2 format doesn't allow us to save fully embedded exception objects.
+     *
+     * @param array Hash array with event properties
+     * @param string Object type
+     */
+    private function save_recurrence_exceptions(&$object, $type = null)
+    {
+        if ($object['recurrence']['EXCEPTIONS']) {
+            $exdates = array();
+            foreach ((array)$object['recurrence']['EXDATE'] as $exdate) {
+                $key = is_a($exdate, 'DateTime') ? $exdate->format('Y-m-d') : strval($exdate);
+                $exdates[$key] = 1;
+            }
+
+            // save every exception as individual object
+            foreach((array)$object['recurrence']['EXCEPTIONS'] as $exception) {
+                $exception['uid'] = self::recurrence_exception_uid($object['uid'], $exception['start']->format('Ymd'));
+                $exception['sequence'] = $object['sequence'] + 1;
+
+                if ($exception['thisandfuture']) {
+                    $exception['recurrence'] = $object['recurrence'];
+
+                    // adjust the recurrence duration of the exception
+                    if ($object['recurrence']['COUNT']) {
+                        $recurrence = new kolab_date_recurrence($object['_formatobj']);
+                        if ($end = $recurrence->end()) {
+                            unset($exception['recurrence']['COUNT']);
+                            $exception['recurrence']['UNTIL'] = new DateTime('@'.$end);
+                        }
+                    }
+
+                    // set UNTIL date if we have a thisandfuture exception
+                    $untildate = clone $exception['start'];
+                    $untildate->sub(new DateInterval('P1D'));
+                    $object['recurrence']['UNTIL'] = $untildate;
+                    unset($object['recurrence']['COUNT']);
+                }
+                else {
+                    if (!$exdates[$exception['start']->format('Y-m-d')])
+                        $object['recurrence']['EXDATE'][] = clone $exception['start'];
+                    unset($exception['recurrence']);
+                }
+
+                unset($exception['recurrence']['EXCEPTIONS'], $exception['_formatobj'], $exception['_msguid']);
+                $this->save($exception, $type, $exception['uid']);
+            }
+
+            unset($object['recurrence']['EXCEPTIONS']);
+        }
+    }
+
+    /**
+     * Generate an object UID with the given recurrence-ID in a way that it is
+     * unique (the original UID is not a substring) but still recoverable.
+     */
+    private static function recurrence_exception_uid($uid, $recurrence_id)
+    {
+        $offset = -2;
+        return substr($uid, 0, $offset) . '-' . $recurrence_id . '-' . substr($uid, $offset);
+    }
 
     /**
      * Delete the specified object from this folder.
@@ -775,9 +896,9 @@ class kolab_storage_folder
         $part_id  = 1;
         $encoding = $binary ? 'binary' : 'base64';
 
-        if ($ident = $rcmail->user->get_identity()) {
-            $headers['From'] = $ident['email'];
-            $headers['To'] = $ident['email'];
+        if ($user_email = $rcmail->get_user_email()) {
+            $headers['From'] = $user_email;
+            $headers['To'] = $user_email;
         }
         $headers['Date'] = date('r');
         $headers['X-Kolab-Type'] = kolab_format::KTYPE_PREFIX . $type;
@@ -819,7 +940,7 @@ class kolab_storage_folder
             false,                  // is_file
             '8bit',                 // encoding
             'attachment',           // disposition
-            RCUBE_CHARSET          // charset
+            RCUBE_CHARSET           // charset
         );
         $part_id++;
 
@@ -892,7 +1013,11 @@ class kolab_storage_folder
         case 'event':
             if ($this->get_namespace() == 'personal') {
                 $result = $this->trigger_url(
-                    sprintf('%s/trigger/%s/%s.pfb', kolab_storage::get_freebusy_server(), $owner, $this->imap->mod_folder($this->name)),
+                    sprintf('%s/trigger/%s/%s.pfb',
+                        kolab_storage::get_freebusy_server(),
+                        urlencode($owner),
+                        urlencode($this->imap->mod_folder($this->name))
+                    ),
                     $this->imap->options['user'],
                     $this->imap->options['password']
                 );

@@ -30,6 +30,19 @@ class kolab_format_event extends kolab_format_xcal
     protected $read_func = 'readEvent';
     protected $write_func = 'writeEvent';
 
+    /**
+     * Default constructor
+     */
+    function __construct($data = null, $version = 3.0)
+    {
+        parent::__construct(is_string($data) ? $data : null, $version);
+
+        // got an Event object as argument
+        if (is_object($data) && is_a($data, $this->objclass)) {
+            $this->obj = $data;
+            $this->loaded = true;
+        }
+    }
 
     /**
      * Clones into an instance of libcalendaring's extended EventCal class
@@ -61,8 +74,6 @@ class kolab_format_event extends kolab_format_xcal
      */
     public function set(&$object)
     {
-        $this->init();
-
         // set common xcal properties
         parent::set($object);
 
@@ -88,7 +99,26 @@ class kolab_format_event extends kolab_format_xcal
             $attach->setUri('cid:' . $cid, $attr['mimetype']);
             $vattach->push($attach);
         }
+
+        foreach ((array)$object['links'] as $link) {
+            $attach = new Attachment;
+            $attach->setUri($link, null);
+            $vattach->push($attach);
+        }
+
         $this->obj->setAttachments($vattach);
+
+        // save recurrence exceptions
+        if ($object['recurrence']['EXCEPTIONS']) {
+            $vexceptions = new vectorevent;
+            foreach((array)$object['recurrence']['EXCEPTIONS'] as $exception) {
+                $exevent = new kolab_format_event;
+                $exevent->set($this->compact_exception($exception, $object));  // only save differing values
+                $exevent->obj->setRecurrenceID(self::get_datetime($exception['start'], null, true), (bool)$exception['thisandfuture']);
+                $vexceptions->push($exevent->obj);
+            }
+            $this->obj->setExceptions($vexceptions);
+        }
 
         // cache this data
         $this->data = $object;
@@ -115,8 +145,6 @@ class kolab_format_event extends kolab_format_xcal
         // return cached result
         if (!empty($this->data))
             return $this->data;
-
-        $this->init();
 
         // read common xcal props
         $object = parent::to_array();
@@ -158,6 +186,25 @@ class kolab_format_event extends kolab_format_xcal
                     'content'  => $data,
                 );
             }
+            else if (substr($attach->uri(), 0, 4) == 'http') {
+                $object['links'][] = $attach->uri();
+            }
+        }
+
+        // read exception event objects
+        if (($exceptions = $this->obj->exceptions()) && is_object($exceptions) && $exceptions->size()) {
+            for ($i=0; $i < $exceptions->size(); $i++) {
+                if (($exobj = $exceptions->get($i))) {
+                    $exception = new kolab_format_event($exobj);
+                    if ($exception->is_valid()) {
+                        $object['recurrence']['EXCEPTIONS'][] = $this->expand_exception($exception->to_array(), $object);
+                    }
+                }
+            }
+        }
+        // this is an exception object
+        else if ($this->obj->recurrenceID()->isValid()) {
+          $object['thisandfuture'] = $this->obj->thisAndFuture();
         }
 
         // merge with additional data, e.g. attachments from the message
@@ -193,6 +240,36 @@ class kolab_format_event extends kolab_format_xcal
         }
 
         return $tags;
+    }
+
+    /**
+     * Remove some attributes from the exception container
+     */
+    private function compact_exception($exception, $master)
+    {
+      static $forbidden = array('recurrence','organizer','attendees','sequence');
+
+      $out = $exception;
+      foreach ($exception as $prop => $val) {
+        if (in_array($prop, $forbidden)) {
+          unset($out[$prop]);
+        }
+      }
+
+      return $out;
+    }
+
+    /**
+     * Copy attributes not specified by the exception from the master event
+     */
+    private function expand_exception($exception, $master)
+    {
+      foreach ($master as $prop => $value) {
+        if (empty($exception[$prop]) && !empty($value))
+          $exception[$prop] = $value;
+      }
+
+      return $exception;
     }
 
 }
