@@ -742,7 +742,7 @@ function files_ui()
   this.file_rename_stop = function()
   {
     $('input.filerename').each(function() {
-      var elem = $(this), name = this.file_name(elem.data('file'));
+      var elem = $(this), name = ui.file_name(elem.data('file'));
       elem.parent().text(name);
     });
   };
