@@ -944,9 +944,10 @@ fieldset.tabbed
   padding: 5px 30px;
 }
 
-#reqtime {
+#footer .foot {
   white-space: nowrap;
   vertical-align: top;
+  text-align: right;
 }
 
 /***** tree indicators *****/

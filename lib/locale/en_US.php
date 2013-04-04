@@ -27,6 +27,7 @@ $LANG['login.password'] = 'Password';
 $LANG['login.login'] = 'Log in';
 
 $LANG['reqtime'] = 'Request time: $1 sec.';
+$LANG['maxupload'] = 'Maximum file size: $1';
 $LANG['internalerror'] = 'Internal system error!';
 $LANG['loginerror'] = 'Incorrect username or password!';
 $LANG['loading'] = 'Loading...';
@@ -36,3 +37,8 @@ $LANG['logout'] = 'Logout';
 $LANG['search'] = 'Search';
 $LANG['servererror'] = 'Server Error!';
 $LANG['session.expired'] = 'Session has expired. Login again, please';
+
+$LANG['size.B'] = 'B';
+$LANG['size.KB'] = 'KB';
+$LANG['size.MB'] = 'MB';
+$LANG['size.GB'] = 'GB';

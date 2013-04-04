@@ -213,6 +213,8 @@ class file_ui
                         }
                     }
 */
+                    // Save capabilities
+                    $_SESSION['caps'] = $result->get('capabilities');
                     // Save user data
                     $_SESSION['user'] = $user;
 
