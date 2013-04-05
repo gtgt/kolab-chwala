@@ -244,6 +244,7 @@ class file_api
                 exit;
 
             case 'file_move':
+            case 'file_copy':
                 if (!isset($_GET['file']) || $_GET['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
@@ -270,7 +271,7 @@ class file_api
                         throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
                     }
 
-                    $this->api->file_move($file, $new_file);
+                    $this->api->{$request}($file, $new_file);
                 }
 
                 return;

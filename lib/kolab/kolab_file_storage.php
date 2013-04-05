@@ -451,7 +451,48 @@ class kolab_file_storage implements file_storage
         if (!empty($new)) {
             throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
         }
-// @TODO
+
+        $file = $this->from_file_object($file);
+
+        // Save to temp file
+        // @TODO: use IMAP CATENATE extension
+        $temp_dir  = unslashify($this->rc->config->get('temp_dir'));
+        $file_path = tempnam($temp_dir, 'rcmAttmnt');
+        $fh        = fopen($file_path, 'w');
+
+        if (!$fh) {
+            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+        }
+
+        $folder->get_attachment($file['uid'], $file['fileid'], null, false, $fh, true);
+        fclose($fh);
+
+        if (!file_exists($file_path)) {
+            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+        }
+
+        // Update object
+        $file['_attachments'] = array(
+            0 => array(
+                'name'     => $file['name'],
+                'path'     => $file_path,
+                'mimetype' => $file['type'],
+                'size'     => $file['size'],
+        ));
+
+        $fields = array('created', 'changed', '_attachments', 'notes', 'sensitivity', 'categories', 'x-custom');
+        $file   = array_intersect_key($file, array_combine($fields, $fields));
+
+        $saved = $new_folder->save($file, 'file');
+        if (!$saved) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error updating object on Kolab server"),
+                true, false);
+
+            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+        }
     }
 
     /**
@@ -494,30 +535,13 @@ class kolab_file_storage implements file_storage
             return;
         }
 
-        // Save to temp file
-        $temp_dir  = unslashify($this->rc->config->get('temp_dir'));
-        $file_path = tempnam($temp_dir, 'rcmAttmnt');
-        $fh        = fopen($file_path, 'w');
-
-        if (!$fh) {
-            throw new Exception("Storage error. File rename failed.", file_api::ERROR_CODE);
-        }
-
-        $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fh);
-        fclose($fh);
-
-        if (!file_exists($file_path)) {
-            throw new Exception("Storage error. File rename failed.", file_api::ERROR_CODE);
-        }
-
         // Update object (changing the name)
         $cid = key($file['_attachments']);
         $file['_attachments'][$cid]['name'] = $new_name;
-        $file['_attachments'][$cid]['path'] = $file_path;
         $file['_attachments'][0] = $file['_attachments'][$cid];
         $file['_attachments'][$cid] = false;
 
-        $saved = $folder->save($file);
+        $saved = $folder->save($file, 'file');
         if (!$saved) {
             rcube::raise_error(array(
                 'code' => 600, 'type' => 'php',
