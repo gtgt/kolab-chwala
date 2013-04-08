@@ -38,7 +38,7 @@ class file_ui_main extends file_ui
 
         // assign default set of translations
         $this->output->add_translation('loading', 'saving', 'deleting', 'servererror',
-            'search', 'search.loading', 'search.acchars');
+            'search', 'search.loading');
 
 //        $this->output->assign('tasks', $this->menu);
 //        $this->output->assign('main_menu', $this->menu());

@@ -36,6 +36,7 @@ $LANG['saving'] = 'Saving...';
 $LANG['deleting'] = 'Deleting...';
 $LANG['logout'] = 'Logout';
 $LANG['search'] = 'Search';
+$LANG['search.loading'] = 'Searching...';
 $LANG['servererror'] = 'Server Error!';
 $LANG['session.expired'] = 'Session has expired. Login again, please';
 
