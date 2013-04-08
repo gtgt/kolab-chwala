@@ -615,6 +615,7 @@ function files_ui()
     var table = $('#filelist');
 
     $('tbody', table).empty();
+    this.env.list_shift_start = null;
     this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
 
     $.each(response.result, function(key, data) {
@@ -639,16 +640,40 @@ function files_ui()
 
   this.file_list_click = function(e, row)
   {
-    var list = $('#filelist'), ctrl = e.ctrlKey, row = $(row);
+    var list = $('#filelist'), org = row, row = $(row),
+      found, selected, shift = this.env.list_shift_start;
 
-    if (ctrl)
+    if (e.shiftKey && shift && org != shift) {
+      $('tr', list).each(function(i, r) {
+        if (r == org) {
+          found = 1;
+          $(r).addClass('selected');
+          return;
+        }
+        else if (!selected && r == shift) {
+          selected = 1;
+          return;
+        }
+
+        if ((!found && selected) || (found && !selected))
+          $(r).addClass('selected');
+        else
+          $(r).removeClass('selected');
+      });
+    }
+    else if (e.ctrlKey)
       row.toggleClass('selected');
     else {
       $('tr.selected', list).removeClass('selected');
       $(row).addClass('selected');
+      this.env.list_shift_start = org;
     }
 
-    var selected = $('tr.selected', list).length;
+    selected = $('tr.selected', list).length;
+
+    if (!selected)
+      this.env.list_shift_start = null;
+
     this.enable_command('file.delete', selected);
     this.enable_command('file.open', 'file.get', 'file.rename', selected == 1);
   };
