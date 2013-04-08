@@ -14,9 +14,10 @@ $LANG['file.delete'] = 'Delete';
 $LANG['file.rename'] = 'Rename';
 $LANG['file.search'] = 'Search file';
 
-$LANG['folder.create'] = 'Create Folder';
+$LANG['folder.createtitle'] = 'Create Folder';
 $LANG['folder.delete'] = 'Delete';
 $LANG['folder.edit'] = 'Edit';
+$LANG['folder.edittitle'] = 'Edit Folder';
 $LANG['folder.under'] = 'under current folder';
 
 $LANG['form.submit'] = 'Submit';

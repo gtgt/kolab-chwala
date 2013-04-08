@@ -1011,6 +1011,10 @@ td span.branch span.l3
   top: 10px;
 }
 
+#forms form {
+  display: none;
+}
+
 #forms fieldset {
   margin: 0;
   background-color: #f0f0f0;

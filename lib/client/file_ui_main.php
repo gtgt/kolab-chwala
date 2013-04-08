@@ -75,7 +75,7 @@ class file_ui_main extends file_ui
 
         $content = html::tag('fieldset', null,
             html::tag('legend', null,
-                $this->translate('folder.create')) . $table->show());
+                $this->translate('folder.createtitle')) . $table->show());
 
         $form = html::tag('form', array(
             'id'       => 'folder-create-form',
@@ -110,7 +110,7 @@ class file_ui_main extends file_ui
 
         $content = html::tag('fieldset', null,
             html::tag('legend', null,
-                $this->translate('folder.edit')) . $table->show());
+                $this->translate('folder.edittitle')) . $table->show());
 
         $form = html::tag('form', array(
             'id'       => 'folder-edit-form',
