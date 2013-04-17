@@ -344,7 +344,7 @@ class kolab_file_storage implements file_storage
             header("Content-Type: " . $file['type']);
         }
 
-        $filename    = addcslashes($file['name'], '"');
+        $filename = addcslashes($file['name'], '"');
 
         // Workaround for nasty IE bug (#1488844)
         // If Content-Disposition header contains string "attachment" e.g. in filename
@@ -377,7 +377,12 @@ class kolab_file_storage implements file_storage
 
         $file = $this->from_file_object($file);
 
-        return $file;
+        return array(
+            'name'   => $file['name'],
+            'size'   => (int) $file['size'],
+            'type'   => (string) $file['type'],
+            'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
+        );
     }
 
     /**

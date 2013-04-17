@@ -54,8 +54,16 @@ function files_ui()
     if (!this.env.token)
       return;
 
-    this.enable_command('folder.list', 'folder.create', true);
-    this.command('folder.list');
+    if (this.env.task == 'main') {
+      this.enable_command('folder.list', 'folder.create', true);
+      this.command('folder.list');
+    }
+    else if (this.env.task == 'file') {
+      var src = this.env.url + this.url('file_get', {token: this.env.token, file: this.env.file});
+
+      this.loader_show('#file-content', src);
+      this.enable_command('file.delete', 'file.download', true);
+    }
 
     this.browser_capabilities_check();
   };
@@ -628,7 +636,7 @@ function files_ui()
     $.each(response.result, function(key, data) {
       var row = $('<tr><td class="filename"></td>'
           +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
-        link = $('<span></span>').text(data.name).click(function(e) { ui.file_menu(e, key); });
+        link = $('<span></span>').text(data.name).click(function(e) { ui.file_menu(e, key, data.type); });
 
       $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
       $('td.filemtime', row).text(data.mtime);
@@ -689,10 +697,14 @@ function files_ui()
   this.file_delete = function(file)
   {
     if (!file) {
-      var file = [];
-      $('#filelist tr.selected').each(function() {
-        file.push($(this).data('file'));
-      });
+      file = [];
+
+      if (this.env.file)
+        file.push(this.env.file);
+      else
+        $('#filelist tr.selected').each(function() {
+          file.push($(this).data('file'));
+        });
     }
 
     this.set_busy(true, 'deleting');
@@ -705,7 +717,14 @@ function files_ui()
     if (!this.response(response))
       return;
 
-    this.file_list();
+    if (this.env.file) {
+      // @TODO: reload list if on the same folder only
+      if (window.opener && window.opener.ui)
+        window.opener.ui.file_list();
+      window.close();
+    }
+    else
+      this.file_list();
   };
 
   // file rename request
@@ -727,15 +746,27 @@ function files_ui()
     this.file_list();
   };
 
-  this.file_menu = function(e, file)
+  this.file_download = function(file)
   {
-    var menu = $('#file-menu');
+    if (!file)
+      file = this.env.file;
 
-    $('li.file-open > a', menu)
-      .attr({target: '_blank', href: 'api/' + this.url('file_get', {token: this.env.token, file: file})});
+    location.href = this.env.url + this.url('file_get', {token: this.env.token, file: file, 'force-download': 1});
+  };
+
+  this.file_menu = function(e, file, type)
+  {
+    var menu = $('#file-menu'),
+      open_action = $('li.file-open > a', menu);
+
+    if (this.file_type_supported(type))
+      open_action.attr({target: '_blank', href: '?' + $.param({task: 'file', action: 'open', token: this.env.token, file: file})})
+        .removeClass('disabled').off('click');
+    else
+      open_action.click(function() { return false; }).addClass('disabled');
+
     $('li.file-download > a', menu)
-      .attr({href: 'api/' + this.url('file_get', {token: this.env.token, file: file, 'force-download': 1})});
-
+      .attr({href: this.env.url + this.url('file_get', {token: this.env.token, file: file, 'force-download': 1})});
     $('li.file-delete > a', menu).off('click').click(function() { ui.file_delete(file); });
     $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(e); });
 
@@ -853,7 +884,7 @@ function files_ui()
 
     $(form).attr({
       target: frame_name,
-      action: 'api/' + this.url(action, {folder: this.env.folder, token: this.env.token, uploadid:ts}),
+      action: this.env.url + this.url(action, {folder: this.env.folder, token: this.env.token, uploadid:ts}),
       method: 'POST'
     }).attr(form.encoding ? 'encoding' : 'enctype', 'multipart/form-data')
       .submit();
@@ -957,6 +988,10 @@ function files_ui()
     this.command('folder.edit', {folder: this.env.folder, 'new': folder});
   };
 
+  /*********************************************************/
+  /*********             Utilities                 *********/
+  /*********************************************************/
+
   // Display folder creation form
   this.form_show = function(name)
   {
@@ -968,16 +1003,32 @@ function files_ui()
     return form;
   };
 
-  /*********************************************************/
-  /*********             Utilities                 *********/
-  /*********************************************************/
-
   // Display folder creation form
   this.form_hide = function(name)
   {
     var form = $('#' + name + '-form');
     form.hide();
     $('#taskcontent').css('top', 10);
+  };
+
+  // Checks if specified mimetype is supported natively by the browser
+  // (or we implement it) and can be displayed in the browser
+  this.file_type_supported = function(type)
+  {
+    var i, regexps = [
+      /^text/i,
+      this.env.browser_capabilities.tif ? /^image\//i : /^image\/(?!tif)/i
+    ];
+
+    if (this.env.browser_capabilities.pdf)
+      regexps.push(/^application\/pdf/i);
+
+    if (this.env.browser_capabilities.flash)
+      regexps.push(/^application\/x-shockwave-flash/i);
+
+    for (i in regexps)
+      if (regexps[i].test(type))
+        return true;
   };
 
   // Checks browser capabilities eg. PDF support, TIF support
@@ -1059,6 +1110,25 @@ function files_ui()
     return 0;
   };
 
+  // hide content loader element, show content element
+  this.loader_hide = function(content)
+  {
+    $('#loader').hide();
+    $(content).css('opacity', 1);
+  };
+
+  this.loader_show = function(content, href)
+  {
+    var iframe = $(content),
+      div = iframe.parent(),
+      loader = $('#loader'),
+      offset = div.offset(),
+      w = loader.width(), h = loader.height(),
+      width = div.width(), height = div.height();
+
+    loader.css({top: offset.top + height/2 - h/2 - 20, left: offset.left + width/2 - w/2}).show();
+    iframe.css('opacity', 0.1).attr('src', href);
+  };
 };
 
 // Initialize application object (don't change var name!)

@@ -26,24 +26,10 @@ class file_ui_main extends file_ui
 {
     public function action_default()
     {
-        // assign token
-        $this->output->set_env('token', $_SESSION['user']['token']);
-
-        // assign capabilities
-        $this->output->set_env('capabilities', $_SESSION['caps']);
-
-        // add watermark content
-        $this->output->set_env('watermark', $this->output->get_template('watermark'));
-//        $this->watermark('taskcontent');
-
         // assign default set of translations
-        $this->output->add_translation('loading', 'saving', 'deleting', 'servererror',
-            'search', 'search.loading');
+        $this->output->add_translation('saving', 'deleting', 'search', 'search.loading');
 
-//        $this->output->assign('tasks', $this->menu);
-//        $this->output->assign('main_menu', $this->menu());
-        $this->output->assign('user', $_SESSION['user']);
-        $this->output->assign('max_upload', $this->show_bytes($_SESSION['caps']['MAX_UPLOAD']));
+        $this->ui_init();
     }
 
     public function folder_create_form()
@@ -153,37 +139,6 @@ class file_ui_main extends file_ui
             $content);
 
         return $form;
-    }
-
-    /**
-     * Create a human readable string for a number of bytes
-     *
-     * @param int Number of bytes
-     *
-     * @return string Byte string
-     */
-    protected function show_bytes($bytes)
-    {
-        if (!$bytes) {
-            return null;
-        }
-
-        if ($bytes >= 1073741824) {
-            $gb  = $bytes/1073741824;
-            $str = sprintf($gb>=10 ? "%d " : "%.1f ", $gb) . $this->translate('size.GB');
-        }
-        else if ($bytes >= 1048576) {
-            $mb  = $bytes/1048576;
-            $str = sprintf($mb>=10 ? "%d " : "%.1f ", $mb) . $this->translate('size.MB');
-        }
-        else if ($bytes >= 1024) {
-            $str = sprintf("%d ",  round($bytes/1024)) . $this->translate('size.KB');
-        }
-        else {
-            $str = sprintf("%d ", $bytes) . $this->translate('size.B');
-        }
-
-        return $str;
     }
 
 }

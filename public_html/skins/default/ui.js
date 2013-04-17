@@ -62,5 +62,7 @@ ui.buttons({
 'folder.delete': 'folder-delete-button',
 'file.upload': 'file-upload-button',
 'file.search': 'file-search-button',
-'file.delete': 'file-delete-button'
+'file.delete': 'file-delete-button',
+'file.download': 'file-download-button',
+'file.edit': 'file-edit-button'
 });

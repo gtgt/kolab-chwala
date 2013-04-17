@@ -140,6 +140,30 @@ class file_ui
     }
 
     /**
+     * Initializes User Interface
+     */
+    protected function ui_init()
+    {
+        // assign token
+        $this->output->set_env('token', $_SESSION['user']['token']);
+
+        // assign capabilities
+        $this->output->set_env('capabilities', $_SESSION['caps']);
+
+        // add watermark content
+        $this->output->set_env('watermark', $this->output->get_template('watermark'));
+//        $this->watermark('taskcontent');
+
+        // assign default set of translations
+        $this->output->add_translation('loading', 'servererror');
+
+//        $this->output->assign('tasks', $this->menu);
+//        $this->output->assign('main_menu', $this->menu());
+        $this->output->assign('user', $_SESSION['user']);
+        $this->output->assign('max_upload', $this->show_bytes($_SESSION['caps']['MAX_UPLOAD']));
+    }
+
+    /**
      * Returns system language (locale) setting.
      *
      * @return string Language code
@@ -386,13 +410,15 @@ class file_ui
      */
     public function send()
     {
-        $template = $this->get_task();
+        $task = $this->get_task();
 
         if ($this->page_title) {
             $this->output->assign('pagetitle', $this->page_title);
         }
 
-        $this->output->send($template);
+        $this->output->set_env('task', $task);
+
+        $this->output->send($this->task_template ? $this->task_template : $task);
         exit;
     }
 
@@ -577,6 +603,37 @@ class file_ui
             html::span(null, $username) . html::span(null, $password) . $button->show());
 
         return $form;
+    }
+
+    /**
+     * Create a human readable string for a number of bytes
+     *
+     * @param int Number of bytes
+     *
+     * @return string Byte string
+     */
+    protected function show_bytes($bytes)
+    {
+        if (!$bytes) {
+            return null;
+        }
+
+        if ($bytes >= 1073741824) {
+            $gb  = $bytes/1073741824;
+            $str = sprintf($gb>=10 ? "%d " : "%.1f ", $gb) . $this->translate('size.GB');
+        }
+        else if ($bytes >= 1048576) {
+            $mb  = $bytes/1048576;
+            $str = sprintf($mb>=10 ? "%d " : "%.1f ", $mb) . $this->translate('size.MB');
+        }
+        else if ($bytes >= 1024) {
+            $str = sprintf("%d ",  round($bytes/1024)) . $this->translate('size.KB');
+        }
+        else {
+            $str = sprintf("%d ", $bytes) . $this->translate('size.B');
+        }
+
+        return $str;
     }
 
 }

@@ -6,6 +6,7 @@ $LANG['about.support'] = 'It comes with absolutely <b>no warranties</b> and is t
 
 $LANG['file.create'] = 'Create File';
 $LANG['file.download'] = 'Download';
+$LANG['file.edit'] = 'Edit';
 $LANG['file.upload'] = 'Upload File';
 $LANG['file.name'] = 'Name';
 $LANG['file.mtime'] = 'Modified';
@@ -14,6 +15,7 @@ $LANG['file.open'] = 'Open';
 $LANG['file.delete'] = 'Delete';
 $LANG['file.rename'] = 'Rename';
 $LANG['file.search'] = 'Search file';
+$LANG['file.type'] = 'Type';
 
 $LANG['folder.createtitle'] = 'Create Folder';
 $LANG['folder.delete'] = 'Delete';
@@ -36,6 +38,7 @@ $LANG['loading'] = 'Loading...';
 $LANG['saving'] = 'Saving...';
 $LANG['deleting'] = 'Deleting...';
 $LANG['logout'] = 'Logout';
+$LANG['close'] = 'Close';
 $LANG['search'] = 'Search';
 $LANG['search.loading'] = 'Searching...';
 $LANG['servererror'] = 'Server Error!';

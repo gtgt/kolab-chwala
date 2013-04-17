@@ -34,9 +34,9 @@ select[multiple="multiple"] {
 }
 
 table.list {
+  width: 100%;
   border-spacing: 0;
   border-radius: 3px;
-  width: 100%;
   -moz-border-radius: 3px;
   -webkit-border-radius: 3px;
 }
@@ -1071,7 +1071,8 @@ td span.branch span.l3
   background: url(images/search.png) center 6px no-repeat;
 }
 
-#folderlist {
+#folderlist,
+#filedata {
   position: absolute;
   width: 200px;
   top: 10px;
@@ -1151,4 +1152,70 @@ td span.branch span.l3
 #folderlist tr.virtual td span.name {
   color: #bbb;
   cursor: default;
+}
+
+/****** File open interface elements ******/
+
+#actionbar #file-edit-button {
+  background: url(images/edit.png) center 6px no-repeat #f0f0f0;
+}
+
+#actionbar #file-delete-button {
+  background: url(images/trash.png) center 6px no-repeat #f0f0f0;
+}
+
+#actionbar #file-download-button {
+  background: url(images/download.png) center 6px no-repeat #f0f0f0;
+}
+
+#taskcontent iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
+  background-color: white;
+  overflow: auto;
+  border-radius: 3px;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  opacity: 0.1;
+}
+
+#taskcontent {
+  overflow: hidden;
+  background-color: white;
+}
+
+#filedata table {
+  width: 200px;
+}
+
+#filedata table td.label {
+  min-width: 30px;
+}
+
+#filedata table td.data {
+/*
+  text-overflow: ellipsis;
+  overflow: hidden;
+*/
+}
+
+#filedata table td.data.filename {
+  font-weight: bold;
+}
+
+#loader {
+  display: none;
+  z-index: 10;
+  width: 100px;
+  background-color: #fafafa;
+  color: #a0a0a0;
+  position: absolute;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  text-align: center;
+  padding: 10px;
+  font-weight: bold;
 }
