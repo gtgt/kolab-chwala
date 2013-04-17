@@ -450,6 +450,11 @@ function files_ui()
   /*********              Commands                 *********/
   /*********************************************************/
 
+  this.logout = function()
+  {
+    this.main_logout();
+  };
+
   this.main_logout = function(params)
   {
     location.href = '?task=main&action=logout' + (params ? '&' + $.param(params) : '');
