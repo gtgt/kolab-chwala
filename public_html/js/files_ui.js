@@ -56,6 +56,8 @@ function files_ui()
 
     this.enable_command('folder.list', 'folder.create', true);
     this.command('folder.list');
+
+    this.browser_capabilities_check();
   };
 
   // set environment variable(s)
@@ -964,12 +966,95 @@ function files_ui()
     return form;
   };
 
+  /*********************************************************/
+  /*********             Utilities                 *********/
+  /*********************************************************/
+
   // Display folder creation form
   this.form_hide = function(name)
   {
     var form = $('#' + name + '-form');
     form.hide();
     $('#taskcontent').css('top', 10);
+  };
+
+  // Checks browser capabilities eg. PDF support, TIF support
+  this.browser_capabilities_check = function()
+  {
+    if (!this.env.browser_capabilities)
+      this.env.browser_capabilities = {};
+
+    if (this.env.browser_capabilities.pdf === undefined)
+      this.env.browser_capabilities.pdf = this.pdf_support_check();
+
+    if (this.env.browser_capabilities.flash === undefined)
+      this.env.browser_capabilities.flash = this.flash_support_check();
+
+    if (this.env.browser_capabilities.tif === undefined)
+      this.tif_support_check();
+  };
+
+  this.tif_support_check = function()
+  {
+    var img = new Image();
+
+    img.onload = function() { ui.env.browser_capabilities.tif = 1; };
+    img.onerror = function() { ui.env.browser_capabilities.tif = 0; };
+    img.src = 'resources/blank.tif';
+  };
+
+  this.pdf_support_check = function()
+  {
+    var plugin = navigator.mimeTypes ? navigator.mimeTypes["application/pdf"] : {},
+      plugins = navigator.plugins,
+      len = plugins.length,
+      regex = /Adobe Reader|PDF|Acrobat/i;
+
+    if (plugin && plugin.enabledPlugin)
+        return 1;
+
+    if (window.ActiveXObject) {
+      try {
+        if (axObj = new ActiveXObject("AcroPDF.PDF"))
+          return 1;
+      }
+      catch (e) {}
+      try {
+        if (axObj = new ActiveXObject("PDF.PdfCtrl"))
+          return 1;
+      }
+      catch (e) {}
+    }
+
+    for (i=0; i<len; i++) {
+      plugin = plugins[i];
+      if (typeof plugin === 'String') {
+        if (regex.test(plugin))
+          return 1;
+      }
+      else if (plugin.name && regex.test(plugin.name))
+        return 1;
+    }
+
+    return 0;
+  };
+
+  this.flash_support_check = function()
+  {
+    var plugin = navigator.mimeTypes ? navigator.mimeTypes["application/x-shockwave-flash"] : {};
+
+    if (plugin && plugin.enabledPlugin)
+        return 1;
+
+    if (window.ActiveXObject) {
+      try {
+        if (axObj = new ActiveXObject("ShockwaveFlash.ShockwaveFlash"))
+          return 1;
+      }
+      catch (e) {}
+    }
+
+    return 0;
   };
 
 };
