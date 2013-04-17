@@ -733,6 +733,8 @@ function files_ui()
 
     $('li.file-open > a', menu)
       .attr({target: '_blank', href: 'api/' + this.url('file_get', {token: this.env.token, file: file})});
+    $('li.file-download > a', menu)
+      .attr({href: 'api/' + this.url('file_get', {token: this.env.token, file: file, 'force-download': 1})});
 
     $('li.file-delete > a', menu).off('click').click(function() { ui.file_delete(file); });
     $('li.file-rename > a', menu).off('click').click(function() { ui.file_rename_start(e); });

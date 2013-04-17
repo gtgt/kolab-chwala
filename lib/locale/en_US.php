@@ -5,6 +5,7 @@ $LANG['about.warranty'] = 'Professional support is available from <a href="http:
 $LANG['about.support'] = 'It comes with absolutely <b>no warranties</b> and is typically run entirely self supported. You can find help &amp; information on the community <a href="http://kolab.org">web site</a> &amp; <a href="http://wiki.kolab.org">wiki</a>.';
 
 $LANG['file.create'] = 'Create File';
+$LANG['file.download'] = 'Download';
 $LANG['file.upload'] = 'Upload File';
 $LANG['file.name'] = 'Name';
 $LANG['file.mtime'] = 'Modified';
