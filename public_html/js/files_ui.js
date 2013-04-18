@@ -59,7 +59,7 @@ function files_ui()
       this.command('folder.list');
     }
     else if (this.env.task == 'file') {
-      this.load_file('#file-content', this.env.file);
+      this.load_file('#file-content', this.env.filedata.href);
       this.enable_command('file.delete', 'file.download', true);
     }
 
@@ -1118,10 +1118,9 @@ function files_ui()
   };
 
   // loads a file content into an iframe (with loading image)
-  this.load_file = function(content, file)
+  this.load_file = function(content, href)
   {
-    var href = this.env.url + this.url('file_get', {token: this.env.token, file: file}),
-      iframe = $(content),
+    var iframe = $(content),
       div = iframe.parent(),
       loader = $('#loader'),
       offset = div.offset(),

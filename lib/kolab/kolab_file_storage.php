@@ -339,9 +339,11 @@ class kolab_file_storage implements file_storage
 //                header("Content-Type: application/force-download");
         }
         else {
+            $mimetype = $params['force-type'] ? $params['force-type'] : $file['type'];
             $disposition = 'inline';
+
             header("Content-Transfer-Encoding: binary");
-            header("Content-Type: " . $file['type']);
+            header("Content-Type: $mimetype");
         }
 
         $filename = addcslashes($file['name'], '"');

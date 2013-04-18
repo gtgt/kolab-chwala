@@ -254,7 +254,8 @@ class file_api
                 }
 
                 $params = array(
-                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download'])
+                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download']),
+                    'force-type'     => $_GET['force-type'],
                 );
 
                 try {

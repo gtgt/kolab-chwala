@@ -45,8 +45,7 @@ class file_ui_file extends file_ui
         $this->task_template = 'file_open';
 
         // fetch file metadata
-        $response = $this->api_get('file_info', array('file' => $this->file));
-        $this->filedata = $response->get(); // @TODO: error handling
+        $this->file_data();
 
         $this->output->set_env('file', $this->file);
         $this->output->set_env('filedata', $this->filedata);
@@ -54,13 +53,55 @@ class file_ui_file extends file_ui
 
     public function file_open_frame()
     {
-    /*
-        $src = 'api/?method=file_get&file=' . urlencode($this->file)
-          . '&token=' . urlencode($_SESSION['user']['token'])
-          . '&force-type=' . urlencode('text/plain');
-    */
         // src attribute will be set on page load
         return html::iframe(array('id' => 'file-content'));
+    }
+
+    /**
+     * Fetch and parse file metadata
+     */
+    protected function file_data()
+    {
+        $response = $this->api_get('file_info', array('file' => $this->file));
+        $this->filedata = $response->get(); // @TODO: error handling
+
+        $mimetype = $this->real_mimetype($this->filedata['type']);
+
+        // create href string for file load frame
+        $href = 'api/?method=file_get&file=' . urlencode($this->file)
+            . '&token=' . urlencode($_SESSION['user']['token']);
+
+        if ($mimetype != $this->filedata['type']) {
+            $href .= '&force-type=' . urlencode($mimetype);
+        }
+
+        $this->filedata['href'] = $href;
+    }
+
+    /**
+     * Apply some fixes on file mimetype string
+     */
+    protected function real_mimetype($mimetype)
+    {
+        if (preg_match('/^text\/(.+)/i', $mimetype, $m)) {
+            // fix pdf mimetype
+            if (preg_match('/^(pdf|x-pdf)$/i', $m[1])) {
+                $mimetype = 'application/pdf';
+            }
+
+            // display all text/* (with few exceptions) as text/plain
+            // to force display mode, in other case browser would invoke save-as window
+            // @TODO: display HTML as text? implement editor for both modes?
+            if (!preg_match('/^(plain|html)$/i', $m[1])) {
+                $mimetype = 'text/plain';
+            }
+        }
+        // handle message/rfc822 as text/plain
+        if (preg_match('/^message\/rfc822/i', $mimetype)) {
+            $mimetype = 'text/plain';
+        }
+
+        return $mimetype;
     }
 
     public function file_open_data()
