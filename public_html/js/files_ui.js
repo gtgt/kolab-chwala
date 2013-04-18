@@ -59,9 +59,7 @@ function files_ui()
       this.command('folder.list');
     }
     else if (this.env.task == 'file') {
-      var src = this.env.url + this.url('file_get', {token: this.env.token, file: this.env.file});
-
-      this.loader_show('#file-content', src);
+      this.load_file('#file-content', this.env.file);
       this.enable_command('file.delete', 'file.download', true);
     }
 
@@ -1015,13 +1013,16 @@ function files_ui()
   // (or we implement it) and can be displayed in the browser
   this.file_type_supported = function(type)
   {
-    var i, regexps = [
-      /^text/i,
+    var i, t, regexps = [
+      /^text\/(?!(pdf|x-pdf))/i,
+      /^message\/rfc822/i,
       this.env.browser_capabilities.tif ? /^image\//i : /^image\/(?!tif)/i
     ];
 
-    if (this.env.browser_capabilities.pdf)
-      regexps.push(/^application\/pdf/i);
+    if (this.env.browser_capabilities.pdf) {
+      regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
+      regexps.push(/^text\/(pdf|x-pdf)/i);
+    }
 
     if (this.env.browser_capabilities.flash)
       regexps.push(/^application\/x-shockwave-flash/i);
@@ -1029,6 +1030,12 @@ function files_ui()
     for (i in regexps)
       if (regexps[i].test(type))
         return true;
+
+    for (i in navigator.mimeTypes) {
+      t = navigator.mimeTypes[i].type;
+      if (t == type)
+        return true;
+    }
   };
 
   // Checks browser capabilities eg. PDF support, TIF support
@@ -1110,16 +1117,11 @@ function files_ui()
     return 0;
   };
 
-  // hide content loader element, show content element
-  this.loader_hide = function(content)
+  // loads a file content into an iframe (with loading image)
+  this.load_file = function(content, file)
   {
-    $('#loader').hide();
-    $(content).css('opacity', 1);
-  };
-
-  this.loader_show = function(content, href)
-  {
-    var iframe = $(content),
+    var href = this.env.url + this.url('file_get', {token: this.env.token, file: file}),
+      iframe = $(content),
       div = iframe.parent(),
       loader = $('#loader'),
       offset = div.offset(),
@@ -1127,7 +1129,18 @@ function files_ui()
       width = div.width(), height = div.height();
 
     loader.css({top: offset.top + height/2 - h/2 - 20, left: offset.left + width/2 - w/2}).show();
-    iframe.css('opacity', 0.1).attr('src', href);
+    iframe.css('opacity', 0.1).attr('src', href).load(function() { ui.loader_hide(); });
+
+    // some content, e.g. movies or flash doesn't execute onload on iframe
+    // let's wait some time and check document ready state
+    setTimeout(function() { $(iframe.get(0).contentWindow.document).ready(function() { parent.ui.loader_hide(content); }); }, 1000);
+  };
+
+  // hide content loader element, show content element
+  this.loader_hide = function(content)
+  {
+    $('#loader').hide();
+    $(content).css('opacity', 1);
   };
 };
 

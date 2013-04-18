@@ -33,21 +33,23 @@ class file_ui_file extends file_ui
 
     public function action_open()
     {
+        $this->ui_init();
+
         // assign default set of translations
         $this->output->add_translation('saving', 'deleting');
 
-        $this->ui_init();
-
         $this->file = $this->get_input('file', 'GET'); // @TODO: error handling
-        $this->output->set_env('file', $this->file);
 
         // Set filename (without path?) as a page title
-        $this->page_title = $this->file;
+        $this->page_title    = $this->file;
         $this->task_template = 'file_open';
 
         // fetch file metadata
         $response = $this->api_get('file_info', array('file' => $this->file));
         $this->filedata = $response->get(); // @TODO: error handling
+
+        $this->output->set_env('file', $this->file);
+        $this->output->set_env('filedata', $this->filedata);
     }
 
     public function file_open_frame()
@@ -58,7 +60,7 @@ class file_ui_file extends file_ui
           . '&force-type=' . urlencode('text/plain');
     */
         // src attribute will be set on page load
-        return html::iframe(array('id' => 'file-content', 'onload' => 'ui.loader_hide(this)'));
+        return html::iframe(array('id' => 'file-content'));
     }
 
     public function file_open_data()

@@ -1180,7 +1180,7 @@ td span.branch span.l3
   opacity: 0.1;
 }
 
-#taskcontent {
+.fileopen #taskcontent {
   overflow: hidden;
   background-color: white;
 }
