@@ -77,9 +77,10 @@ class file_ui_api
             'ssl_capath',
             'ssl_local_cert',
             'ssl_passphrase',
+            'follow_redirects',
         );
 
-        foreach ($options as $optname => $opttype) {
+        foreach ($options as $optname) {
             if (($optvalue = $config->get($optname)) !== null) {
                 try {
                     $request->setConfig($optname, $optvalue);
