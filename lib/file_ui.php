@@ -127,7 +127,7 @@ class file_ui
      */
     private function api_init()
     {
-        $url = $this->config->get('api_url', '');
+        $url = $this->config->get('file_api_url', '');
 
         if (!$url) {
             $url = rcube_utils::https_check() ? 'https://' : 'http://';
