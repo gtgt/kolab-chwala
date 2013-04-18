@@ -3,21 +3,20 @@ function file_list_sort(name, elem)
   if (!ui.env.folder)
     return;
 
-  if (ui.env.sort_column == name)
-    ui.env.sort_reverse = !ui.env.sort_reverse;
-  else
-    ui.env.sort_reverse = 0;
-  ui.env.sort_column = name;
+  var td = $(elem), reverse = ui.env.sort_reverse;
 
-  var td = $(elem);
+  if (ui.env.sort_col == name)
+    reverse = !reverse;
+  else
+    reverse = 0;
 
   $('td', td.parent()).removeClass('sorted reverse');
   td.addClass('sorted').removeClass('reverse');
 
-  if (ui.env.sort_reverse)
+  if (reverse)
     td.addClass('reverse');
 
-  ui.file_list(null, {sort: name, reverse: ui.env.sort_reverse});
+  ui.file_list({sort: name, reverse: reverse});
 };
 
 function hack_file_input(id)
