@@ -225,7 +225,7 @@ class file_ui_api
             return new file_ui_api_result(null,
                 self::ERROR_INTERNAL, $e->getMessage());
         }
-rcube::console($body);
+
         $body     = @json_decode($body, true);
         $err_code = null;
         $err_str  = null;
