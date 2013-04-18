@@ -267,7 +267,6 @@ class file_ui
                         $this->raise_error(500, 'Login failed. ' . $str);
                     }
                     $this->output->command('display_message', $label, 'error');
-                    $this->output->send('login');
                 }
             }
         }
