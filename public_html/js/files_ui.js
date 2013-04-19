@@ -59,7 +59,7 @@ function files_ui()
       this.command('folder.list');
     }
     else if (this.env.task == 'file') {
-      this.load_file('#file-content', this.env.filedata.href);
+      this.load_file('#file-content', this.env.filedata);
       this.enable_command('file.delete', 'file.download', true);
     }
 
@@ -1118,21 +1118,31 @@ function files_ui()
   };
 
   // loads a file content into an iframe (with loading image)
-  this.load_file = function(content, href)
+  this.load_file = function(content, filedata)
   {
-    var iframe = $(content),
+    var href = filedata.href, iframe = $(content),
       div = iframe.parent(),
       loader = $('#loader'),
       offset = div.offset(),
       w = loader.width(), h = loader.height(),
       width = div.width(), height = div.height();
 
-    loader.css({top: offset.top + height/2 - h/2 - 20, left: offset.left + width/2 - w/2}).show();
-    iframe.css('opacity', 0.1).attr('src', href).load(function() { ui.loader_hide(); });
+    loader.css({
+      top: offset.top + height/2 - h/2 - 20,
+      left: offset.left + width/2 - w/2
+      }).show();
+    iframe.css('opacity', 0.1)
+      .load(function() { ui.loader_hide(this); })
+      .attr('src', href);
 
     // some content, e.g. movies or flash doesn't execute onload on iframe
     // let's wait some time and check document ready state
-    setTimeout(function() { $(iframe.get(0).contentWindow.document).ready(function() { parent.ui.loader_hide(content); }); }, 1000);
+    if (!/^text/i.test(filedata.mimetype))
+      setTimeout(function() {
+        $(iframe.get(0).contentWindow.document).ready(function() {
+          parent.ui.loader_hide(content);
+        });
+      }, 1000);
   };
 
   // hide content loader element, show content element
