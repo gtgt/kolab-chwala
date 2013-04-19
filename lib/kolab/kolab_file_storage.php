@@ -404,8 +404,7 @@ class kolab_file_storage implements file_storage
             foreach ($params['search'] as $idx => $value) {
                 switch ($idx) {
                 case 'name':
-                    // we keep filename in 'words' column, remember?
-                    $filter[] = array('words', '~', $value);
+                    $filter[] = array('filename', '~', $value);
                     break;
                 }
             }
@@ -681,7 +680,7 @@ class kolab_file_storage implements file_storage
         $folder = $this->get_folder_object($folder_name);
         $files  = $folder->select(array(
             array('type', '=', 'file'),
-            array('words', '=', ' ' . $file_name . ' ') // @TODO: this looks like a hack
+            array('filename', '=', $file_name)
         ));
 
         return array_shift($files);
