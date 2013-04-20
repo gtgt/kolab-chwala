@@ -1141,6 +1141,10 @@ td span.branch span.l3
   cursor: pointer;
 }
 
+#folderlist tr.selected td span.name {
+  background-image: url(images/folder_open.png);
+}
+
 #folderlist tr.selected {
   background-color: inherit;
 }
