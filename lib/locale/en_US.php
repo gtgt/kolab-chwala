@@ -4,6 +4,11 @@ $LANG['about.community'] = 'This is the Community Edition of the <b>Kolab Server
 $LANG['about.warranty'] = 'Professional support is available from <a href="http://kolabsys.com">Kolab Systems</a>.';
 $LANG['about.support'] = 'It comes with absolutely <b>no warranties</b> and is typically run entirely self supported. You can find help &amp; information on the community <a href="http://kolab.org">web site</a> &amp; <a href="http://wiki.kolab.org">wiki</a>.';
 
+$LANG['collection.audio'] = 'Audio';
+$LANG['collection.video'] = 'Video';
+$LANG['collection.image'] = 'Images';
+$LANG['collection.document'] = 'Documents';
+
 $LANG['file.create'] = 'Create File';
 $LANG['file.download'] = 'Download';
 $LANG['file.edit'] = 'Edit';
@@ -39,10 +44,13 @@ $LANG['saving'] = 'Saving...';
 $LANG['deleting'] = 'Deleting...';
 $LANG['logout'] = 'Logout';
 $LANG['close'] = 'Close';
-$LANG['search'] = 'Search';
-$LANG['search.loading'] = 'Searching...';
 $LANG['servererror'] = 'Server Error!';
 $LANG['session.expired'] = 'Session has expired. Login again, please';
+
+$LANG['search'] = 'Search';
+$LANG['search.loading'] = 'Searching...';
+$LANG['search.in_all_folders'] = 'in all folders';
+$LANG['search.in_current_folder'] = 'in current folder';
 
 $LANG['size.B'] = 'B';
 $LANG['size.KB'] = 'KB';

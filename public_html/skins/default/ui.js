@@ -1,8 +1,5 @@
 function file_list_sort(name, elem)
 {
-  if (!ui.env.folder)
-    return;
-
   var td = $(elem), reverse = ui.env.sort_reverse;
 
   if (ui.env.sort_col == name)
@@ -16,7 +13,7 @@ function file_list_sort(name, elem)
   if (reverse)
     td.addClass('reverse');
 
-  ui.file_list({sort: name, reverse: reverse});
+  ui.file_list_sort(name, reverse);
 };
 
 function hack_file_input(id)

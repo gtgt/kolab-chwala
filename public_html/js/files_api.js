@@ -321,6 +321,30 @@ function files_api()
     return path.join(this.env.directory_separator);
   };
 
+  // compare two sortable objects
+  this.sort_compare = function(data1, data2)
+  {
+    data1 = data1[this.env.sort_col || 'name'];
+    data2 = data2[this.env.sort_col || 'name'];
+
+    if (this.env.sort_col == 'size')
+      // numeric comparison
+      return this.env.sort_reverse ? data1 < data2 : data1 > data2;
+    else {
+      // use Array.sort() for sting comparison
+      var arr = [data1, data2];
+      arr.sort(function (a, b) {
+        // @TODO: use localeCompare() arguments for better results
+        return a.localeCompare(b);
+      });
+
+      if (this.env.sort_reverse)
+        arr.reverse();
+
+      return arr[0] === data2;
+    }
+  };
+
 };
 
 // Add escape() method to RegExp object
@@ -350,3 +374,13 @@ function escapeHTML(str)
     .replace(/>/g, '&gt;')
     .replace(/</g, '&lt;');
 };
+
+function object_is_empty(obj)
+{
+  if (obj)
+    for (var i in obj)
+      if (i !== null)
+        return true;
+
+  return false;
+}

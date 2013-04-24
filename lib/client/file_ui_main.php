@@ -27,7 +27,11 @@ class file_ui_main extends file_ui
     public function action_default()
     {
         // assign default set of translations
-        $this->output->add_translation('saving', 'deleting', 'search', 'search.loading');
+        $this->output->add_translation('saving', 'deleting', 'search', 'search.loading',
+            'collection.audio', 'collection.video', 'collection.image', 'collection.document'
+        );
+
+        $this->output->set_env('search_threads', $this->config->get('files_search_threads'));
 
         $this->ui_init();
     }
@@ -42,6 +46,7 @@ class file_ui_main extends file_ui
         $input_parent = new html_checkbox(array(
             'name'  => 'parent',
             'value' => '1',
+            'id'    => 'folder-parent-checkbox',
         ));
         $submit = new html_inputfield(array(
             'type'    => 'button',
@@ -56,7 +61,8 @@ class file_ui_main extends file_ui
 
         $table = new html_table;
 
-        $table->add(null, $input_name->show() . $input_parent->show() . $this->translate('folder.under'));
+        $table->add(null, $input_name->show() . $input_parent->show()
+            . html::label('folder-parent-checkbox', $this->translate('folder.under')));
         $table->add('buttons', $submit->show() . $cancel->show());
 
         $content = html::tag('fieldset', null,
@@ -113,20 +119,35 @@ class file_ui_main extends file_ui
             'name'  => 'name',
             'value' => '',
         ));
+        $input_in1 = new html_inputfield(array(
+            'type'  => 'radio',
+            'name'  => 'all_folders',
+            'value' => '0',
+            'id'    => 'all-folders-radio1',
+        ));
+        $input_in2 = new html_inputfield(array(
+            'type'  => 'radio',
+            'name'  => 'all_folders',
+            'value' => '1',
+            'id'    => 'all-folders-radio2',
+        ));
         $submit = new html_inputfield(array(
             'type'    => 'button',
-            'onclick' => 'ui.folder_edit_submit()',
+            'onclick' => 'ui.file_search_submit()',
             'value'   => $this->translate('form.submit'),
         ));
         $cancel = new html_inputfield(array(
             'type'    => 'button',
-            'onclick' => 'ui.folder_edit_stop()',
+            'onclick' => 'ui.file.search_stop()',
             'value'   => $this->translate('form.cancel'),
         ));
 
         $table = new html_table;
 
-        $table->add(null, $input_name->show());
+        $table->add(null, $input_name->show()
+            . $input_in1->show() . html::label('all-folders-radio1', $this->translate('search.in_current_folder'))
+            . $input_in2->show() . html::label('all-folders-radio2', $this->translate('search.in_all_folders'))
+        );
         $table->add('buttons', $submit->show() . $cancel->show());
 
         $content = html::tag('fieldset', null,

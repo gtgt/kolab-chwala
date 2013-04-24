@@ -31,8 +31,9 @@ function files_ui()
   this.commands = {};
   this.env = {
     url: 'api/',
-    sort_column: 'name',
+    sort_col: 'name',
     sort_reverse: 0,
+    search_threads: 1,
     directory_separator: '/'
   };
 
@@ -55,7 +56,7 @@ function files_ui()
       return;
 
     if (this.env.task == 'main') {
-      this.enable_command('folder.list', 'folder.create', true);
+      this.enable_command('folder.list', 'folder.create', 'file.search', true);
       this.command('folder.list');
     }
     else if (this.env.task == 'file') {
@@ -95,14 +96,6 @@ function files_ui()
     if (this[func] && typeof this[func] === 'function') {
       ret = this[func](props);
     }
-//    else {
-//      this.set_busy(true, 'loading');
-//      this.http_post(command, props);
-//    }
-
-    // update menu state
-//    $('li', $('#navigation')).removeClass('active');
-//    $('li.'+task, ('#navigation')).addClass('active');
 
     return ret === false ? false : obj ? false : true;
   };
@@ -509,21 +502,61 @@ function files_ui()
       table.append(row);
     });
 
+    // add virtual collections
+    $.each(['audio', 'video', 'image', 'document'], function(i, n) {
+      var row = $('<tr><td><span class="name"></span></td></tr>'),
+        span = $('span.name', row);
+
+      row.attr('id', 'folder-collection-' + n);
+      span.text(ui.t('collection.' + n))
+        .click(function() { ui.folder_select(n, true); });
+
+      if (n == ui.env.collection)
+        row.addClass('selected');
+
+      table.append(row);
+    });
+
     // add tree icons
     this.folder_list_tree(this.env.folders);
   };
 
-  this.folder_select = function(folder)
+  this.folder_select = function(folder, is_collection)
   {
     this.env.search = null;
     this.file_search_stop();
 
     var list = $('#folderlist');
     $('tr.selected', list).removeClass('selected');
-    var found = $('#' + this.env.folders[folder].id, list).addClass('selected');
 
-    this.enable_command('file.list', 'file.search', 'folder.delete', 'folder.edit', 'file.upload', found.length);
-    this.command('file.list', {folder: folder});
+    if (is_collection) {
+      var found = $('#folder-collection-' + folder, list).addClass('selected');
+
+      this.env.folder = null;
+      this.enable_command('file.list', true);
+      this.enable_command('folder.delete', 'folder.edit', 'file.upload', false);
+      this.command('file.list', {collection: folder});
+    }
+    else {
+      var found = $('#' + this.env.folders[folder].id, list).addClass('selected');
+
+      this.env.collection = null;
+      this.enable_command('file.list', 'folder.delete', 'folder.edit', 'file.upload', found.length);
+      this.command('file.list', {folder: folder});
+    }
+  };
+
+  this.folder_unselect = function()
+  {
+    this.env.search = null;
+    this.env.folder = null;
+    this.env.collection = null;
+    this.file_search_stop();
+
+    var list = $('#folderlist');
+    $('tr.selected', list).removeClass('selected');
+
+    this.enable_command('file.list', 'folder.delete', 'folder.edit', 'file.upload', false);
   };
 
   // folder create request
@@ -602,6 +635,14 @@ function files_ui()
     if (!params)
       params = {};
 
+    if (params.all_folders) {
+      params.collection = null;
+      params.folder = null;
+      this.folder_unselect();
+    }
+
+    if (params.collection == undefined)
+      params.collection = this.env.collection;
     if (params.folder == undefined)
       params.folder = this.env.folder;
     if (params.sort == undefined)
@@ -611,12 +652,54 @@ function files_ui()
     if (params.search == undefined)
       params.search = this.env.search;
 
+    this.env.collection = params.collection;
     this.env.folder = params.folder;
     this.env.sort_col = params.sort;
     this.env.sort_reverse = params.reverse;
 
-    this.set_busy(true, 'loading');
-    this.get('file_list', params, 'file_list_response');
+    // empty the list
+    $('#filelist tbody').empty();
+    this.env.file_list = [];
+    this.env.list_shift_start = null;
+    this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
+
+    // request
+    if (params.collection || params.all_folders)
+      this.file_list_loop(params);
+    else {
+      this.set_busy(true, 'loading');
+      this.get('file_list', params, 'file_list_response');
+    }
+  };
+
+  // call file.list request for every folder (used for search and virt. collections)
+  this.file_list_loop = function(params)
+  {
+    var i, folders = [], limit = Math.max(this.env.search_threads || 1, 1);
+
+    if (params.collection) {
+      if (!params.search)
+        params.search = {};
+      params.search['class'] = params.collection;
+      delete params['collection'];
+    }
+
+    delete params['all_folders'];
+
+    $.each(this.env.folders, function(i, f) {
+      if (!f.virtual)
+        folders.push(i);
+    });
+
+    this.env.folders_loop = folders;
+    this.env.folders_loop_params = params;
+    this.env.folders_loop_lock = false;
+
+    for (i=0; i<folders.length && i<limit; i++) {
+      this.set_busy(true, 'loading');
+      params.folder = folders.shift();
+      this.get('file_list', params, 'file_list_loop_response');
+    }
   };
 
   // file list response handler
@@ -625,30 +708,128 @@ function files_ui()
     if (!this.response(response))
       return;
 
-    var table = $('#filelist');
-
-    $('tbody', table).empty();
-    this.env.list_shift_start = null;
-    this.enable_command('file.open', 'file.get', 'file.rename', 'file.delete', false);
+    var table = $('#filelist'), list = [];
 
     $.each(response.result, function(key, data) {
-      var row = $('<tr><td class="filename"></td>'
-          +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
-        link = $('<span></span>').text(data.name).click(function(e) { ui.file_menu(e, key, data.type); });
-
-      $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
-      $('td.filemtime', row).text(data.mtime);
-      $('td.filesize', row).text(ui.file_size(data.size));
-
-      row.attr('data-file', key)
-        .click(function(e) { ui.file_list_click(e, this); });
-
-      // disables selection in IE
-      if (document.all)
-        row.on('selectstart', function() { return false; });
-
+      var row = ui.file_list_row(key, data);
       table.append(row);
+      data.row = row;
+      list.push(data);
     });
+
+    this.env.file_list = list;
+  };
+
+  // file list response handler for loop'ed request
+  this.file_list_loop_response = function(response)
+  {
+    var i, folders = this.env.folders_loop,
+      params = this.env.folders_loop_params,
+      limit = Math.max(this.env.search_threads || 1, 1),
+      valid = this.response(response);
+
+    for (i=0; i<folders.length && i<limit; i++) {
+      this.set_busy(true, 'loading');
+      params.folder = folders.shift();
+      this.get('file_list', params, 'file_list_loop_response');
+    }
+
+    if (!valid)
+      return;
+
+    this.file_list_loop_result_add(response.result);
+  };
+
+  // add files from list request to the table (with sorting)
+  this.file_list_loop_result_add = function(result)
+  {
+    // chack if result (hash-array) is empty
+    if (!object_is_empty(result))
+      return;
+
+    if (this.env.folders_loop_lock) {
+      setTimeout(function() { ui.file_list_loop_result_add(result); }, 100);
+      return;
+    }
+
+    // lock table, other list responses will wait
+    this.env.folders_loop_lock = true;
+
+    var n, i, len, elem, list = [],
+      table = $('#filelist'), rows = $('tbody tr', table);
+
+    for (n=0, len=this.env.file_list.length; n<len; n++) {
+      elem = this.env.file_list[n];
+      for (i in result) {
+        if (!this.sort_compare(elem, result[i]))
+          break;
+
+        var row = ui.file_list_row(i, result[i]);
+        elem.row.before(row);
+        result[i].row = row;
+        list.push(result[i]);
+        delete result[i];
+      }
+
+      list.push(elem);
+    }
+
+    // add the rest of rows
+    $.each(result, function(key, data) {
+      var row = ui.file_list_row(key, data);
+      table.append(row);
+      result[key].row = row;
+      list.push(result[key]);
+    });
+
+    this.env.file_list = list;
+    this.env.folders_loop_lock = false;
+  };
+
+  // sort files list (without API request)
+  this.file_list_sort = function(col, reverse)
+  {
+    var n, len, list = this.env.file_list,
+      table = $('#filelist'), tbody = $('<tbody>');
+
+    this.env.sort_col = col;
+    this.env.sort_reverse = reverse;
+
+    if (!list)
+      return;
+
+    // sort the list
+    list.sort(function (a, b) {
+      return ui.sort_compare(a, b);
+    });
+
+    // add rows to the new body
+    for (n=0, len=list.length; n<len; n++) {
+      tbody.append(list[n].row);
+    }
+
+    // replace table bodies
+    $('tbody', table).replaceWith(tbody);
+  };
+
+  this.file_list_row = function(filename, data)
+  {
+    var row = $('<tr><td class="filename"></td>'
+        +' <td class="filemtime"></td><td class="filesize"></td></tr>'),
+      link = $('<span></span>').text(data.name).click(function(e) { ui.file_menu(e, filename, data.type); });
+
+    $('td.filename', row).addClass(ui.file_type_class(data.type)).append(link);
+    $('td.filemtime', row).text(data.mtime);
+    $('td.filesize', row).text(ui.file_size(data.size));
+
+    row.attr('data-file', filename)
+      .click(function(e) { ui.file_list_click(e, this); });
+
+    // disables selection in IE
+    if (document.all)
+      row.on('selectstart', function() { return false; });
+
+    return row;
   };
 
   this.file_list_click = function(e, row)
@@ -819,7 +1000,7 @@ function files_ui()
 
     if (files) {
       // submit form and read server response
-      this.async_upload_form(form, 'file_create', function(e) {
+      this.file_upload_form(form, 'file_create', function(e) {
         var doc, response;
 
         try {
@@ -846,7 +1027,7 @@ function files_ui()
   };
 
   // post the given form to a hidden iframe
-  this.async_upload_form = function(form, action, onload)
+  this.file_upload_form = function(form, action, onload)
   {
     var ts = new Date().getTime(),
       frame_name = 'fileupload'+ts;
@@ -891,8 +1072,18 @@ function files_ui()
   // Display file search form
   this.file_search = function()
   {
-    var form = this.form_show('file-search');
+    var form = this.form_show('file-search'),
+      has_folder = this.env.folder || this.env.collection,
+      radio1 = $('input[name="all_folders"][value="0"]', form);
+
     $('input[name="name"]', form).val('').focus();
+
+    if (has_folder)
+      radio1.prop('disabled', false).click();
+    else {
+      radio1.prop('disabled', true);
+      $('input[name="all_folders"][value="1"]', form).click();
+    }
   };
 
   // Hide file search form
@@ -909,11 +1100,12 @@ function files_ui()
   this.file_search_submit = function()
   {
     var form = this.form_show('file-search'),
-      value = $('input[name="name"]', form).val();
+      value = $('input[name="name"]', form).val(),
+      all = $('input[name="all_folders"]:checked', form).val();
 
     if (value) {
       this.env.search = {name: value};
-      this.file_list(null, {search: this.env.search});
+      this.file_list({search: this.env.search, all_folders: all == 1});
     }
     else
       this.file_search_stop();
@@ -924,7 +1116,8 @@ function files_ui()
   {
     var form = this.form_show('folder-create');
     $('input[name="name"]', form).val('').focus();
-    $('input[name="parent"]', form).prop('checked', this.env.folder);
+    $('input[name="parent"]', form).prop('checked', this.env.folder)
+      .prop('disabled', !this.env.folder);
   };
 
   // Hide folder creation form
@@ -986,6 +1179,7 @@ function files_ui()
     this.command('folder.edit', {folder: this.env.folder, 'new': folder});
   };
 
+
   /*********************************************************/
   /*********             Utilities                 *********/
   /*********************************************************/
@@ -1013,11 +1207,16 @@ function files_ui()
   // (or we implement it) and can be displayed in the browser
   this.file_type_supported = function(type)
   {
-    var i, t, regexps = [
-      /^text\/(?!(pdf|x-pdf))/i,
-      /^message\/rfc822/i,
-      this.env.browser_capabilities.tif ? /^image\//i : /^image\/(?!tif)/i
-    ];
+    var i, t, img = 'jpg|jpeg|gif|bmp|png',
+      regexps = [
+        /^text\/(?!(pdf|x-pdf))/i,
+        /^message\/rfc822/i,
+      ];
+
+    if (this.env.browser_capabilities.tif)
+      img += '|tiff';
+
+    regexps.push(new RegExp('^image/(' + img + ')$', 'i'));
 
     if (this.env.browser_capabilities.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);

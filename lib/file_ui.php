@@ -71,9 +71,6 @@ class file_ui
         // Initialize locales
         $this->locale_init();
 
-        // Assign self to template variable
-        $this->output->assign('engine', $this);
-
         $this->auth();
     }
 
@@ -120,6 +117,9 @@ class file_ui
 
         $skin = $this->config->get('file_api_skin', 'default');
         $this->output = new file_ui_output($skin);
+
+        // Assign self to template variable
+        $this->output->assign('engine', $this);
     }
 
     /**

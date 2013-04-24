@@ -406,6 +406,12 @@ class kolab_file_storage implements file_storage
                 case 'name':
                     $filter[] = array('filename', '~', $value);
                     break;
+                case 'class':
+                    foreach (file_utils::class2mimetypes($value) as $tag) {
+                        $for[] = array('tags', '~', ' ' . $tag);
+                    }
+                    $filter[] = array($for, 'OR');
+                    break;
                 }
             }
         }

@@ -1126,11 +1126,11 @@ td span.branch span.l3
 #filelist thead td.sorted {
   padding-right: 16px;
   text-decoration: underline;
-  background: url(images/buttons.png) right -120px no-repeat;
+  background: url(images/buttons.png) right -140px no-repeat;
 }
 
 #filelist thead td.sorted.reverse {
-  background-position: right -140px;
+  background-position: right -120px;
 }
 
 #folderlist td span.name {
@@ -1156,6 +1156,23 @@ td span.branch span.l3
 #folderlist tr.virtual td span.name {
   color: #bbb;
   cursor: default;
+}
+
+#folder-collection-audio td span.name,
+#folderlist #folder-collection-audio.selected td span.name {
+  background: url(images/audio.png) 1px 0 no-repeat;
+}
+#folder-collection-video td span.name,
+#folderlist #folder-collection-video.selected td span.name {
+  background: url(images/video.png) 0 0 no-repeat;
+}
+#folder-collection-image td span.name,
+#folderlist #folder-collection-image.selected td span.name {
+  background: url(images/image.png) 0 0 no-repeat;
+}
+#folder-collection-document td span.name,
+#folderlist #folder-collection-document.selected td span.name {
+  background: url(images/document.png) 0 0 no-repeat;
 }
 
 /****** File open interface elements ******/
