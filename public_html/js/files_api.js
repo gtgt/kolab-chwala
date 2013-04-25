@@ -324,10 +324,15 @@ function files_api()
   // compare two sortable objects
   this.sort_compare = function(data1, data2)
   {
-    data1 = data1[this.env.sort_col || 'name'];
-    data2 = data2[this.env.sort_col || 'name'];
+    var key = this.env.sort_col || 'name';
 
-    if (this.env.sort_col == 'size')
+    if (key == 'mtime')
+      key = 'modified';
+
+    data1 = data1[key];
+    data2 = data2[key];
+
+    if (key == 'size' || key == 'modified')
       // numeric comparison
       return this.env.sort_reverse ? data1 < data2 : data1 > data2;
     else {
@@ -343,6 +348,119 @@ function files_api()
 
       return arr[0] === data2;
     }
+  };
+
+  // Checks if specified mimetype is supported natively by the browser
+  // (or we implement it) and can be displayed in the browser
+  this.file_type_supported = function(type)
+  {
+    var i, t, img = 'jpg|jpeg|gif|bmp|png',
+      regexps = [
+        /^text\/(?!(pdf|x-pdf))/i,
+        /^message\/rfc822/i,
+      ];
+
+    if (this.env.browser_capabilities.tif)
+      img += '|tiff';
+
+    regexps.push(new RegExp('^image/(' + img + ')$', 'i'));
+
+    if (this.env.browser_capabilities.pdf) {
+      regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
+      regexps.push(/^text\/(pdf|x-pdf)/i);
+    }
+
+    if (this.env.browser_capabilities.flash)
+      regexps.push(/^application\/x-shockwave-flash/i);
+
+    for (i in regexps)
+      if (regexps[i].test(type))
+        return true;
+
+    for (i in navigator.mimeTypes) {
+      t = navigator.mimeTypes[i].type;
+      if (t == type)
+        return true;
+    }
+  };
+
+  // Checks browser capabilities eg. PDF support, TIF support
+  this.browser_capabilities_check = function()
+  {
+    if (!this.env.browser_capabilities)
+      this.env.browser_capabilities = {};
+
+    if (this.env.browser_capabilities.pdf === undefined)
+      this.env.browser_capabilities.pdf = this.pdf_support_check();
+
+    if (this.env.browser_capabilities.flash === undefined)
+      this.env.browser_capabilities.flash = this.flash_support_check();
+
+    if (this.env.browser_capabilities.tif === undefined)
+      this.tif_support_check();
+  };
+
+  this.tif_support_check = function()
+  {
+    var img = new Image();
+
+    img.onload = function() { ui.env.browser_capabilities.tif = 1; };
+    img.onerror = function() { ui.env.browser_capabilities.tif = 0; };
+    img.src = 'resources/blank.tif';
+  };
+
+  this.pdf_support_check = function()
+  {
+    var plugin = navigator.mimeTypes ? navigator.mimeTypes["application/pdf"] : {},
+      plugins = navigator.plugins,
+      len = plugins.length,
+      regex = /Adobe Reader|PDF|Acrobat/i;
+
+    if (plugin && plugin.enabledPlugin)
+        return 1;
+
+    if (window.ActiveXObject) {
+      try {
+        if (axObj = new ActiveXObject("AcroPDF.PDF"))
+          return 1;
+      }
+      catch (e) {}
+      try {
+        if (axObj = new ActiveXObject("PDF.PdfCtrl"))
+          return 1;
+      }
+      catch (e) {}
+    }
+
+    for (i=0; i<len; i++) {
+      plugin = plugins[i];
+      if (typeof plugin === 'String') {
+        if (regex.test(plugin))
+          return 1;
+      }
+      else if (plugin.name && regex.test(plugin.name))
+        return 1;
+    }
+
+    return 0;
+  };
+
+  this.flash_support_check = function()
+  {
+    var plugin = navigator.mimeTypes ? navigator.mimeTypes["application/x-shockwave-flash"] : {};
+
+    if (plugin && plugin.enabledPlugin)
+        return 1;
+
+    if (window.ActiveXObject) {
+      try {
+        if (axObj = new ActiveXObject("ShockwaveFlash.ShockwaveFlash"))
+          return 1;
+      }
+      catch (e) {}
+    }
+
+    return 0;
   };
 
 };

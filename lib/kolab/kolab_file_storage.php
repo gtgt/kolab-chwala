@@ -436,6 +436,7 @@ class kolab_file_storage implements file_storage
                 'size'   => (int) $file['size'],
                 'type'   => (string) $file['type'],
                 'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
+                'modified' => $file['changed']->format('U'),
             );
             unset($files[$idx]);
         }
@@ -446,15 +447,13 @@ class kolab_file_storage implements file_storage
         $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
         $index = array();
 
-        if (in_array($sort, array('name', 'size'))) {
+        if ($sort == 'mtime') {
+            $sort = 'modified';
+        }
+
+        if (in_array($sort, array('name', 'size', 'modified'))) {
             foreach ($result as $key => $val) {
                 $index[$key] = $val[$sort];
-            }
-            array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
-        }
-        else if ($sort == 'mtime') {
-            foreach ($result as $key => $val) {
-                $index[$key] = strtotime($val['mtime']);
             }
             array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
         }
