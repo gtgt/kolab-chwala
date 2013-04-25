@@ -60,5 +60,7 @@ ui.buttons({
 'file.search': 'file-search-button',
 'file.delete': 'file-delete-button',
 'file.download': 'file-download-button',
-'file.edit': 'file-edit-button'
+'file.edit': 'file-edit-button',
+'file.copy': 'file-copy-button',
+'file.move': 'file-move-button'
 });

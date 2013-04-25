@@ -28,7 +28,8 @@ class file_ui_main extends file_ui
     {
         // assign default set of translations
         $this->output->add_translation('saving', 'deleting', 'search', 'search.loading',
-            'collection.audio', 'collection.video', 'collection.image', 'collection.document'
+            'collection.audio', 'collection.video', 'collection.image', 'collection.document',
+            'moving', 'copying'
         );
 
         $this->output->set_env('search_threads', $this->config->get('files_search_threads'));
