@@ -626,7 +626,6 @@ a.button.delete {
 }
 
 .popup ul li a {
-  width: 100%;
   cursor: default;
   display: block;
 }
