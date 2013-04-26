@@ -334,7 +334,7 @@ function files_api()
 
     if (key == 'size' || key == 'modified')
       // numeric comparison
-      return this.env.sort_reverse ? data1 < data2 : data1 > data2;
+      return this.env.sort_reverse ? data2 - data1 : data1 - data2;
     else {
       // use Array.sort() for sting comparison
       var arr = [data1, data2];
@@ -346,7 +346,7 @@ function files_api()
       if (this.env.sort_reverse)
         arr.reverse();
 
-      return arr[0] === data2;
+      return arr[0] === data2 ? 1 : -1;
     }
   };
 
