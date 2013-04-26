@@ -379,7 +379,7 @@ function files_api()
 
     for (i in navigator.mimeTypes) {
       t = navigator.mimeTypes[i].type;
-      if (t == type)
+      if (t == type && navigator.mimeTypes[i].enabledPlugin)
         return true;
     }
   };
