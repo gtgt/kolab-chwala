@@ -49,6 +49,17 @@ class file_ui_file extends file_ui
 
         $this->output->set_env('file', $this->file);
         $this->output->set_env('filedata', $this->filedata);
+
+        // read browser capabilities
+        if (isset($_GET['caps'])) {
+            $caps = explode(',', $_GET['caps']);
+            $capabilities = array('pdf' => 0, 'flash' => 0, 'tif' => 0);
+            foreach ($caps as $c) {
+                $capabilities[$c] = 1;
+            }
+
+            $this->output->set_env('browser_capabilities', $capabilities);
+        }
     }
 
     public function file_open_frame()

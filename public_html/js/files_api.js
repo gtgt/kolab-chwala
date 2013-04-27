@@ -384,6 +384,18 @@ function files_api()
     }
   };
 
+  // Return browser capabilities
+  this.browser_capabilities = function()
+  {
+    var i, caps = [], ctypes = ['pdf', 'flash', 'tif'];
+
+    for (i in ctypes)
+      if (this.env.browser_capabilities[ctypes[i]])
+        caps.push(ctypes[i]);
+
+    return caps;
+  };
+
   // Checks browser capabilities eg. PDF support, TIF support
   this.browser_capabilities_check = function()
   {

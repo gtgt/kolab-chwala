@@ -65,7 +65,8 @@ function files_ui()
       this.enable_command('file.delete', 'file.download', true);
     }
 
-    this.browser_capabilities_check();
+    if (!this.env.browser_capabilities)
+      this.browser_capabilities_check();
   };
 
   // set environment variable(s)
@@ -1196,12 +1197,14 @@ function files_ui()
   // display file menu
   this.file_menu = function(e, file, type)
   {
-    var menu = $('#file-menu'),
+    var href, caps, menu = $('#file-menu'),
       open_action = $('li.file-open > a', menu);
 
-    if (this.file_type_supported(type))
-      open_action.attr({target: '_blank', href: '?' + $.param({task: 'file', action: 'open', token: this.env.token, file: file})})
-        .removeClass('disabled').off('click');
+    if (this.file_type_supported(type)) {
+      caps = this.browser_capabilities().join();
+      href = '?' + $.param({task: 'file', action: 'open', token: this.env.token, file: file, caps: caps});
+      open_action.attr({target: '_blank', href: href}).removeClass('disabled').off('click');
+    }
     else
       open_action.click(function() { return false; }).addClass('disabled');
 
@@ -1463,9 +1466,12 @@ function files_ui()
     // let's wait some time and check document ready state
     if (!/^text/i.test(filedata.mimetype))
       setTimeout(function() {
-        $(iframe.get(0).contentWindow.document).ready(function() {
-          parent.ui.loader_hide(content);
-        });
+        // there sometimes "Permission denied to access propert document", use try/catch
+        try {
+          $(iframe.get(0).contentWindow.document).ready(function() {
+            parent.ui.loader_hide(content);
+          });
+        } catch (e) {};
       }, 1000);
   };
 
