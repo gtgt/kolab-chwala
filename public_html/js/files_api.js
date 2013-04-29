@@ -414,10 +414,10 @@ function files_api()
 
   this.tif_support_check = function()
   {
-    var img = new Image();
+    var img = new Image(), ref = this;
 
-    img.onload = function() { ui.env.browser_capabilities.tif = 1; };
-    img.onerror = function() { ui.env.browser_capabilities.tif = 0; };
+    img.onload = function() { ref.env.browser_capabilities.tif = 1; };
+    img.onerror = function() { ref.env.browser_capabilities.tif = 0; };
     img.src = 'resources/blank.tif';
   };
 
@@ -426,7 +426,8 @@ function files_api()
     var plugin = navigator.mimeTypes ? navigator.mimeTypes["application/pdf"] : {},
       plugins = navigator.plugins,
       len = plugins.length,
-      regex = /Adobe Reader|PDF|Acrobat/i;
+      regex = /Adobe Reader|PDF|Acrobat/i,
+      ref = this;
 
     if (plugin && plugin.enabledPlugin)
         return 1;
@@ -455,8 +456,8 @@ function files_api()
     }
 
     var obj = document.createElement('OBJECT');
-    obj.onload = function() { ui.env.browser_capabilities.pdf = 1; };
-    obj.onerror = function() { ui.env.browser_capabilities.pdf = 0; };
+    obj.onload = function() { ref.env.browser_capabilities.pdf = 1; };
+    obj.onerror = function() { ref.env.browser_capabilities.pdf = 0; };
     obj.style.display = 'none';
     obj.type = 'application/pdf';
     obj.data = 'resources/blank.pdf';
