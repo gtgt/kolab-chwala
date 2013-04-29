@@ -747,7 +747,7 @@ function files_ui()
     for (n=0, len=this.env.file_list.length; n<len; n++) {
       elem = this.env.file_list[n];
       for (i in result) {
-        if (!this.sort_compare(elem, result[i]))
+        if (this.sort_compare(elem, result[i]) < 0)
           break;
 
         var row = ui.file_list_row(i, result[i]);
