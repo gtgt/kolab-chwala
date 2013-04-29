@@ -741,8 +741,7 @@ function files_ui()
     // lock table, other list responses will wait
     this.env.folders_loop_lock = true;
 
-    var n, i, len, elem, list = [],
-      table = $('#filelist'), rows = $('tbody tr', table);
+    var n, i, len, elem, list = [], table = $('#filelist');
 
     for (n=0, len=this.env.file_list.length; n<len; n++) {
       elem = this.env.file_list[n];
@@ -750,7 +749,7 @@ function files_ui()
         if (this.sort_compare(elem, result[i]) < 0)
           break;
 
-        var row = ui.file_list_row(i, result[i]);
+        var row = this.file_list_row(i, result[i]);
         elem.row.before(row);
         result[i].row = row;
         list.push(result[i]);
