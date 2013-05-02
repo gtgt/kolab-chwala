@@ -1447,7 +1447,12 @@ function files_ui()
   // loads a file content into an iframe (with loading image)
   this.load_file = function(content, filedata)
   {
-    var href = filedata.href, iframe = $(content),
+    var iframe = $(content);
+
+    if (!iframe.length)
+      return;
+
+    var href = filedata.href,
       div = iframe.parent(),
       loader = $('#loader'),
       offset = div.offset(),

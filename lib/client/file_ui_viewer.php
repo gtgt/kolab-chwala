@@ -40,7 +40,7 @@ class file_ui_viewer extends file_ui
             . '&file=' . urlencode($file)
             . '&token=' . urlencode($_SESSION['user']['token']);
 
-        $viewer->output($href);
+        $viewer->output($href, $type);
         exit;
     }
 }

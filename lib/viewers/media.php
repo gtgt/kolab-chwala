@@ -22,15 +22,29 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_viewer_pdf
+/**
+ * Class integrating HTML5 audio/video player from http://mediaelementjs.com
+ */
+class file_viewer_media
 {
     protected $mimetypes = array(
-        'application/pdf',
-        'application/x-pdf',
-        'application/acrobat',
-        'applications/vnd.pdf',
-        'text/pdf',
-        'text/x-pdf',
+        'video/mp4',
+        'video/m4v',
+        'video/ogg',
+        'video/webm',
+//        'video/3gpp',
+//        'video/flv',
+//        'video/x-flv',
+        'application/ogg',
+        'audio/mp3',
+        'audio/mpeg',
+        'audio/ogg',
+        'audio/wav',
+        'audio/flv',
+        'audio/x-mpeg',
+        'audio/x-ogg',
+        'audio/x-wav',
+        'audio/x-flv',
     );
 
 
@@ -41,18 +55,8 @@ class file_viewer_pdf
      */
     public function supported_mimetypes()
     {
+        // @TODO: disable types not supported by some browsers
         return $this->mimetypes;
-    }
-
-    /**
-     * Return output of file content area
-     *
-     * @param string $file_uri File URL
-     * @param string $mimetype File type
-     */
-    public function frame($file_uri, $mimetype = null)
-    {
-        // we use iframe method, see output()
     }
 
     /**
@@ -63,7 +67,51 @@ class file_viewer_pdf
      */
     public function output($file_uri, $mimetype = null)
     {
-        header('Location: viewers/pdf/viewer.html?file=' . urlencode($file_uri));
-        exit;
+        // this viewer implements frame() method
+    }
+
+    /**
+     * Return output of file content area
+     *
+     * @param string $file_uri File URL
+     * @param string $mimetype File type
+     */
+    public function frame($file_uri, $mimetype = null)
+    {
+        $file_uri = htmlentities($file_uri);
+        $mimetype = htmlentities($mimetype);
+        $source   = "<source src=\"$file_uri\" type=\"$mimetype\"></source>";
+
+        if (preg_match('/^audio/', $mimetype)) {
+            $tag = 'audio';
+        }
+        else {
+            $tag = 'video';
+        }
+
+        return <<<EOT
+    <link rel="stylesheet" type="text/css" href="viewers/media/mediaelementplayer.css" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="viewers/media/mediaelement-and-player.js"></script>
+    <$tag id="media-player" controls preload="auto">$source</$tag>
+    <style>
+      .mejs-container { text-align: center; }
+    </style>
+    <script>
+      var content_frame = $('#media-player').parent(),
+        height = content_frame.height(),
+        width = content_frame.width(),
+        player = new MediaElementPlayer('#media-player', {
+          videoHeight: height, audioHeight: height, videoWidth: width, audioWidth: width
+        });
+
+      player.pause();
+      player.play();
+      // add player resize handler
+      $(window).resize(function() {
+        player.setPlayerSize(content_frame.width(), content_frame.height());
+      });
+    </script>
+EOT;
     }
 }

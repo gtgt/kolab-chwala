@@ -25,6 +25,8 @@
 class file_ui_file extends file_ui
 {
     private $file;
+    private $filedata;
+    private $viewer;
 
 
     public function action_open()
@@ -56,10 +58,28 @@ class file_ui_file extends file_ui
 
             $this->output->set_env('browser_capabilities', $capabilities);
         }
+
+        if (!empty($_GET['viewer'])) {
+            $this->viewer = $this->find_viewer($this->filedata['mimetype']);
+        }
     }
 
+    /**
+     * File content template object
+     */
     public function file_open_frame()
     {
+        // check if viewer provides frame content
+        if ($this->viewer) {
+            $href = $this->api->base_url() . '?method=file_get'
+                . '&file=' . urlencode($this->file)
+                . '&token=' . urlencode($_SESSION['user']['token']);
+
+            if ($frame = $this->viewer->frame($href, $this->filedata['mimetype'])) {
+                return $frame;
+            }
+        }
+
         // src attribute will be set on page load
         return html::iframe(array('id' => 'file-content'));
     }
@@ -89,7 +109,8 @@ class file_ui_file extends file_ui
         $href .= '&file=' . urlencode($this->file)
             . '&token=' . urlencode($_SESSION['user']['token']);
 
-        $this->filedata['href'] = $href;
+        $this->filedata['mimetype'] = $mimetype;
+        $this->filedata['href']     = $href;
     }
 
     /**

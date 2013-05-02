@@ -58,12 +58,26 @@ class file_viewer_odf
     }
 
     /**
+     * Return output of file content area
+     *
+     * @param string $file_uri File URL
+     * @param string $mimetype File type
+     */
+    public function frame($file_uri, $mimetype = null)
+    {
+        // we use iframe method, see output()
+    }
+
+    /**
      * Print output and exit
      *
      * @param string $file_uri File URL
+     * @param string $mimetype File type
      */
-    public function output($file_uri)
+    public function output($file_uri, $mimetype = null)
     {
+        $file_uri = htmlentities($file_uri);
+
         echo <<<EOT
 <html>
   <head>
