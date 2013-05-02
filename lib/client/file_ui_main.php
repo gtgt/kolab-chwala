@@ -33,6 +33,7 @@ class file_ui_main extends file_ui
         );
 
         $this->output->set_env('search_threads', $this->config->get('files_search_threads'));
+        $this->output->set_env('supported_mimetypes', $this->supported_mimetypes());
 
         $this->ui_init();
     }

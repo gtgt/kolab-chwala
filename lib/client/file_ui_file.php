@@ -26,10 +26,6 @@ class file_ui_file extends file_ui
 {
     private $file;
 
-    public function action_default()
-    {
-    
-    }
 
     public function action_open()
     {
@@ -79,12 +75,19 @@ class file_ui_file extends file_ui
         $mimetype = $this->real_mimetype($this->filedata['type']);
 
         // create href string for file load frame
-        $href = 'api/?method=file_get&file=' . urlencode($this->file)
-            . '&token=' . urlencode($_SESSION['user']['token']);
-
-        if ($mimetype != $this->filedata['type']) {
-            $href .= '&force-type=' . urlencode($mimetype);
+        if (!empty($_GET['viewer'])) {
+            $href = '?task=viewer&mimetype=' . urlencode($mimetype);
         }
+        else {
+            $href = 'api/?method=file_get';
+
+            if ($mimetype != $this->filedata['type']) {
+                $href .= '&force-type=' . urlencode($mimetype);
+            }
+        }
+
+        $href .= '&file=' . urlencode($this->file)
+            . '&token=' . urlencode($_SESSION['user']['token']);
 
         $this->filedata['href'] = $href;
     }

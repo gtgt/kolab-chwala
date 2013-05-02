@@ -635,4 +635,54 @@ class file_ui
         return $str;
     }
 
+    /**
+     * Return mimetypes list supported by built-in viewers
+     *
+     * @return array List of mimetypes
+     */
+    protected function supported_mimetypes()
+    {
+        $mimetypes = array();
+        $dir       = RCUBE_INSTALL_PATH . 'lib/viewers';
+
+        if ($handle = opendir($dir)) {
+            while (false !== ($file = readdir($handle))) {
+                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
+                    include_once $dir . '/' . $file;
+                    $class  = 'file_viewer_' . $matches[1];
+                    $viewer = new $class();
+
+                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
+                }
+            }
+            closedir($handle);
+        }
+
+        return $mimetypes;
+    }
+
+    /**
+     * Return built-in viewer opbject for specified mimetype
+     *
+     * @return object Viewer object
+     */
+    protected function find_viewer($mimetype)
+    {
+        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
+
+        if ($handle = opendir($dir)) {
+            while (false !== ($file = readdir($handle))) {
+                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
+                    include_once $dir . '/' . $file;
+                    $class  = 'file_viewer_' . $matches[1];
+                    $viewer = new $class();
+
+                    if (in_array($mimetype, $viewer->supported_mimetypes())) {
+                        return $viewer;
+                    }
+                }
+            }
+            closedir($handle);
+        }
+    }
 }

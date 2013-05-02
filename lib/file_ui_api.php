@@ -93,6 +93,16 @@ class file_ui_api
     }
 
     /**
+     * Return API's base URL
+     *
+     * @return string Base URL
+     */
+    public function base_url()
+    {
+        return $this->base_url;
+    }
+
+    /**
      * Logs specified user into the API
      *
      * @param string $username User name

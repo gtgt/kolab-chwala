@@ -350,8 +350,8 @@ function files_api()
     }
   };
 
-  // Checks if specified mimetype is supported natively by the browser
-  // (or we implement it) and can be displayed in the browser
+  // Checks if specified mimetype is supported natively by the browser (return 1)
+  // or can be displayed in the browser using File API viewer (return 2)
   this.file_type_supported = function(type)
   {
     var i, t, img = 'jpg|jpeg|gif|bmp|png',
@@ -375,13 +375,16 @@ function files_api()
 
     for (i in regexps)
       if (regexps[i].test(type))
-        return true;
+        return 1;
 
     for (i in navigator.mimeTypes) {
       t = navigator.mimeTypes[i].type;
       if (t == type && navigator.mimeTypes[i].enabledPlugin)
-        return true;
+        return 1;
     }
+
+    if ($.inArray(type, this.env.supported_mimetypes) > -1)
+      return 2;
   };
 
   // Return browser capabilities

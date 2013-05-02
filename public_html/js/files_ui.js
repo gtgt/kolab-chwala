@@ -1196,12 +1196,13 @@ function files_ui()
   // display file menu
   this.file_menu = function(e, file, type)
   {
-    var href, caps, menu = $('#file-menu'),
+    var href, caps, supported,
+      menu = $('#file-menu'),
       open_action = $('li.file-open > a', menu);
 
-    if (this.file_type_supported(type)) {
+    if (supported = this.file_type_supported(type)) {
       caps = this.browser_capabilities().join();
-      href = '?' + $.param({task: 'file', action: 'open', token: this.env.token, file: file, caps: caps});
+      href = '?' + $.param({task: 'file', action: 'open', token: this.env.token, file: file, caps: caps, viewer: supported == 2 ? 1 : 0});
       open_action.attr({target: '_blank', href: href}).removeClass('disabled').off('click');
     }
     else
