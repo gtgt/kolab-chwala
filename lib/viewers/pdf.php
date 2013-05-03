@@ -22,7 +22,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_viewer_pdf
+class file_ui_viewer_pdf extends file_ui_viewer
 {
     protected $mimetypes = array(
         'application/pdf',
@@ -35,35 +35,14 @@ class file_viewer_pdf
 
 
     /**
-     * Returns list of supported mimetype
-     *
-     * @return array List of mimetypes
-     */
-    public function supported_mimetypes()
-    {
-        return $this->mimetypes;
-    }
-
-    /**
-     * Return output of file content area
-     *
-     * @param string $file_uri File URL
-     * @param string $mimetype File type
-     */
-    public function frame($file_uri, $mimetype = null)
-    {
-        // we use iframe method, see output()
-    }
-
-    /**
      * Print output and exit
      *
-     * @param string $file_uri File URL
+     * @param string $file     File name
      * @param string $mimetype File type
      */
-    public function output($file_uri, $mimetype = null)
+    public function output($file, $mimetype = null)
     {
-        header('Location: viewers/pdf/viewer.html?file=' . urlencode($file_uri));
+        header('Location: viewers/pdf/viewer.html?file=' . urlencode($this->ui->file_url($file)));
         exit;
     }
 }

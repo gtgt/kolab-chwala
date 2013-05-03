@@ -22,28 +22,13 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_viewer_odf extends file_ui_viewer
+/**
+ * Abstract viewer class
+ */
+abstract class file_ui_viewer
 {
-    protected $mimetypes = array(
-        'application/vnd.oasis.opendocument.text',
-        'application/vnd.oasis.opendocument.spreadsheet',
-        'application/vnd.oasis.opendocument.presentation',
-        'application/vnd.oasis.opendocument.graphics',
-        'application/vnd.oasis.opendocument.chart',
-//        'application/vnd.oasis.opendocument.formula',
-        'application/vnd.oasis.opendocument.image',
-        'application/vnd.oasis.opendocument.text-master',
-//        'application/vnd.sun.xml.base',
-//        'application/vnd.oasis.opendocument.base',
-//        'application/vnd.oasis.opendocument.database',
-        'application/vnd.oasis.opendocument.text-template',
-        'application/vnd.oasis.opendocument.spreadsheet-template',
-        'application/vnd.oasis.opendocument.presentation-template',
-        'application/vnd.oasis.opendocument.graphics-template',
-        'application/vnd.oasis.opendocument.chart-template',
-//        'application/vnd.oasis.opendocument.formula-template',
-        'application/vnd.oasis.opendocument.image-template',
-    );
+    protected $mimetypes = array();
+    protected $ui;
 
 
     /**
@@ -63,7 +48,6 @@ class file_ui_viewer_odf extends file_ui_viewer
      */
     public function supported_mimetypes()
     {
-        // @TODO: check supported browsers
         return $this->mimetypes;
     }
 
@@ -80,17 +64,6 @@ class file_ui_viewer_odf extends file_ui_viewer
     }
 
     /**
-     * Return output of file content area
-     *
-     * @param string $file     File name
-     * @param string $mimetype File type
-     */
-    public function frame($file, $mimetype = null)
-    {
-        // we use iframe method, see output()
-    }
-
-    /**
      * Print output and exit
      *
      * @param string $file     File name
@@ -98,26 +71,15 @@ class file_ui_viewer_odf extends file_ui_viewer
      */
     public function output($file, $mimetype = null)
     {
-        $file_uri = $this->ui->file_url($file);
+    }
 
-        echo <<<EOT
-<html>
-  <head>
-    <link rel="stylesheet" type="text/css" href="viewers/odf/webodf.css" />
-    <script type="text/javascript" src="viewers/odf/webodf.js" charset="utf-8"></script>
-    <script type="text/javascript" charset="utf-8">
-      function init() {
-        var odfelement = document.getElementById("odf"),
-          odfcanvas = new odf.OdfCanvas(odfelement);
-        odfcanvas.load("$file_uri");
-      }
-      window.setTimeout(init, 0);
-    </script>
-  </head>
-  <body>
-    <div id="odf"></div>
-  </body>
-</html>
-EOT;
+    /**
+     * Return output of file content area
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function frame($file, $mimetype = null)
+    {
     }
 }

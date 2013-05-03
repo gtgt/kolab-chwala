@@ -22,7 +22,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_file extends file_ui
+class file_ui_client_file extends file_ui
 {
     private $file;
     private $filedata;
@@ -71,11 +71,7 @@ class file_ui_file extends file_ui
     {
         // check if viewer provides frame content
         if ($this->viewer) {
-            $href = $this->api->base_url() . '?method=file_get'
-                . '&file=' . urlencode($this->file)
-                . '&token=' . urlencode($_SESSION['user']['token']);
-
-            if ($frame = $this->viewer->frame($href, $this->filedata['mimetype'])) {
+            if ($frame = $this->viewer->frame($this->file, $this->filedata['mimetype'])) {
                 return $frame;
             }
         }

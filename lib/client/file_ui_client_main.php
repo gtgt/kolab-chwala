@@ -22,7 +22,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_main extends file_ui
+class file_ui_client_main extends file_ui
 {
     public function action_default()
     {

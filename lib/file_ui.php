@@ -34,7 +34,7 @@ class file_ui
     /**
      * @var kolab_client_api
      */
-    protected $api;
+    public $api;
 
     /**
      * @var Conf
@@ -430,7 +430,7 @@ class file_ui
     {
         $class_name = get_class($this);
 
-        if (preg_match('/^file_ui_([a-z]+)$/', $class_name, $m)) {
+        if (preg_match('/^file_ui_client_([a-z]+)$/', $class_name, $m)) {
             return $m[1];
         }
     }
@@ -649,8 +649,8 @@ class file_ui
             while (false !== ($file = readdir($handle))) {
                 if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
                     include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class();
+                    $class  = 'file_ui_viewer_' . $matches[1];
+                    $viewer = new $class($this);
 
                     $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
                 }
@@ -674,15 +674,29 @@ class file_ui
             while (false !== ($file = readdir($handle))) {
                 if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
                     include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class();
+                    $class  = 'file_ui_viewer_' . $matches[1];
+                    $viewer = new $class($this);
 
-                    if (in_array($mimetype, $viewer->supported_mimetypes())) {
+                    if ($viewer->supports($mimetype)) {
                         return $viewer;
                     }
                 }
             }
             closedir($handle);
         }
+    }
+
+    /**
+     * Returns complete File URL
+     *
+     * @param string $file FIle name (with path)
+     *
+     * @return string File URL
+     */
+    public function file_url($file)
+    {
+        return $this->api->base_url() . '?method=file_get'
+            . '&file=' . urlencode($file)
+            . '&token=' . urlencode($_SESSION['user']['token']);
     }
 }

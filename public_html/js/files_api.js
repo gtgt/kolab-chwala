@@ -363,7 +363,13 @@ function files_api()
     if (this.env.browser_capabilities.tif)
       img += '|tiff';
 
-    regexps.push(new RegExp('^image/(' + img + ')$', 'i'));
+    if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
+      return 1;
+
+    // prefer text viewer
+    for (i in regexps)
+      if (regexps[i].test(type))
+        return 2;
 
     if (this.env.browser_capabilities.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
@@ -383,6 +389,7 @@ function files_api()
         return 1;
     }
 
+    // types with viewer support
     if ($.inArray(type, this.env.supported_mimetypes) > -1)
       return 2;
   };

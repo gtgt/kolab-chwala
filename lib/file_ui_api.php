@@ -103,6 +103,16 @@ class file_ui_api
     }
 
     /**
+     * Return HTTP_Request2 object
+     *
+     * @return HTTP_Request2 Request object
+     */
+    public function request()
+    {
+        return $this->request;
+    }
+
+    /**
      * Logs specified user into the API
      *
      * @param string $username User name

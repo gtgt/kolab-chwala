@@ -33,7 +33,7 @@ if (!$task) {
     $task = 'main';
 }
 
-$class = "file_ui_$task";
+$class = "file_ui_client_$task";
 
 $UI = new $class;
 

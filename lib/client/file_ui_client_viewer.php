@@ -22,11 +22,14 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_viewer extends file_ui
+class file_ui_client_viewer extends file_ui
 {
     private $file;
 
 
+    /**
+     * Default viewer action
+     */
     public function action_default()
     {
 //        $this->ui_init();
@@ -34,13 +37,9 @@ class file_ui_viewer extends file_ui
          // @TODO: error handling
         $file   = $this->get_input('file', 'GET');
         $type   = $this->get_input('mimetype', 'GET');
-
         $viewer = $this->find_viewer($type);
-        $href   = $this->api->base_url() . '?method=file_get'
-            . '&file=' . urlencode($file)
-            . '&token=' . urlencode($_SESSION['user']['token']);
 
-        $viewer->output($href, $type);
+        $viewer->output($file, $type);
         exit;
     }
 }

@@ -25,7 +25,7 @@
 /**
  * Class integrating HTML5 audio/video player from http://mediaelementjs.com
  */
-class file_viewer_media
+class file_ui_viewer_media extends file_ui_viewer
 {
     protected $mimetypes = array(
         'video/mp4',
@@ -49,36 +49,25 @@ class file_viewer_media
 
 
     /**
-     * Returns list of supported mimetype
+     * Class constructor
      *
-     * @return array List of mimetypes
+     * @param file_ui File UI object
      */
-    public function supported_mimetypes()
+    public function __construct($ui)
     {
         // @TODO: disable types not supported by some browsers
-        return $this->mimetypes;
-    }
-
-    /**
-     * Print output and exit
-     *
-     * @param string $file_uri File URL
-     * @param string $mimetype File type
-     */
-    public function output($file_uri, $mimetype = null)
-    {
-        // this viewer implements frame() method
+        $this->ui = $ui;
     }
 
     /**
      * Return output of file content area
      *
-     * @param string $file_uri File URL
+     * @param string $file     File name
      * @param string $mimetype File type
      */
-    public function frame($file_uri, $mimetype = null)
+    public function frame($file, $mimetype = null)
     {
-        $file_uri = htmlentities($file_uri);
+        $file_uri = htmlentities($this->ui->file_url($file));
         $mimetype = htmlentities($mimetype);
         $source   = "<source src=\"$file_uri\" type=\"$mimetype\"></source>";
 
