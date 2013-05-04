@@ -119,17 +119,6 @@ class file_ui_client_file extends file_ui
             if (preg_match('/^(pdf|x-pdf)$/i', $m[1])) {
                 $mimetype = 'application/pdf';
             }
-
-            // display all text/* (with few exceptions) as text/plain
-            // to force display mode, in other case browser would invoke save-as window
-            // @TODO: display HTML as text? implement editor for both modes?
-            if (!preg_match('/^(plain|html)$/i', $m[1])) {
-                $mimetype = 'text/plain';
-            }
-        }
-        // handle message/rfc822 as text/plain
-        if (preg_match('/^message\/rfc822/i', $mimetype)) {
-            $mimetype = 'text/plain';
         }
 
         return $mimetype;
