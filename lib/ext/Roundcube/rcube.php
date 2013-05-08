@@ -405,6 +405,7 @@ class rcube
         $sess_domain = $this->config->get('session_domain');
         $sess_path   = $this->config->get('session_path');
         $lifetime    = $this->config->get('session_lifetime', 0) * 60;
+        $is_secure   = $this->config->get('use_https') || rcube_utils::https_check();
 
         // set session domain
         if ($sess_domain) {
@@ -419,7 +420,7 @@ class rcube
             ini_set('session.gc_maxlifetime', $lifetime * 2);
         }
 
-        ini_set('session.cookie_secure', rcube_utils::https_check());
+        ini_set('session.cookie_secure', $is_secure);
         ini_set('session.name', $sess_name ? $sess_name : 'roundcube_sessid');
         ini_set('session.use_cookies', 1);
         ini_set('session.use_only_cookies', 1);
@@ -1073,14 +1074,20 @@ class rcube
     {
         // handle PHP exceptions
         if (is_object($arg) && is_a($arg, 'Exception')) {
-            $err = array(
+            $arg = array(
                 'type' => 'php',
                 'code' => $arg->getCode(),
                 'line' => $arg->getLine(),
                 'file' => $arg->getFile(),
                 'message' => $arg->getMessage(),
             );
-            $arg = $err;
+        }
+        else if (is_string($arg)) {
+            $arg = array('message' => $arg, 'type' => 'php');
+        }
+
+        if (empty($arg['code'])) {
+            $arg['code'] = 500;
         }
 
         // installer
@@ -1090,14 +1097,24 @@ class rcube
             return;
         }
 
-        if (($log || $terminate) && $arg['type'] && $arg['message']) {
+        $cli = php_sapi_name() == 'cli';
+
+        if (($log || $terminate) && !$cli && $arg['type'] && $arg['message']) {
             $arg['fatal'] = $terminate;
             self::log_bug($arg);
         }
 
-        // display error page and terminate script
-        if ($terminate && is_object(self::$instance->output)) {
-            self::$instance->output->raise_error($arg['code'], $arg['message']);
+        // terminate script
+        if ($terminate) {
+            // display error page
+            if (is_object(self::$instance->output)) {
+                self::$instance->output->raise_error($arg['code'], $arg['message']);
+            }
+            else if ($cli) {
+                fwrite(STDERR, 'ERROR: ' . $arg['message']);
+            }
+
+            exit(1);
         }
     }
 
@@ -1136,7 +1153,7 @@ class rcube
 
             if (!self::write_log('errors', $log_entry)) {
                 // send error to PHPs error handler if write_log didn't succeed
-                trigger_error($arg_arr['message']);
+                trigger_error($arg_arr['message'], E_USER_WARNING);
             }
         }
 

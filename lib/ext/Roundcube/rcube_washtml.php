@@ -240,7 +240,8 @@ class rcube_washtml
             $value = $node->getAttribute($key);
 
             if (isset($this->_html_attribs[$key]) ||
-                ($key == 'href' && !preg_match('!^(javascript|vbscript|data:text)!i', $value)
+                ($key == 'href' && ($value = trim($value))
+                    && !preg_match('!^(javascript|vbscript|data:text)!i', $value)
                     && preg_match('!^([a-z][a-z0-9.+-]+:|//|#).+!i', $value))
             ) {
                 $t .= ' ' . $key . '="' . htmlspecialchars($value, ENT_QUOTES) . '"';
@@ -412,7 +413,8 @@ class rcube_washtml
 
         // Remove invalid HTML comments (#1487759)
         // Don't remove valid conditional comments
-        $html = preg_replace('/<!--[^->[\n]*>/', '', $html);
+        // Don't remove MSOutlook (<!-->) conditional comments (#1489004)
+        $html = preg_replace('/<!--[^->\[\n]+>/', '', $html);
 
         // turn relative into absolute urls
         $html = self::resolve_base($html);

@@ -60,6 +60,14 @@ abstract class rcube_plugin
      */
     public $noframe = false;
 
+    /**
+     * A list of config option names that can be modified
+     * by the user via user interface (with save-prefs command)
+     *
+     * @var array
+     */
+    public $allowed_prefs;
+
     protected $home;
     protected $urlbase;
     private $mytask;
@@ -82,6 +90,16 @@ abstract class rcube_plugin
      * Initialization method, needs to be implemented by the plugin itself
      */
     abstract function init();
+
+    /**
+     * Provide information about this
+     *
+     * @return array Meta information about a plugin or false if not implemented
+     */
+    public static function info()
+    {
+        return false;
+    }
 
     /**
      * Attempt to load the given plugin which is required for the current plugin
@@ -237,7 +255,7 @@ abstract class rcube_plugin
     /**
      * Register this plugin to be responsible for a specific task
      *
-     * @param string $task Task name (only characters [a-z0-9_.-] are allowed)
+     * @param string $task Task name (only characters [a-z0-9_-] are allowed)
      */
     public function register_task($task)
     {
