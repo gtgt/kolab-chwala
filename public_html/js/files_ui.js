@@ -878,6 +878,9 @@ function files_ui()
   {
     if (!this.response(response))
       return;
+
+    if (response.result && response.result.already_exist && response.result.already_exist.length)
+      this.file_move_ask_user(response.result.already_exist);
   };
 
   // file move request
@@ -910,7 +913,10 @@ function files_ui()
     if (!this.response(response))
       return;
 
-    this.file_list();
+    if (response.result && response.result.already_exist && response.result.already_exist.length)
+      this.file_move_ask_user(response.result.already_exist, true);
+    else
+      this.file_list();
   };
 
   this.file_download = function(file)
@@ -1052,8 +1058,8 @@ function files_ui()
     if (!selected)
       this.env.list_shift_start = null;
 
-    this.enable_command('file.delete', selected);
-    this.enable_command('file.open', 'file.get', 'file.rename', 'file.copy', 'file.move', selected == 1);
+    this.enable_command('file.delete', 'file.move', 'file.copy', selected);
+    this.enable_command('file.open', 'file.get', 'file.rename', selected == 1);
   };
 
   // file row drag start event handler
@@ -1420,10 +1426,114 @@ function files_ui()
     this.command('folder.edit', {folder: this.env.folder, 'new': folder});
   };
 
+  // when file move/copy operation returns file-exists error
+  // this displays a dialog where user can decide to skip
+  // or overwrite destination file(s)
+  this.file_move_ask_user = function(list, move)
+  {
+    var file = list[0], buttons = {},
+      label = this.t('file.moveconfirm').replace('$file', file.dst);
+
+    buttons['file.overwrite'] = function() {
+      var file = list.shift(), f = {},
+        action = move ? 'file_move' : 'file_copy';
+
+      f[file.src] = file.dst;
+      ui.file_move_ask_list = list;
+      ui.file_move_ask_mode = move;
+      this.hide();
+      ui.set_busy(true, move ? 'moving' : 'copying');
+      ui.get(action, {file: f, overwrite: 1}, 'file_move_ask_user_response');
+    };
+
+    if (list.length > 1)
+      buttons['file.overwriteall'] = function() {
+        var f = {}, action = move ? 'file_move' : 'file_copy';
+
+        $.each(list, function() { f[this.src] = this.dst; });
+        this.hide();
+        ui.set_busy(true, move ? 'moving' : 'copying');
+        ui.get(action, {file: f, overwrite: 1}, action + '_response');
+      };
+
+    buttons['file.skip'] = function() {
+      list.shift();
+      this.hide();
+      if (list.length)
+        ui.file_move_ask_user(list, move);
+      else if (move)
+        ui.file_list();
+    };
+
+    if (list.length > 1)
+      buttons['file.skipall'] = function() {
+        this.hide();
+        if (move)
+          ui.file_list();
+      };
+
+    this.modal_dialog(label, buttons);
+  };
+
+  // file move (with overwrite) response handler
+  this.file_move_ask_user_response = function(response)
+  {
+    var mode = this.file_move_ask_mode, list = this.file_move_ask_list;
+
+    this.response(response);
+
+    if (list && list.length)
+      this.file_move_ask_user(list, mode);
+    else if (mode)
+      this.file_list();
+  };
 
   /*********************************************************/
   /*********             Utilities                 *********/
   /*********************************************************/
+
+  // modal dialog popup
+  this.modal_dialog = function(content, buttons, opts)
+  {
+    var settings = {position: 'cm', btns: {}, fxShow: 'fade'},
+      dialog = $('<div class="_wModal"></div>'),
+      body = $('<div class="_wModal"></div>'),
+      head, foot, footer = [];
+
+    // title bar
+    if (opts && opts.title)
+      $('<div class="_wModal_header"></div>')
+        .append($('<span>').text(opts.title))
+        .appendTo(body);
+
+    // dialog content
+    if (typeof content != 'object')
+      content = $('<div></div>').html(content);
+
+    content.addClass('_wModal_msg').appendTo(body);
+
+    // buttons
+    $.each(buttons, function(i, v) {
+      var n = i.replace(/[^a-z0-9_]/ig, '');
+      settings.btns[n] = v;
+      footer.push({name: n, label: ui.t(i)});
+    });
+
+//    if (!settings.btns.cancel && (!opts || !opts.no_cancel))
+//      settings.btns.cancel = function() { this.hide(); };
+
+    if (footer.length) {
+      foot = $('<div class="_wModal_btns"></div>');
+      $.each(footer, function() {
+        $('<div></div>').addClass('_wModal_btn_' + this.name).text(this.label).appendTo(foot);
+      });
+
+      body.append(foot);
+    }
+
+    // configure and display dialog
+    dialog.append(body).wModal(settings).wModal('show');
+  };
 
   // Display folder creation form
   this.form_show = function(name)

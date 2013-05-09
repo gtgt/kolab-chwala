@@ -29,7 +29,8 @@ class file_ui_client_main extends file_ui
         // assign default set of translations
         $this->output->add_translation('saving', 'deleting', 'search', 'search.loading',
             'collection.audio', 'collection.video', 'collection.image', 'collection.document',
-            'moving', 'copying'
+            'moving', 'copying', 'file.skip', 'file.skipall', 'file.overwrite', 'file.overwriteall',
+            'file.moveconfirm'
         );
 
         $this->output->set_env('search_threads', $this->config->get('files_search_threads'));
@@ -140,7 +141,7 @@ class file_ui_client_main extends file_ui
         ));
         $cancel = new html_inputfield(array(
             'type'    => 'button',
-            'onclick' => 'ui.file.search_stop()',
+            'onclick' => 'ui.file_search_stop()',
             'value'   => $this->translate('form.cancel'),
         ));
 

@@ -482,7 +482,7 @@ class kolab_file_storage implements file_storage
 
         $new = $this->get_file_object($new_name, $new_folder);
         if (!empty($new)) {
-            throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File exists.", file_storage::ERROR_FILE_EXISTS);
         }
 
         $file = $this->from_file_object($file);
@@ -545,7 +545,7 @@ class kolab_file_storage implements file_storage
 
         $new = $this->get_file_object($new_name, $new_folder);
         if (!empty($new)) {
-            throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File exists.", file_storage::ERROR_FILE_EXISTS);
         }
 
         // Move the file

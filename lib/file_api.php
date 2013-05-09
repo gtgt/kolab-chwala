@@ -284,7 +284,9 @@ class file_api
                     $_GET['file'] = array($_GET['file'] => $_GET['new']);
                 }
 
-                $files = (array) $_GET['file'];
+                $overwrite = !empty($_GET['overwrite']) && rcube_utils::get_boolean($_GET['overwrite']);
+                $files     = (array) $_GET['file'];
+                $errors    = array();
 
                 foreach ($files as $file => $new_file) {
                     if ($new_file === '') {
@@ -294,7 +296,33 @@ class file_api
                         throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
                     }
 
-                    $this->api->{$request}($file, $new_file);
+                    try {
+                        $this->api->{$request}($file, $new_file);
+                    }
+                    catch (Exception $e) {
+                        if ($e->getCode() == file_storage::ERROR_FILE_EXISTS) {
+                            // delete existing file and do copy/move again
+                            if ($overwrite) {
+                                $this->api->file_delete($new_file);
+                                $this->api->{$request}($file, $new_file);
+                            }
+                            // collect file-exists errors, so the client can ask a user
+                            // what to do and skip or replace file(s)
+                            else {
+                                $errors[] = array(
+                                    'src' => $file,
+                                    'dst' => $new_file,
+                                );
+                            }
+                        }
+                        else {
+                            throw $e;
+                        }
+                    }
+                }
+
+                if (!empty($errors)) {
+                    return array('already_exist' => $errors);
                 }
 
                 return;

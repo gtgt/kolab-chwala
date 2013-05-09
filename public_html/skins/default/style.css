@@ -917,6 +917,97 @@ fieldset.tabbed
   border-top: none;
 }
 
+/*****  Dialog windows  *****/
+#_wModal_bg {
+  background-color: #000;
+  z-index: 10000;
+  opacity: 0.2;
+  filter: alpha(opacity=20);
+}
+
+#_wModal_pixel {
+  z-index: 10001;
+}
+
+._wModal {
+  position: relative;
+  min-width: 350px;
+  overflow: hidden;
+  line-height: 15px;
+  background-color: #FFF;
+  color: #333;
+  border: 1px solid rgba(51, 51, 51, 0.5);
+  border-radius: 4px;
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.3);
+}
+
+._wModal_header {
+  padding: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  border-bottom: solid 1px #DDD;
+}
+
+._wModal_close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  font-weight: normal;
+  font-size: 12px;
+  cursor: pointer;
+  color: #BABABA;
+}
+
+._wModal_msg {
+  font-size: 12px;
+  padding: 20px;
+  color: #3A3A3A;
+  text-shadow: rgba(255, 255, 255, 0.75) 0 1px 1px;
+}
+
+._wModal_btns {
+  padding: 10px;
+  font-size: 10px;
+  font-weight: bold;
+  border-top: solid 1px #DDD;
+  background-color: #EFEFEF;
+  text-align: right;
+  white-space: nowrap;
+}
+
+._wModal_btns div {
+  display: inline-block;
+  min-width: 40px;
+  padding: 0 10px;
+  height: 25px;
+  line-height: 25px;
+  margin-left: 10px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: rgba(255, 255, 255, 0.2) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.0470588) 0px 1px 2px 0px;
+  text-shadow: rgba(255, 255, 255, 0.75) 0 1px 1px;
+  border: 1px solid rgba(0, 0, 0, 0.14902);
+  border-bottom-color: rgba(0, 0, 0, 0.247059);
+  background-color: #F5F5F5;
+  color: #333;
+}
+
+._wModal_btns div:hover {
+  background-color: #E6E6E6;
+}
+
+._wModal_btns div.default {
+  text-shadow: rgba(0, 0, 0, 0.247059) 0px -1px 0px;
+  border: 1px solid rgba(0, 0, 0, 0.0980392);
+  background-color: #006DCC;
+  color: #FFF;
+}
+
+._wModal_btns div.default:hover {
+  background-color: #0044CC
+}
+
 /**** Login form elements ****/
 
 #login_form {

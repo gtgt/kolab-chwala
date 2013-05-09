@@ -27,6 +27,8 @@ interface file_storage
     const CAPS_MAX_UPLOAD = 'MAX_UPLOAD';
     const CAPS_ACL        = 'ACL';
 
+    const ERROR_FILE_EXISTS = 550;
+
     /**
      * Authenticates a user
      *
