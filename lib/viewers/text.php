@@ -40,6 +40,7 @@ class file_ui_viewer_text extends file_ui_viewer
         'text/x-c' => 'c_cpp',
         'text/css' => 'css',
         'text/x-java-source' => 'java',
+        'text/x-php' => 'php',
         'text/x-sh' => 'sh',
         'text/xml' => 'xml',
         'application/xml' => 'xml',
