@@ -46,6 +46,32 @@ function hack_file_input(id)
     .append(file);
 };
 
+function progress_update(data)
+{
+  var txt = ui.t('file.progress'), id = 'progress' + data.id, table = $('#' + id);
+
+  if (!data || data.done) {
+    if (table.length)
+      table.remove();
+    return;
+  }
+
+  if (!table.length) {
+    table = $('<table class="progress" id="' + id + '"><tr><td class="bar"></td><td></td></tr></table>');
+    table.appendTo($('#actionbar'));
+  }
+
+  txt = txt.replace('$current', ui.file_size(data.current))
+    .replace('$total', ui.file_size(data.total))
+    .replace('$percent', data.percent);
+
+  $('td.bar', table).width(data.percent + '%');
+  // @TODO: display text in nice-looking hint instead of title,
+  // @TODO: add 'rate' and 'left' information to the text
+  table.attr('title', txt);
+};
+
+
 $(window).load(function() {
   hack_file_input('file-upload-button');
   $('#forms > form').hide();

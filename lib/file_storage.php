@@ -24,9 +24,13 @@
 
 interface file_storage
 {
+    // capabilities
     const CAPS_MAX_UPLOAD = 'MAX_UPLOAD';
     const CAPS_ACL        = 'ACL';
+    const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
+    const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
 
+    // error codes
     const ERROR_FILE_EXISTS = 550;
 
     /**

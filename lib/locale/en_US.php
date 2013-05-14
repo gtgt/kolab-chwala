@@ -28,6 +28,7 @@ $LANG['file.skipall'] = 'Skip all';
 $LANG['file.overwrite'] = 'Overwrite';
 $LANG['file.overwriteall'] = 'Overwrite all';
 $LANG['file.moveconfirm'] = 'This action is going to overwrite the destination file: <b>$file</b>.';
+$LANG['file.progress'] = 'Uploaded $current of $total ($percent%)';
 
 $LANG['folder.createtitle'] = 'Create Folder';
 $LANG['folder.delete'] = 'Delete';

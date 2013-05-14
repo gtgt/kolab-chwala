@@ -79,7 +79,7 @@ function files_api()
   // send a http POST request to the API service
   this.post = function(action, postdata, func)
   {
-    var url = this.env.url + action, ref = this;
+    var url = this.env.url + action;
 
     if (!func) func = 'response';
 
@@ -303,7 +303,7 @@ function files_api()
     if (size >= 1024)
       return parseInt(size/1024) + ' kB';
 
-    return parseInt(size || 0)+ ' B';
+    return parseInt(size || 0) + ' B';
   };
 
   // Extract file name from full path

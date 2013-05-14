@@ -30,16 +30,24 @@ class file_api
 
     const PATH_SEPARATOR = '/';
 
+    public $session;
+
     private $app_name = 'Kolab File API';
     private $api;
+    private $conf;
     private $output_type = self::OUTPUT_JSON;
     private $config = array(
         'date_format' => 'Y-m-d H:i',
         'language'    => 'en_US',
     );
 
+
     public function __construct()
     {
+        $rcube = rcube::get_instance();
+        $rcube->add_shutdown_function(array($this, 'shutdown'));
+        $this->conf = $rcube->config;
+        $this->session_init();
     }
 
     /**
@@ -65,14 +73,14 @@ class file_api
      */
     public function run()
     {
-        $request = strtolower($_GET['method']);
+        $this->request = strtolower($_GET['method']);
 
         // Check the session, authenticate the user
         if (!$this->session_validate()) {
-            @session_destroy();
+            $this->session->destroy(session_id());
 
-            if ($request == 'authenticate') {
-                session_start();
+            if ($this->request == 'authenticate') {
+                $this->session->regenerate_id(false);
 
                 if ($username = $this->authenticate()) {
                     $_SESSION['user']   = $username;
@@ -90,7 +98,7 @@ class file_api
         }
 
         // Call service method
-        $result = $this->request($request);
+        $result = $this->request_handler($this->request);
 
         // Send success response, errors should be handled by driver class
         // by throwing exceptions or sending output by itself
@@ -98,13 +106,14 @@ class file_api
     }
 
     /**
-     * Session validation check
+     * Session validation check and session start
      */
     private function session_validate()
     {
         $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
 
         if (empty($sess_id)) {
+            session_start();
             return false;
         }
 
@@ -115,9 +124,7 @@ class file_api
             return false;
         }
 
-        // Session timeout
-//        $timeout = $this->config->get('kolab_wap', 'session_timeout');
-        $timeout = 3600;
+        $timeout = $this->conf->get('session_lifetime', 0) * 60;
         if ($timeout && $_SESSION['time'] && $_SESSION['time'] < time() - $timeout) {
             return false;
         }
@@ -125,6 +132,57 @@ class file_api
         $_SESSION['time'] = time();
 
         return true;
+    }
+
+    /**
+     * Initializes session
+     */
+    private function session_init()
+    {
+        $rcube     = rcube::get_instance();
+        $sess_name = $this->conf->get('session_name');
+        $lifetime  = $this->conf->get('session_lifetime', 0) * 60;
+
+        if ($lifetime) {
+            ini_set('session.gc_maxlifetime', $lifetime * 2);
+        }
+
+        ini_set('session.name', $sess_name ? $sess_name : 'file_api_sessid');
+        ini_set('session.use_cookies', 0);
+        ini_set('session.serialize_handler', 'php');
+
+        // use database for storing session data
+        $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
+
+        $this->session->register_gc_handler(array($rcube, 'temp_gc'));
+        $this->session->register_gc_handler(array($rcube, 'cache_gc'));
+
+        $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
+        $this->session->set_ip_check($this->conf->get('ip_check'));
+    }
+
+    /**
+     * Script shutdown handler
+     */
+    public function shutdown()
+    {
+        session_write_close();
+
+        // write performance stats to logs/console
+        if ($this->conf->get('devel_mode')) {
+            if (function_exists('memory_get_peak_usage'))
+                $mem = memory_get_peak_usage();
+            else if (function_exists('memory_get_usage'))
+                $mem = memory_get_usage();
+
+            $log = trim($this->request . ($mem ? sprintf(' [%.1f MB]', $mem/1024/1024) : ''));
+            if (defined('FILE_API_START')) {
+                rcube::print_timer(FILE_API_START, $log);
+            }
+            else {
+                rcube::console($log);
+            }
+        }
     }
 
     /**
@@ -179,14 +237,39 @@ class file_api
     }
 
     /**
-     * Storage driver method caller
+     * Storage/System method handler
      */
-    private function request($request)
+    private function request_handler($request)
     {
-        if ($request == 'ping') {
-            return array();
+        // handle "global" requests that don't require api driver
+        switch ($request) {
+            case 'ping':
+                return array();
+
+            case 'quit':
+                $this->session->kill();
+                return array();
+
+            case 'configure':
+                foreach (array_keys($this->config) as $name) {
+                    if (isset($_GET[$name])) {
+                        $this->config[$name] = $_GET[$name];
+                    }
+                }
+                $_SESSION['config'] = $this->config;
+
+                return $this->config;
+
+            case 'upload_progress':
+                return $this->upload_progress();
+
+            case 'capabilities':
+                // this one actually uses api driver, but we put it here
+                // because we'd need session for the api driver
+                return $this->capabilities();
         }
 
+        // init API driver
         $this->api_init();
 
         switch ($request) {
@@ -353,23 +436,6 @@ class file_api
 
             case 'folder_list':
                 return $this->api->folder_list();
-
-            case 'quit':
-                @session_destroy();
-                return array();
-
-            case 'configure':
-                foreach (array_keys($this->config) as $name) {
-                    if (isset($_GET[$name])) {
-                        $this->config[$name] = $_GET[$name];
-                    }
-                }
-                $_SESSION['config'] = $this->config;
-
-                return $this->config;
-
-            case 'capabilities':
-                return $this->capabilities();
         }
 
         if ($request) {
@@ -408,6 +474,35 @@ class file_api
         return $files;
     }
 
+    /**
+     * File upload progress handler
+     */
+    protected function upload_progress()
+    {
+        if (function_exists('apc_fetch')) {
+            $prefix   = ini_get('apc.rfc1867_prefix');
+            $uploadid = rcube_utils::get_input_value('id', rcube_utils::INPUT_GET);
+            $status   = apc_fetch($prefix . $uploadid);
+
+            if (!empty($status)) {
+                $status['percent'] = round($status['current']/$status['total']*100);
+                if ($status['percent'] < 100) {
+                    $diff = time() - intval($status['start_time']);
+                    // calculate time to end of uploading (in seconds)
+                    $status['left'] = intval($diff * (100 - $status['percent']) / $status['percent']);
+                    // average speed (bytes per second)
+                    $status['rate'] = intval($status['current'] / $diff);
+                }
+            }
+
+            $status['id'] = $uploadid;
+
+            return $status; // id, done, total, current, percent, start_time, left, rate
+        }
+
+        throw new Exception("Not supported", file_api::ERROR_CODE);
+    }
+
     /*
      * Returns storage (driver) capabilities
      */
@@ -416,6 +511,15 @@ class file_api
         $this->api_init();
 
         $caps = array();
+
+        // check support for upload progress
+        if (($progress_sec = $this->conf->get('upload_progress'))
+            && ini_get('apc.rfc1867') && function_exists('apc_fetch')
+        ) {
+            $caps[file_storage::CAPS_PROGRESS_NAME] = ini_get('apc.rfc1867_name');
+            $caps[file_storage::CAPS_PROGRESS_TIME] = $progress_sec;
+        }
+
         foreach ($this->api->capabilities() as $name => $value) {
             // skip disabled capabilities
             if ($value !== false) {

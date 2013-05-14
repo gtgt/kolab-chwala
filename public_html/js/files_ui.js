@@ -29,6 +29,7 @@ function files_ui()
   this.message_time = 3000;
   this.events = {};
   this.commands = {};
+  this.uploads = {};
   this.ie = document.all && !window.opera;
   this.env = {
     url: 'api/',
@@ -936,28 +937,30 @@ function files_ui()
 
     if (files) {
       // submit form and read server response
-      this.file_upload_form(form, 'file_create', function(e) {
-        var doc, response;
+      this.file_upload_form(form, 'file_create', function(e, frame, folder) {
+        var doc, response, res;
 
         try {
-          doc = this.contentDocument ? this.contentDocument : this.contentWindow.document;
+          doc = frame.contentDocument ? frame.contentDocument : frame.contentWindow.document;
           response = doc.body.innerHTML;
 
           // in Opera onload is called twice, once with empty body
           if (!response)
             return;
           // response may be wrapped in <pre> tag
-          if (response.match(/^<pre[^>]*>(.*)<\/pre>$/i)) {
+          if (response.match(/^<pre[^>]*>(.*)<\/pre>$/i))
             response = RegExp.$1;
-          }
 
           response = eval('(' + response + ')');
-        } catch (err) {
+        }
+        catch (err) {
           response = {status: 'ERROR'};
         }
 
-        if (ui.response_parse(response))
+        if ((res = ui.response_parse(response)) && folder == ui.env.folder)
           ui.file_list();
+
+        return res;
       });
     }
   };
@@ -1277,20 +1280,23 @@ function files_ui()
   this.file_upload_form = function(form, action, onload)
   {
     var ts = new Date().getTime(),
-      frame_name = 'fileupload'+ts;
-/*
-    // upload progress support
-    if (this.env.upload_progress_name) {
-      var fname = this.env.upload_progress_name,
+      frame_name = 'fileupload' + ts;
+
+    // upload progress supported (and handler exists)
+    if (this.env.capabilities.PROGRESS_NAME && window.progress_update) {
+      var fname = this.env.capabilities.PROGRESS_NAME,
         field = $('input[name='+fname+']', form);
 
       if (!field.length) {
         field = $('<input>').attr({type: 'hidden', name: fname});
         field.prependTo(form);
       }
+
       field.val(ts);
+      this.uploads[ts] = this.env.folder;
+      this.file_upload_progress(ts);
     }
-*/
+
     // have to do it this way for IE
     // otherwise the form will be posted to a new window
     if (document.all) {
@@ -1306,7 +1312,12 @@ function files_ui()
         .appendTo(document.body);
 
     // handle upload errors, parsing iframe content in onload
-    $('#'+frame_name).bind('load', {ts:ts}, onload);
+    $('#'+frame_name).load(function(e) {
+      // hide progressbar on upload error
+      if (!onload(e, this, ui.uploads[ts]) && window.progress_update)
+          window.progress_update({id: ts, done: true});
+      delete ui.uploads[ts];
+    });
 
     $(form).attr({
       target: frame_name,
@@ -1314,6 +1325,30 @@ function files_ui()
       method: 'POST'
     }).attr(form.encoding ? 'encoding' : 'enctype', 'multipart/form-data')
       .submit();
+  };
+
+  // upload progress requests
+  this.file_upload_progress = function(id)
+  {
+    setTimeout(function() {
+      if (id && ui.uploads[id])
+        ui.get('upload_progress', {id: id}, 'file_upload_progress_response');
+    }, this.env.capabilities.PROGRESS_TIME * 1000);
+  };
+
+  // upload progress response
+  this.file_upload_progress_response = function(response)
+  {
+    if (!this.response(response))
+      return;
+
+    var param = response.result;
+
+    if (param.id && window.progress_update)
+      window.progress_update(param);
+
+    if (!param.done)
+      this.file_upload_progress(param.id);
   };
 
   // Display file search form
