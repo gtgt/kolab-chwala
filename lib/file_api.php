@@ -247,7 +247,7 @@ class file_api
                 return array();
 
             case 'quit':
-                $this->session->kill();
+                $this->session->destroy(session_id());
                 return array();
 
             case 'configure':
@@ -272,27 +272,38 @@ class file_api
         // init API driver
         $this->api_init();
 
+        // GET arguments
+        $args = &$_GET;
+
+        // POST arguments (JSON)
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $post = file_get_contents('php://input');
+            $args += (array) json_decode($post, true);
+            unset($post);
+        }
+
+        // handle request
         switch ($request) {
             case 'file_list':
-                $params = array('reverse' => !empty($_GET['reverse']) && rcube_utils::get_boolean($_GET['reverse']));
-                if (!empty($_GET['sort'])) {
-                    $params['sort'] = strtolower($_GET['sort']);
+                $params = array('reverse' => !empty($args['reverse']) && rcube_utils::get_boolean($args['reverse']));
+                if (!empty($args['sort'])) {
+                    $params['sort'] = strtolower($args['sort']);
                 }
 
-                if (!empty($_GET['search'])) {
-                    $params['search'] = $_GET['search'];
+                if (!empty($args['search'])) {
+                    $params['search'] = $args['search'];
                     if (!is_array($params['search'])) {
                         $params['search'] = array('name' => $params['search']);
                     }
                 }
 
-                return $this->api->file_list($_GET['folder'], $params);
+                return $this->api->file_list($args['folder'], $params);
 
-            case 'file_create':
+            case 'file_upload':
                 // for Opera upload frame response cannot be application/json
                 $this->output_type = self::OUTPUT_HTML;
 
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
+                if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
 
@@ -300,7 +311,7 @@ class file_api
                 $result  = array();
 
                 foreach ($uploads as $file) {
-                    $this->api->file_create($_GET['folder'] . self::PATH_SEPARATOR . $file['name'], $file);
+                    $this->api->file_create($args['folder'] . self::PATH_SEPARATOR . $file['name'], $file);
                     unset($file['path']);
                     $result[$file['name']] = array(
                         'type' => $file['type'],
@@ -311,7 +322,7 @@ class file_api
                 return $result;
 
             case 'file_delete':
-                $files = (array) $_GET['file'];
+                $files = (array) $args['file'];
 
                 if (empty($files)) {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
@@ -323,26 +334,26 @@ class file_api
                 return;
 
             case 'file_info':
-                if (!isset($_GET['file']) || $_GET['file'] === '') {
+                if (!isset($args['file']) || $args['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
-                return $this->api->file_info($_GET['file']);
+                return $this->api->file_info($args['file']);
 
             case 'file_get':
                 $this->output_type = self::OUTPUT_HTML;
 
-                if (!isset($_GET['file']) || $_GET['file'] === '') {
+                if (!isset($args['file']) || $args['file'] === '') {
                     header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
                 }
 
                 $params = array(
-                    'force-download' => !empty($_GET['force-download']) && rcube_utils::get_boolean($_GET['force-download']),
-                    'force-type'     => $_GET['force-type'],
+                    'force-download' => !empty($args['force-download']) && rcube_utils::get_boolean($args['force-download']),
+                    'force-type'     => $args['force-type'],
                 );
 
                 try {
-                    $this->api->file_get($_GET['file'], $params);
+                    $this->api->file_get($args['file'], $params);
                 }
                 catch (Exception $e) {
                     header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
@@ -351,24 +362,24 @@ class file_api
 
             case 'file_move':
             case 'file_copy':
-                if (!isset($_GET['file']) || $_GET['file'] === '') {
+                if (!isset($args['file']) || $args['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
-                if (is_array($_GET['file'])) {
-                    if (empty($_GET['file'])) {
+                if (is_array($args['file'])) {
+                    if (empty($args['file'])) {
                         throw new Exception("Missing file name", file_api::ERROR_CODE);
                     }
                 }
                 else {
-                    if (!isset($_GET['new']) || $_GET['new'] === '') {
+                    if (!isset($args['new']) || $args['new'] === '') {
                         throw new Exception("Missing new file name", file_api::ERROR_CODE);
                     }
-                    $_GET['file'] = array($_GET['file'] => $_GET['new']);
+                    $args['file'] = array($args['file'] => $args['new']);
                 }
 
-                $overwrite = !empty($_GET['overwrite']) && rcube_utils::get_boolean($_GET['overwrite']);
-                $files     = (array) $_GET['file'];
+                $overwrite = !empty($args['overwrite']) && rcube_utils::get_boolean($args['overwrite']);
+                $files     = (array) $args['file'];
                 $errors    = array();
 
                 foreach ($files as $file => $new_file) {
@@ -411,28 +422,28 @@ class file_api
                 return;
 
             case 'folder_create':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
+                if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
-                return $this->api->folder_create($_GET['folder']);
+                return $this->api->folder_create($args['folder']);
 
             case 'folder_delete':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
+                if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing folder name", file_api::ERROR_CODE);
                 }
-                return $this->api->folder_delete($_GET['folder']);
+                return $this->api->folder_delete($args['folder']);
 
             case 'folder_rename':
-                if (!isset($_GET['folder']) || $_GET['folder'] === '') {
+                if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing source folder name", file_api::ERROR_CODE);
                 }
-                if (!isset($_GET['new']) || $_GET['new'] === '') {
+                if (!isset($args['new']) || $args['new'] === '') {
                     throw new Exception("Missing destination folder name", file_api::ERROR_CODE);
                 }
-                if ($_GET['new'] === $_GET['folder']) {
+                if ($args['new'] === $args['folder']) {
                     return;
                 }
-                return $this->api->folder_rename($_GET['folder'], $_GET['new']);
+                return $this->api->folder_rename($args['folder'], $args['new']);
 
             case 'folder_list':
                 return $this->api->folder_list();

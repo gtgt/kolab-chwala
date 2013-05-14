@@ -469,7 +469,7 @@ function files_ui()
   this.folder_list = function()
   {
     this.set_busy(true, 'loading');
-    this.get('folder_list', {}, 'folder_list_response');
+    this.request('folder_list', {}, 'folder_list_response');
   };
 
   // folder list response handler
@@ -555,7 +555,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'saving');
-    this.get('folder_create', {folder: folder}, 'folder_create_response');
+    this.request('folder_create', {folder: folder}, 'folder_create_response');
   };
 
   // folder create response handler
@@ -576,7 +576,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'saving');
-    this.get('folder_rename', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
+    this.request('folder_rename', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
   };
 
   // folder rename response handler
@@ -601,7 +601,7 @@ function files_ui()
     // @todo: confirm
 
     this.set_busy(true, 'saving');
-    this.get('folder_delete', {folder: folder}, 'folder_delete_response');
+    this.request('folder_delete', {folder: folder}, 'folder_delete_response');
   };
 
   // folder delete response handler
@@ -655,7 +655,7 @@ function files_ui()
       this.file_list_loop(params);
     else {
       this.set_busy(true, 'loading');
-      this.get('file_list', params, 'file_list_response');
+      this.request('file_list', params, 'file_list_response');
     }
   };
 
@@ -685,7 +685,7 @@ function files_ui()
     for (i=0; i<folders.length && i<limit; i++) {
       this.set_busy(true, 'loading');
       params.folder = folders.shift();
-      this.get('file_list', params, 'file_list_loop_response');
+      this.request('file_list', params, 'file_list_loop_response');
     }
   };
 
@@ -718,7 +718,7 @@ function files_ui()
     for (i=0; i<folders.length && i<limit; i++) {
       this.set_busy(true, 'loading');
       params.folder = folders.shift();
-      this.get('file_list', params, 'file_list_loop_response');
+      this.request('file_list', params, 'file_list_loop_response');
     }
 
     if (!valid)
@@ -811,7 +811,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'deleting');
-    this.get('file_delete', {file: file}, 'file_delete_response');
+    this.request('file_delete', {file: file}, 'file_delete_response');
   };
 
   // file delete response handler
@@ -837,7 +837,7 @@ function files_ui()
       return;
 
     this.set_busy(true, 'saving');
-    this.get('file_move', {file: file, 'new': newname}, 'file_rename_response');
+    this.request('file_move', {file: file, 'new': newname}, 'file_rename_response');
   };
 
   // file rename response handler
@@ -871,7 +871,7 @@ function files_ui()
       return;
 
     this.set_busy(true, 'copying');
-    this.get('file_copy', {file: list}, 'file_copy_response');
+    this.request('file_copy', {file: list}, 'file_copy_response');
   };
 
   // file copy response handler
@@ -905,7 +905,7 @@ function files_ui()
       return;
 
     this.set_busy(true, 'moving');
-    this.get('file_move', {file: list}, 'file_move_response');
+    this.request('file_move', {file: list}, 'file_move_response');
   };
 
   // file move response handler
@@ -937,7 +937,7 @@ function files_ui()
 
     if (files) {
       // submit form and read server response
-      this.file_upload_form(form, 'file_create', function(e, frame, folder) {
+      this.file_upload_form(form, 'file_upload', function(e, frame, folder) {
         var doc, response, res;
 
         try {
@@ -1332,7 +1332,7 @@ function files_ui()
   {
     setTimeout(function() {
       if (id && ui.uploads[id])
-        ui.get('upload_progress', {id: id}, 'file_upload_progress_response');
+        ui.request('upload_progress', {id: id}, 'file_upload_progress_response');
     }, this.env.capabilities.PROGRESS_TIME * 1000);
   };
 
@@ -1478,7 +1478,7 @@ function files_ui()
       ui.file_move_ask_mode = move;
       this.hide();
       ui.set_busy(true, move ? 'moving' : 'copying');
-      ui.get(action, {file: f, overwrite: 1}, 'file_move_ask_user_response');
+      ui.request(action, {file: f, overwrite: 1}, 'file_move_ask_user_response');
     };
 
     if (list.length > 1)
@@ -1488,7 +1488,7 @@ function files_ui()
         $.each(list, function() { f[this.src] = this.dst; });
         this.hide();
         ui.set_busy(true, move ? 'moving' : 'copying');
-        ui.get(action, {file: f, overwrite: 1}, action + '_response');
+        ui.request(action, {file: f, overwrite: 1}, action + '_response');
       };
 
     buttons['file.skip'] = function() {

@@ -77,16 +77,16 @@ function files_api()
   /********************************************************/
 
   // send a http POST request to the API service
-  this.post = function(action, postdata, func)
+  this.post = function(action, data, func)
   {
-    var url = this.env.url + action;
+    var url = this.env.url + '?method=' + action;
 
     if (!func) func = 'response';
 
     this.set_request_time();
 
     return $.ajax({
-      type: 'POST', url: url, data: postdata, dataType: 'json',
+      type: 'POST', url: url, data: JSON.stringify(data), dataType: 'json',
       contentType: 'application/json; charset=utf-8',
       success: function(response) { ref[func](response); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
@@ -112,6 +112,14 @@ function files_api()
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
     });
+  };
+
+  // send request with auto-selection of POST/GET method
+  this.request = function(action, data, func)
+  {
+    // Use POST for modification actions with probable big request size
+    var method = /(create|delete|move|copy|rename)/.test(action) ? 'post' : 'get';
+    this[method](action, data, func);
   };
 
   // handle HTTP request errors
