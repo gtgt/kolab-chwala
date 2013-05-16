@@ -437,7 +437,7 @@ function files_api()
 
     img.onload = function() { ref.env.browser_capabilities.tif = 1; };
     img.onerror = function() { ref.env.browser_capabilities.tif = 0; };
-    img.src = this.resources_dir + '/blank.tif';
+    img.src = this.env.resources_dir + '/blank.tif';
   };
 
   this.pdf_support_check = function()
@@ -479,7 +479,7 @@ function files_api()
     obj.onerror = function() { ref.env.browser_capabilities.pdf = 0; };
     obj.style.display = 'none';
     obj.type = 'application/pdf';
-    obj.data = this.resources_dir + '/blank.pdf';
+    obj.data = this.env.resources_dir + '/blank.pdf';
     document.body.appendChild(obj);
 
     return 0;
