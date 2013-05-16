@@ -274,7 +274,7 @@ function files_ui()
   /********************************************************/
   /*********        Remote request methods        *********/
   /********************************************************/
-
+/*
   // send a http POST request to the server
   this.http_post = function(action, postdata)
   {
@@ -339,7 +339,7 @@ function files_ui()
     if (request.status && errmsg)
       this.display_message(this.t('servererror') + ' (' + errmsg + ')', 'error');
   };
-
+*/
 
   /********************************************************/
   /*********            Helper methods            *********/
