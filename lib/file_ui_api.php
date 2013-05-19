@@ -90,6 +90,9 @@ class file_ui_api
                 }
             }
         }
+
+        // proxy User-Agent
+        $request->setHeader('user-agent', $_SERVER['HTTP_USER_AGENT']);
     }
 
     /**

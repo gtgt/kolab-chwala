@@ -36,7 +36,8 @@ function files_ui()
     sort_col: 'name',
     sort_reverse: 0,
     search_threads: 1,
-    directory_separator: '/'
+    directory_separator: '/',
+    resources_dir: 'resources'
   };
 
   // set jQuery ajax options
@@ -1608,6 +1609,7 @@ function files_ui()
       top: offset.top + height/2 - h/2 - 20,
       left: offset.left + width/2 - w/2
       }).show();
+
     iframe.css('opacity', 0.1)
       .load(function() { ui.loader_hide(this); })
       .attr('src', href);

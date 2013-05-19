@@ -363,29 +363,25 @@ function files_api()
   // or can be displayed in the browser using File API viewer (return 2)
   this.file_type_supported = function(type)
   {
-    var i, t, img = 'jpg|jpeg|gif|bmp|png',
-      regexps = [
-        /^text\/(?!(pdf|x-pdf))/i,
-        /^message\/rfc822/i,
-      ];
+    var i, t, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
+      caps = this.env.browser_capabilities || {};
 
-    if (this.env.browser_capabilities.tif)
+    if (caps.tif)
       img += '|tiff';
 
     if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
       return 1;
 
-    // prefer text viewer
-    for (i in regexps)
-      if (regexps[i].test(type))
-        return 2;
+    // prefer text viewer for any text type
+    if (/^text\/(?!(pdf|x-pdf))/i.test(type))
+      return 2;
 
-    if (this.env.browser_capabilities.pdf) {
+    if (caps.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
       regexps.push(/^text\/(pdf|x-pdf)/i);
     }
 
-    if (this.env.browser_capabilities.flash)
+    if (caps.flash)
       regexps.push(/^application\/x-shockwave-flash/i);
 
     for (i in regexps)

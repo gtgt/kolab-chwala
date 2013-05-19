@@ -22,24 +22,74 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_client_viewer extends file_ui
+/**
+ * Abstract viewer class
+ */
+abstract class file_viewer
 {
-    private $file;
+    protected $mimetypes = array();
+    protected $api;
 
 
     /**
-     * Default viewer action
+     * Class constructor
+     *
+     * @param file_api File API object
      */
-    public function action_default()
+    public function __construct($api)
     {
-//        $this->ui_init();
+        $this->api = $api;
+    }
 
-         // @TODO: error handling
-        $file   = $this->get_input('file', 'GET');
-        $type   = $this->get_input('mimetype', 'GET');
-        $viewer = $this->find_viewer($type);
+    /**
+     * Returns list of supported mimetype
+     *
+     * @return array List of mimetypes
+     */
+    public function supported_mimetypes()
+    {
+        return $this->mimetypes;
+    }
 
-        $viewer->output($file, $type);
-        exit;
+    /**
+     * Check if mimetype is supported by the viewer
+     *
+     * @param string $mimetype File type
+     *
+     * @return bool
+     */
+    public function supports($mimetype)
+    {
+        return in_array($mimetype, $this->mimetypes);
+    }
+
+    /**
+     * Print output and exit
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function output($file, $mimetype = null)
+    {
+    }
+
+    /**
+     * Return output of file content area
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function frame($file, $mimetype = null)
+    {
+    }
+
+    /**
+     * Return file URL of file content area
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function href($file, $mimetype = null)
+    {
     }
 }

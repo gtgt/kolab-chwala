@@ -22,7 +22,10 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_viewer_pdf extends file_ui_viewer
+/**
+ * Class integrating PDF viewer from https://github.com/mozilla/pdf.js
+ */
+class file_viewer_pdf extends file_viewer
 {
     protected $mimetypes = array(
         'application/pdf',
@@ -33,16 +36,26 @@ class file_ui_viewer_pdf extends file_ui_viewer
         'text/x-pdf',
     );
 
+    /**
+     * Class constructor
+     *
+     * @param file_api File API object
+     */
+    public function __construct($api)
+    {
+        // @TODO: disable types not supported by some browsers
+        $this->api = $api;
+    }
 
     /**
-     * Print output and exit
+     * Return file viewer URL
      *
      * @param string $file     File name
      * @param string $mimetype File type
      */
-    public function output($file, $mimetype = null)
+    public function href($file, $mimetype = null)
     {
-        header('Location: viewers/pdf/viewer.html?file=' . urlencode($this->ui->file_url($file)));
-        exit;
+        return $_SERVER['SCRIPT_URI'] . 'viewers/pdf/viewer.html'
+            . '?file=' . urlencode($this->api->file_url($file));
     }
 }

@@ -100,4 +100,24 @@ class file_utils
             }
         }
     }
+
+    /**
+     * Apply some fixes on file mimetype string
+     *
+     * @param string $mimetype File type
+     *
+     * @return string File type
+     */
+    static function real_mimetype($mimetype)
+    {
+        if (preg_match('/^text\/(.+)/i', $mimetype, $m)) {
+            // fix pdf mimetype
+            if (preg_match('/^(pdf|x-pdf)$/i', $m[1])) {
+                $mimetype = 'application/pdf';
+            }
+        }
+
+        return $mimetype;
+    }
+
 }

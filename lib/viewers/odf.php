@@ -22,7 +22,10 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui_viewer_odf extends file_ui_viewer
+/**
+ * Class integrating ODF documents viewer from http://webodf.org
+ */
+class file_viewer_odf extends file_viewer
 {
     protected $mimetypes = array(
         'application/vnd.oasis.opendocument.text',
@@ -49,11 +52,11 @@ class file_ui_viewer_odf extends file_ui_viewer
     /**
      * Class constructor
      *
-     * @param file_ui File UI object
+     * @param file_api File API object
      */
-    public function __construct($ui)
+    public function __construct($api)
     {
-        $this->ui = $ui;
+        $this->api = $api;
     }
 
     /**
@@ -91,6 +94,20 @@ class file_ui_viewer_odf extends file_ui_viewer
     }
 
     /**
+     * Return file viewer URL
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function href($file, $mimetype = null)
+    {
+        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
+            . '&viewer=odf'
+            . '&file=' . urlencode($file)
+            . '&token=' . urlencode(session_id());
+    }
+
+    /**
      * Print output and exit
      *
      * @param string $file     File name
@@ -98,7 +115,7 @@ class file_ui_viewer_odf extends file_ui_viewer
      */
     public function output($file, $mimetype = null)
     {
-        $file_uri = $this->ui->file_url($file);
+        $file_uri = $this->api->file_url($file);
 
         echo <<<EOT
 <html>

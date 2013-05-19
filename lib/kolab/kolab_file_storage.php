@@ -317,12 +317,13 @@ class kolab_file_storage implements file_storage
     /**
      * Return file body.
      *
-     * @param string $file_name Name of a file (with folder path)
-     * @param array  $params    Parameters (force-download)
+     * @param string   $file_name Name of a file (with folder path)
+     * @param array    $params    Parameters (force-download)
+     * @param resource $fp        Print to file pointer instead (send no headers)
      *
      * @throws Exception
      */
-    public function file_get($file_name, $params = array())
+    public function file_get($file_name, $params = array(), $fp = null)
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
@@ -330,6 +331,12 @@ class kolab_file_storage implements file_storage
         }
 
         $file = $this->from_file_object($file);
+
+        // write to file pointer, send no headers
+        if ($fp) {
+            $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fp);
+            return;
+        }
 
         if (!empty($params['force-download'])) {
             $disposition = 'attachment';
@@ -339,7 +346,7 @@ class kolab_file_storage implements file_storage
 //                header("Content-Type: application/force-download");
         }
         else {
-            $mimetype = $params['force-type'] ? $params['force-type'] : $file['type'];
+            $mimetype = file_utils::real_mimetype($params['force-type'] ? $params['force-type'] : $file['type']);
             $disposition = 'inline';
 
             header("Content-Transfer-Encoding: binary");

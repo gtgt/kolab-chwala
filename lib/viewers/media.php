@@ -25,7 +25,7 @@
 /**
  * Class integrating HTML5 audio/video player from http://mediaelementjs.com
  */
-class file_ui_viewer_media extends file_ui_viewer
+class file_viewer_media extends file_viewer
 {
     protected $mimetypes = array(
         'video/mp4',
@@ -51,12 +51,12 @@ class file_ui_viewer_media extends file_ui_viewer
     /**
      * Class constructor
      *
-     * @param file_ui File UI object
+     * @param file_api File API object
      */
-    public function __construct($ui)
+    public function __construct($api)
     {
         // @TODO: disable types not supported by some browsers
-        $this->ui = $ui;
+        $this->api = $api;
     }
 
     /**
@@ -67,7 +67,8 @@ class file_ui_viewer_media extends file_ui_viewer
      */
     public function frame($file, $mimetype = null)
     {
-        $file_uri = htmlentities($this->ui->file_url($file));
+        $path     = $_SERVER['SCRIPT_URI'];
+        $file_uri = htmlentities($this->api->file_url($file));
         $mimetype = htmlentities($mimetype);
         $source   = "<source src=\"$file_uri\" type=\"$mimetype\"></source>";
 
@@ -79,9 +80,9 @@ class file_ui_viewer_media extends file_ui_viewer
         }
 
         return <<<EOT
-    <link rel="stylesheet" type="text/css" href="viewers/media/mediaelementplayer.css" />
-    <script type="text/javascript" src="js/jquery.min.js"></script>
-    <script type="text/javascript" src="viewers/media/mediaelement-and-player.js"></script>
+    <link rel="stylesheet" type="text/css" href="{$path}viewers/media/mediaelementplayer.css" />
+    <script type="text/javascript" src="{$path}js/jquery.min.js"></script>
+    <script type="text/javascript" src="{$path}viewers/media/mediaelement-and-player.js"></script>
     <$tag id="media-player" controls preload="auto">$source</$tag>
     <style>
       .mejs-container { text-align: center; }

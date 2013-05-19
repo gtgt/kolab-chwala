@@ -25,7 +25,7 @@
 /**
  * Class integrating text editor http://ajaxorg.github.io/ace
  */
-class file_ui_viewer_text extends file_ui_viewer
+class file_viewer_text extends file_viewer
 {
     /**
      * Mimetype to tokenizer map
@@ -56,7 +56,16 @@ class file_ui_viewer_text extends file_ui_viewer
      */
     public function supported_mimetypes()
     {
-        return array_keys($this->mimetypes);
+        // we return only mimetypes not starting with text/
+        $mimetypes = array();
+
+        foreach (array_keys($this->mimetypes) as $type) {
+            if (strpos($type, 'text/') !== 0) {
+                $mimetypes[] = $type;
+            }
+        }
+
+        return $mimetypes;
     }
 
     /**
@@ -68,7 +77,7 @@ class file_ui_viewer_text extends file_ui_viewer
      */
     public function supports($mimetype)
     {
-        return $this->mimetypes[$mimetype] || preg_match('/^text\//', $mimetype);
+        return $this->mimetypes[$mimetype] || preg_match('/^text\/(?!(pdf|x-pdf))/', $mimetype);
     }
 
     /**
@@ -76,12 +85,26 @@ class file_ui_viewer_text extends file_ui_viewer
      */
     protected function print_file($file)
     {
-        $observer = new file_viewer_request_observer;
-        $request  = $this->ui->api->request();
+        $stdout = fopen('php://output', 'w');
 
-        $request->attach($observer);
-        $this->ui->api->get('file_get', array('file' => $file, 'force-type' => 'text/plain'));
-        $request->detach($observer);
+        stream_filter_register('file_viewer_text', 'file_viewer_content_filter');
+        stream_filter_append($stdout, 'file_viewer_text');
+
+        $this->api->api->file_get($file, array(), $stdout);
+    }
+
+    /**
+     * Return file viewer URL
+     *
+     * @param string $file     File name
+     * @param string $mimetype File type
+     */
+    public function href($file, $mimetype = null)
+    {
+        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
+            . '&viewer=text'
+            . '&file=' . urlencode($file)
+            . '&token=' . urlencode(session_id());
     }
 
     /**
@@ -127,24 +150,34 @@ class file_ui_viewer_text extends file_ui_viewer
 
 
 /**
- * Observer for HTTP_Request2 implementing file body printing
- * with HTML special characters "escaping" for use in HTML code
+ * PHP stream filter to detect escape html special chars in a file
  */
-class file_viewer_request_observer implements SplObserver
+class file_viewer_content_filter extends php_user_filter
 {
-    public function update(SplSubject $subject)
+    private $buffer = '';
+    private $cutoff = 2048;
+
+    function onCreate()
     {
-        $event = $subject->getLastEvent();
+        $this->cutoff = rand(2048, 3027);
+        return true;
+    }
 
-        switch ($event['name']) {
-        case 'receivedHeaders':
-        case 'receivedBody':
-            break;
+    function filter($in, $out, &$consumed, $closing)
+    {
+        while ($bucket = stream_bucket_make_writeable($in)) {
+            $bucket->data = htmlspecialchars($bucket->data,  ENT_COMPAT | ENT_HTML401 | ENT_IGNORE);
+            $this->buffer .= $bucket->data;
 
-        case 'receivedBodyPart':
-        case 'receivedEncodedBodyPart':
-            echo htmlspecialchars($event['data'],  ENT_COMPAT | ENT_HTML401 | ENT_IGNORE);
-            break;
+            // keep buffer small enough
+            if (strlen($this->buffer) > 4096) {
+                $this->buffer = substr($this->buffer, $this->cutoff);
+            }
+
+            $consumed += $bucket->datalen; // or strlen($bucket->data)?
+            stream_bucket_append($out, $bucket);
         }
+
+        return PSFS_PASS_ON;
     }
 }

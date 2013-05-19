@@ -27,13 +27,12 @@ class file_api
     const ERROR_CODE = 500;
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
-
     const PATH_SEPARATOR = '/';
 
     public $session;
+    public $api;
 
     private $app_name = 'Kolab File API';
-    private $api;
     private $conf;
     private $output_type = self::OUTPUT_JSON;
     private $config = array(
@@ -263,6 +262,9 @@ class file_api
             case 'upload_progress':
                 return $this->upload_progress();
 
+            case 'mimetypes':
+                return $this->supported_mimetypes();
+
             case 'capabilities':
                 // this one actually uses api driver, but we put it here
                 // because we'd need session for the api driver
@@ -338,7 +340,13 @@ class file_api
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
 
-                return $this->api->file_info($args['file']);
+                $info = $this->api->file_info($args['file']);
+
+                if (!empty($args['viewer']) && rcube_utils::get_boolean($args['viewer'])) {
+                    $this->file_viewer_info($args['file'], $info);
+                }
+
+                return $info;
 
             case 'file_get':
                 $this->output_type = self::OUTPUT_HTML;
@@ -351,6 +359,10 @@ class file_api
                     'force-download' => !empty($args['force-download']) && rcube_utils::get_boolean($args['force-download']),
                     'force-type'     => $args['force-type'],
                 );
+
+                if (!empty($args['viewer'])) {
+                    $this->file_view($args['file'], $args['viewer'], $args, $params);
+                }
 
                 try {
                     $this->api->file_get($args['file'], $params);
@@ -515,7 +527,7 @@ class file_api
     }
 
     /*
-     * Returns storage (driver) capabilities
+     * Returns API capabilities
      */
     protected function capabilities()
     {
@@ -539,6 +551,121 @@ class file_api
         }
 
         return $caps;
+    }
+
+    /**
+     * Return mimetypes list supported by built-in viewers
+     *
+     * @return array List of mimetypes
+     */
+    protected function supported_mimetypes()
+    {
+        $mimetypes = array();
+        $dir       = RCUBE_INSTALL_PATH . 'lib/viewers';
+
+        if ($handle = opendir($dir)) {
+            while (false !== ($file = readdir($handle))) {
+                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
+                    include_once $dir . '/' . $file;
+                    $class  = 'file_viewer_' . $matches[1];
+                    $viewer = new $class($this);
+
+                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
+                }
+            }
+            closedir($handle);
+        }
+
+        return $mimetypes;
+    }
+
+    /**
+     * Merge file viewer data into file info
+     */
+    protected function file_viewer_info($file, &$info)
+    {
+        if ($viewer = $this->find_viewer($info['type'])) {
+            $info['viewer'] = array();
+            if ($frame = $viewer->frame($file, $info['type'])) {
+                $info['viewer']['frame'] = $frame;
+            }
+            else if ($href = $viewer->href($file, $info['type'])) {
+                $info['viewer']['href'] = $href;
+            }
+        }
+    }
+
+    /**
+     * File vieweing request handler
+     */
+    protected function file_view($file, $viewer, &$args, &$params)
+    {
+        $path  = RCUBE_INSTALL_PATH . "lib/viewers/$viewer.php";
+        $class = "file_viewer_$viewer";
+
+        if (!file_exists($path)) {
+            return;
+        }
+
+        // get file info
+        try {
+            $info = $this->api->file_info($file);
+        }
+        catch (Exception $e) {
+            header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
+            exit;
+        }
+
+        include_once $path;
+        $viewer = new $class($this);
+
+        // check if specified viewer supports file type
+        // otherwise return (fallback to file_get action)
+        if (!$viewer->supports($info['type'])) {
+            return;
+        }
+
+        $viewer->output($file, $info['type']);
+        exit;
+    }
+
+    /**
+     * Return built-in viewer opbject for specified mimetype
+     *
+     * @return object Viewer object
+     */
+    protected function find_viewer($mimetype)
+    {
+        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
+
+        if ($handle = opendir($dir)) {
+            while (false !== ($file = readdir($handle))) {
+                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
+                    include_once $dir . '/' . $file;
+                    $class  = 'file_viewer_' . $matches[1];
+                    $viewer = new $class($this);
+
+                    if ($viewer->supports($mimetype)) {
+                        return $viewer;
+                    }
+                }
+            }
+            closedir($handle);
+        }
+    }
+
+    /**
+     * Returns complete File URL
+     *
+     * @param string $file File name (with path)
+     *
+     * @return string File URL
+     */
+    public function file_url($file)
+    {
+        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
+            . '&file=' . urlencode($file)
+            . '&token=' . urlencode(session_id());
     }
 
     /**

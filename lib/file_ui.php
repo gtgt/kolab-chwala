@@ -57,6 +57,9 @@ class file_ui
      */
     public function __construct($output = null)
     {
+        $rcube = rcube::get_instance();
+        $rcube->add_shutdown_function(array($this, 'shutdown'));
+
         $this->config_init();
 
         $this->devel_mode = $this->config->get('devel_mode', false);
@@ -404,6 +407,30 @@ class file_ui
     }
 
     /**
+     * Script shutdown handler
+     */
+    public function shutdown()
+    {
+        // write performance stats to logs/console
+        if ($this->devel_mode) {
+            if (function_exists('memory_get_peak_usage'))
+                $mem = memory_get_peak_usage();
+            else if (function_exists('memory_get_usage'))
+                $mem = memory_get_usage();
+
+            $log = 'ui:' . $this->get_task() . ($this->action ? '/' . $this->action : '');
+            $log .= ($mem ? sprintf(' [%.1f MB]', $mem/1024/1024) : '');
+
+            if (defined('FILE_API_START')) {
+                rcube::print_timer(FILE_API_START, $log);
+            }
+            else {
+                rcube::console($log);
+            }
+        }
+    }
+
+    /**
      * Output sending.
      */
     public function send()
@@ -557,7 +584,7 @@ class file_ui
      */
     public function gentime()
     {
-        return sprintf('%.4f', microtime(true) - RCMAIL_START);
+        return sprintf('%.4f', microtime(true) - FILE_API_START);
     }
 
     /**
@@ -632,70 +659,5 @@ class file_ui
         }
 
         return $str;
-    }
-
-    /**
-     * Return mimetypes list supported by built-in viewers
-     *
-     * @return array List of mimetypes
-     */
-    protected function supported_mimetypes()
-    {
-        $mimetypes = array();
-        $dir       = RCUBE_INSTALL_PATH . 'lib/viewers';
-
-        if ($handle = opendir($dir)) {
-            while (false !== ($file = readdir($handle))) {
-                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_ui_viewer_' . $matches[1];
-                    $viewer = new $class($this);
-
-                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
-                }
-            }
-            closedir($handle);
-        }
-
-        return $mimetypes;
-    }
-
-    /**
-     * Return built-in viewer opbject for specified mimetype
-     *
-     * @return object Viewer object
-     */
-    protected function find_viewer($mimetype)
-    {
-        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
-
-        if ($handle = opendir($dir)) {
-            while (false !== ($file = readdir($handle))) {
-                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_ui_viewer_' . $matches[1];
-                    $viewer = new $class($this);
-
-                    if ($viewer->supports($mimetype)) {
-                        return $viewer;
-                    }
-                }
-            }
-            closedir($handle);
-        }
-    }
-
-    /**
-     * Returns complete File URL
-     *
-     * @param string $file FIle name (with path)
-     *
-     * @return string File URL
-     */
-    public function file_url($file)
-    {
-        return $this->api->base_url() . '?method=file_get'
-            . '&file=' . urlencode($file)
-            . '&token=' . urlencode($_SESSION['user']['token']);
     }
 }

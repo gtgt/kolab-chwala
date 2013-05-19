@@ -33,8 +33,10 @@ class file_ui_client_main extends file_ui
             'file.moveconfirm', 'file.progress'
         );
 
+        $result = $this->api_get('mimetypes');
+
         $this->output->set_env('search_threads', $this->config->get('files_search_threads'));
-        $this->output->set_env('supported_mimetypes', $this->supported_mimetypes());
+        $this->output->set_env('supported_mimetypes', $result->get());
 
         $this->ui_init();
     }

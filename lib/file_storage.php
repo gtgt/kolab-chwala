@@ -25,8 +25,8 @@
 interface file_storage
 {
     // capabilities
-    const CAPS_MAX_UPLOAD = 'MAX_UPLOAD';
-    const CAPS_ACL        = 'ACL';
+    const CAPS_MAX_UPLOAD    = 'MAX_UPLOAD';
+    const CAPS_ACL           = 'ACL';
     const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
 
@@ -74,6 +74,7 @@ interface file_storage
      *
      * @param string $file_name Name of a file (with folder path)
      * @param array  $params    Parameters (force-download)
+     * @param resource $fp        Print to file pointer instead (send no headers)
      *
      * @throws Exception
      */
