@@ -284,6 +284,9 @@ class file_api
             unset($post);
         }
 
+        // disable script execution time limit, so we can handle big files
+        @set_time_limit(0);
+
         // handle request
         switch ($request) {
             case 'file_list':
@@ -512,7 +515,7 @@ class file_api
                 if ($status['percent'] < 100) {
                     $diff = time() - intval($status['start_time']);
                     // calculate time to end of uploading (in seconds)
-                    $status['left'] = intval($diff * (100 - $status['percent']) / $status['percent']);
+                    $status['eta'] = intval($diff * (100 - $status['percent']) / $status['percent']);
                     // average speed (bytes per second)
                     $status['rate'] = intval($status['current'] / $diff);
                 }

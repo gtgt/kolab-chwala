@@ -499,6 +499,16 @@ function files_api()
     return 0;
   };
 
+  // converts number of seconds into HH:MM:SS format
+  this.time_format = function(s)
+  {
+    s = parseInt(s);
+
+    if (s >= 60*60*24)
+      return '-';
+
+    return (new Date(1970, 1, 1, 0, 0, s, 0)).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
+  };
 };
 
 // Add escape() method to RegExp object

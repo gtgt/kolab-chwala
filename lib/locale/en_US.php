@@ -66,3 +66,8 @@ $LANG['size.B'] = 'B';
 $LANG['size.KB'] = 'KB';
 $LANG['size.MB'] = 'MB';
 $LANG['size.GB'] = 'GB';
+
+$LANG['upload.size'] = 'Size:';
+$LANG['upload.progress'] = 'Progress:';
+$LANG['upload.rate'] = 'Rate:';
+$LANG['upload.eta'] = 'ETA:';

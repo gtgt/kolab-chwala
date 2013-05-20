@@ -824,8 +824,8 @@ span.form_error {
 table.progress {
   width: 100%;
   height: 5px;
-  background-color: #F0F0F0;
-  border: 1px solid #D0D0D0;
+  background-color: #f0f0f0;
+  border: 1px solid #d0d0d0;
   border-spacing: 0;
   border-radius: 3px;
   -moz-border-radius: 3px;
@@ -836,6 +836,39 @@ table.progress {
 table.progress td.bar {
   background-color: #71b9e1;
 }
+
+table.progressinfo {
+  font-size: 9px;
+  border: 1px solid #d0d0d0;
+  width: 5%;
+  background-color: #f0f0f0;
+  z-index: 100;
+  border-spacing: 0;
+  border-radius: 3px;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  padding: 3px;
+}
+
+table.progressinfo td {
+  padding: 0 1px;
+  white-space: nowrap;
+}
+
+table.progressinfo td.label {
+  text-align: left;
+  font-weight: normal;
+  padding-right: 10px;
+  min-width: 50px;
+  width: 1%;
+}
+
+table.progressinfo td.value {
+  text-align: right;
+  width: 99%;
+}
+
+
 
 /*****   autocomplete list   *****/
 

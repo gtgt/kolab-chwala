@@ -30,7 +30,8 @@ class file_ui_client_main extends file_ui
         $this->output->add_translation('saving', 'deleting', 'search', 'search.loading',
             'collection.audio', 'collection.video', 'collection.image', 'collection.document',
             'moving', 'copying', 'file.skip', 'file.skipall', 'file.overwrite', 'file.overwriteall',
-            'file.moveconfirm', 'file.progress'
+            'file.moveconfirm', 'file.progress', 'upload.size', 'upload.progress',
+            'upload.eta', 'upload.rate'
         );
 
         $result = $this->api_get('mimetypes');

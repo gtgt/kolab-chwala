@@ -48,27 +48,44 @@ function hack_file_input(id)
 
 function progress_update(data)
 {
-  var txt = ui.t('file.progress'), id = 'progress' + data.id, table = $('#' + id);
+  var txt = ui.t('file.progress'), id = 'progress' + data.id,
+    table = $('#' + id), content = $('#info' + id),
+    i, row, offset, rows = [];
 
   if (!data || data.done) {
-    if (table.length)
+    if (table.length) {
       table.remove();
+      content.remove();
+    }
     return;
   }
 
   if (!table.length) {
     table = $('<table class="progress" id="' + id + '"><tr><td class="bar"></td><td></td></tr></table>');
-    table.appendTo($('#actionbar'));
+    content = $('<table class="progressinfo" id="info' + id + '"></table>');
+
+    table.appendTo($('#actionbar'))
+      .on('mouseleave', function() { content.hide(); })
+      .on('mouseenter', function() { content.show(); });
+
+    offset = table.offset();
+    content.css({display: 'none', position: 'absolute', top: offset.top + 8, left: offset.left})
+      .appendTo(document.body);
   }
 
-  txt = txt.replace('$current', ui.file_size(data.current))
-    .replace('$total', ui.file_size(data.total))
-    .replace('$percent', data.percent);
-
   $('td.bar', table).width(data.percent + '%');
-  // @TODO: display text in nice-looking hint instead of title,
-  // @TODO: add 'rate' and 'left' information to the text
-  table.attr('title', txt);
+
+  rows[ui.t('upload.size')] = ui.file_size(data.total);
+  rows[ui.t('upload.progress')] = data.percent + '%';
+  rows[ui.t('upload.rate')] = ui.file_size(data.rate) + '/s';
+  rows[ui.t('upload.eta')] = ui.time_format(data.eta);
+
+  content.empty();
+
+  for (i in rows)
+    $('<tr>').append($('<td class="label">').text(i))
+      .append($('<td class="value">').text(rows[i]))
+      .appendTo(content);
 };
 
 

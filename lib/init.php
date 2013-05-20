@@ -36,8 +36,5 @@ $include_path .= RCUBE_INSTALL_PATH . '/lib/client' . PATH_SEPARATOR;
 $include_path .= ini_get('include_path');
 set_include_path($include_path);
 
-// @TODO: what is a reasonable value for File API?
-//@set_time_limit(600);
-
 // include global functions from Roundcube Framework
 require_once 'Roundcube/bootstrap.php';
