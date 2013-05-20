@@ -89,7 +89,7 @@ function files_api()
     return $.ajax({
       type: 'POST', url: url, data: JSON.stringify(data), dataType: 'json',
       contentType: 'application/json; charset=utf-8',
-      success: function(response) { ref[func](response); },
+      success: function(response) { ref[func](response, data); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
@@ -108,7 +108,7 @@ function files_api()
 
     return $.ajax({
       type: 'GET', url: url, data: data,
-      success: function(response) { ref[func](response); },
+      success: function(response) { ref[func](response, data); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
