@@ -1301,9 +1301,10 @@ function files_ui()
     // have to do it this way for IE
     // otherwise the form will be posted to a new window
     if (document.all) {
-      var html = '<iframe id="'+frame_name+'" name="'+frame_name+'"'
-        + ' src="program/resources/blank.gif" style="width:0;height:0;visibility:hidden;"></iframe>';
-      document.body.insertAdjacentHTML('BeforeEnd', html);
+      document.body.insertAdjacentHTML('BeforeEnd',
+        '<iframe id="'+frame_name+'" name="'+frame_name+'"'
+        + ' src="' + this.env.resources_dir + '/blank.gif" '
+        + ' style="width:0;height:0;visibility:hidden;"></iframe>');
     }
     // for standards-compliant browsers
     else
