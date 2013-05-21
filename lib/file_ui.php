@@ -94,7 +94,7 @@ class file_ui
             @include RCUBE_INSTALL_PATH . "/lib/locale/$language.php";
         }
 
-        setlocale(LC_ALL, $language . '.utf8', 'en_US.utf8');
+        setlocale(LC_ALL, $language . '.utf8', $language . 'UTF-8', 'en_US.utf8', 'en_US.UTF-8');
 
         self::$translation = $LANG;
     }

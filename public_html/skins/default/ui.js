@@ -66,26 +66,30 @@ function progress_update(data)
 
     table.appendTo($('#actionbar'))
       .on('mouseleave', function() { content.hide(); })
-      .on('mouseenter', function() { content.show(); });
+      .on('mouseenter', function() { if (content.children().length) content.show(); });
 
     offset = table.offset();
     content.css({display: 'none', position: 'absolute', top: offset.top + 8, left: offset.left})
       .appendTo(document.body);
   }
 
-  $('td.bar', table).width(data.percent + '%');
+  $('td.bar', table).width((data.percent || 1) + '%');
 
-  rows[ui.t('upload.size')] = ui.file_size(data.total);
-  rows[ui.t('upload.progress')] = data.percent + '%';
-  rows[ui.t('upload.rate')] = ui.file_size(data.rate) + '/s';
-  rows[ui.t('upload.eta')] = ui.time_format(data.eta);
+  if (data.total) {
+    rows[ui.t('upload.size')] = ui.file_size(data.total);
+    rows[ui.t('upload.progress')] = (data.percent || 0) + '%';
+    if (data.rate)
+      rows[ui.t('upload.rate')] = ui.file_size(data.rate) + '/s';
+    if (data.eta)
+      rows[ui.t('upload.eta')] = ui.time_format(data.eta);
 
-  content.empty();
+    content.empty();
 
-  for (i in rows)
-    $('<tr>').append($('<td class="label">').text(i))
-      .append($('<td class="value">').text(rows[i]))
-      .appendTo(content);
+    for (i in rows)
+      $('<tr>').append($('<td class="label">').text(i))
+        .append($('<td class="value">').text(rows[i]))
+        .appendTo(content);
+  }
 };
 
 

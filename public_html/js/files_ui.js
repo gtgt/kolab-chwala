@@ -1328,7 +1328,7 @@ function files_ui()
     $('#'+frame_name).load(function(e) {
       // hide progressbar on upload error
       if (!onload(e, this, ui.uploads[ts]) && window.progress_update)
-          window.progress_update({id: ts, done: true});
+        window.progress_update({id: ts, done: true});
       delete ui.uploads[ts];
     });
 

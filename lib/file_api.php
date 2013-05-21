@@ -523,7 +523,7 @@ class file_api
 
             $status['id'] = $uploadid;
 
-            return $status; // id, done, total, current, percent, start_time, left, rate
+            return $status; // id, done, total, current, percent, start_time, eta, rate
         }
 
         throw new Exception("Not supported", file_api::ERROR_CODE);
