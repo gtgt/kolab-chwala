@@ -120,7 +120,7 @@ function files_api()
   {
     // Use POST for modification actions with probable big request size
     var method = /(create|delete|move|copy|rename)/.test(action) ? 'post' : 'get';
-    this[method](action, data, func);
+    return this[method](action, data, func);
   };
 
   // handle HTTP request errors

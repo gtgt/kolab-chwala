@@ -29,6 +29,7 @@ function files_ui()
   this.message_time = 3000;
   this.events = {};
   this.commands = {};
+  this.requests = {};
   this.uploads = {};
   this.ie = document.all && !window.opera;
   this.env = {
@@ -523,14 +524,14 @@ function files_ui()
       this.env.folder = null;
       this.enable_command('file.list', true);
       this.enable_command('folder.delete', 'folder.edit', 'file.upload', false);
-      this.command('file.list', {collection: folder});
+      this.file_list({collection: folder});
     }
     else {
       var found = $('#' + this.env.folders[folder].id, list).addClass('selected');
 
       this.env.collection = null;
       this.enable_command('file.list', 'folder.delete', 'folder.edit', 'file.upload', found.length);
-      this.command('file.list', {folder: folder});
+      this.file_list({folder: folder});
     }
   };
 
@@ -623,6 +624,14 @@ function files_ui()
     if (!params)
       params = {};
 
+    var i, req = (new Date).getTime();
+
+    // reset all pending list requests
+    for (i in this.requests) {
+      this.requests[i].abort();
+      delete this.requests[i];
+    }
+
     if (params.all_folders) {
       params.collection = null;
       params.folder = null;
@@ -656,14 +665,15 @@ function files_ui()
       this.file_list_loop(params);
     else {
       this.set_busy(true, 'loading');
-      this.request('file_list', params, 'file_list_response');
+      this.requests[req] = this.request('file_list', params, 'file_list_response');
     }
   };
 
   // call file.list request for every folder (used for search and virt. collections)
   this.file_list_loop = function(params)
   {
-    var i, folders = [], limit = Math.max(this.env.search_threads || 1, 1);
+    var i, folders = [], req = (new Date).getTime(),
+      limit = Math.max(this.env.search_threads || 1, 1);
 
     if (params.collection) {
       if (!params.search)
@@ -686,7 +696,7 @@ function files_ui()
     for (i=0; i<folders.length && i<limit; i++) {
       this.set_busy(true, 'loading');
       params.folder = folders.shift();
-      this.request('file_list', params, 'file_list_loop_response');
+      this.requests[req+'-'+i] = this.request('file_list', params, 'file_list_loop_response');
     }
   };
 
@@ -714,12 +724,13 @@ function files_ui()
     var i, folders = this.env.folders_loop,
       params = this.env.folders_loop_params,
       limit = Math.max(this.env.search_threads || 1, 1),
-      valid = this.response(response);
+      valid = this.response(response),
+      req = (new Date).getTime();
 
     for (i=0; i<folders.length && i<limit; i++) {
       this.set_busy(true, 'loading');
       params.folder = folders.shift();
-      this.request('file_list', params, 'file_list_loop_response');
+      this.requests[req+'-'+i] = this.request('file_list', params, 'file_list_loop_response');
     }
 
     if (!valid)
