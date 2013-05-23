@@ -30,7 +30,11 @@ interface file_storage
     const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
 
+    // config
+    const SEPARATOR = '/';
+
     // error codes
+    const ERROR             = 500;
     const ERROR_FILE_EXISTS = 550;
 
     /**
@@ -72,13 +76,13 @@ interface file_storage
     /**
      * Returns file body.
      *
-     * @param string $file_name Name of a file (with folder path)
-     * @param array  $params    Parameters (force-download)
+     * @param string   $file_name Name of a file (with folder path)
+     * @param array    $params    Parameters (force-download)
      * @param resource $fp        Print to file pointer instead (send no headers)
      *
      * @throws Exception
      */
-    public function file_get($file_name, $params = array());
+    public function file_get($file_name, $params = array(), $fp = null);
 
     /**
      * Move (or rename) a file.

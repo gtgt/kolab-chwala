@@ -27,7 +27,6 @@ class file_api
     const ERROR_CODE = 500;
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
-    const PATH_SEPARATOR = '/';
 
     public $session;
     public $api;
@@ -62,7 +61,9 @@ class file_api
         $driver = 'kolab';
         $class  = $driver . '_file_storage';
 
-        require_once $driver . '/' . $class . '.php';
+        $include_path = RCUBE_INSTALL_PATH . '/lib/' . $driver . PATH_SEPARATOR;
+        $include_path .= ini_get('include_path');
+        set_include_path($include_path);
 
         $this->api = new $class;
     }
@@ -316,7 +317,7 @@ class file_api
                 $result  = array();
 
                 foreach ($uploads as $file) {
-                    $this->api->file_create($args['folder'] . self::PATH_SEPARATOR . $file['name'], $file);
+                    $this->api->file_create($args['folder'] . file_storage::SEPARATOR . $file['name'], $file);
                     unset($file['path']);
                     $result[$file['name']] = array(
                         'type' => $file['type'],

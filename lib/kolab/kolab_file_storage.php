@@ -40,10 +40,6 @@ class kolab_file_storage implements file_storage
      */
     public function __construct()
     {
-        $include_path = RCUBE_INSTALL_PATH . '/lib/kolab' . PATH_SEPARATOR;
-        $include_path .= ini_get('include_path');
-        set_include_path($include_path);
-
         $this->rc = rcube::get_instance();
 
         // Get list of plugins
@@ -53,9 +49,13 @@ class kolab_file_storage implements file_storage
         $plugins  = (array)$this->rc->config->get('fileapi_plugins', array('kolab_auth', 'kolab_folders'));
         $required = array('libkolab', 'kolab_folders');
 
-        // Initialize/load plugins
-        $this->rc->plugins = kolab_file_plugin_api::get_instance();
-        $this->rc->plugins->init($this, '');
+        // Kolab WebDAV server supports plugins, no need to overwrite object
+        if (!is_a($this->rc->plugins, 'rcube_plugin_api')) {
+            // Initialize/load plugins
+            $this->rc->plugins = kolab_file_plugin_api::get_instance();
+            $this->rc->plugins->init($this, '');
+        }
+
         $this->rc->plugins->load_plugins($plugins, $required);
 
         $this->init();
@@ -266,7 +266,7 @@ class kolab_file_storage implements file_storage
     {
         $exists = $this->get_file_object($file_name, $folder);
         if (!empty($exists)) {
-            throw new Exception("Storage error. File exists.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File exists.", file_storage::ERROR);
         }
 
         $object = $this->to_file_object(array(
@@ -284,7 +284,7 @@ class kolab_file_storage implements file_storage
                 'message' => "Error saving object to Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. Saving object failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Saving object failed.", file_storage::ERROR);
         }
     }
 
@@ -299,7 +299,7 @@ class kolab_file_storage implements file_storage
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
-            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
         $deleted = $folder->delete($file);
@@ -310,7 +310,7 @@ class kolab_file_storage implements file_storage
                 'message' => "Error deleting object from Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. Deleting object failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Deleting object failed.", file_storage::ERROR);
         }
     }
 
@@ -327,7 +327,7 @@ class kolab_file_storage implements file_storage
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
-            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
         $file = $this->from_file_object($file);
@@ -381,7 +381,7 @@ class kolab_file_storage implements file_storage
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
-            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
         $file = $this->from_file_object($file);
@@ -436,7 +436,7 @@ class kolab_file_storage implements file_storage
                 continue;
             }
 
-            $filename = $folder_name . file_api::PATH_SEPARATOR . $file['name'];
+            $filename = $folder_name . file_storage::SEPARATOR . $file['name'];
 
             $result[$filename] = array(
                 'name'   => $file['name'],
@@ -484,7 +484,7 @@ class kolab_file_storage implements file_storage
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
-            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
         $new = $this->get_file_object($new_name, $new_folder);
@@ -501,14 +501,14 @@ class kolab_file_storage implements file_storage
         $fh        = fopen($file_path, 'w');
 
         if (!$fh) {
-            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File copying failed.", file_storage::ERROR);
         }
 
         $folder->get_attachment($file['uid'], $file['fileid'], null, false, $fh, true);
         fclose($fh);
 
         if (!file_exists($file_path)) {
-            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File copying failed.", file_storage::ERROR);
         }
 
         // Update object
@@ -531,7 +531,7 @@ class kolab_file_storage implements file_storage
                 'message' => "Error updating object on Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. File copying failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File copying failed.", file_storage::ERROR);
         }
     }
 
@@ -547,7 +547,7 @@ class kolab_file_storage implements file_storage
     {
         $file = $this->get_file_object($file_name, $folder);
         if (empty($file)) {
-            throw new Exception("Storage error. File not found.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
         $new = $this->get_file_object($new_name, $new_folder);
@@ -565,7 +565,7 @@ class kolab_file_storage implements file_storage
                     'message' => "Error moving object on Kolab server"),
                     true, false);
 
-                throw new Exception("Storage error. File move failed.", file_api::ERROR_CODE);
+                throw new Exception("Storage error. File move failed.", file_storage::ERROR);
             }
 
             $folder = $new_folder;
@@ -589,7 +589,7 @@ class kolab_file_storage implements file_storage
                 'message' => "Error updating object on Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. File rename failed.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. File rename failed.", file_storage::ERROR);
         }
     }
 
@@ -606,7 +606,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_create($folder_name, 'file');
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to create folder", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
         }
     }
 
@@ -623,7 +623,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_delete($folder_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to delete folder.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Unable to delete folder.", file_storage::ERROR);
         }
     }
 
@@ -642,7 +642,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_rename($folder_name, $new_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to rename folder", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Unable to rename folder", file_storage::ERROR);
         }
     }
 
@@ -658,7 +658,7 @@ class kolab_file_storage implements file_storage
         $folders = $storage->list_folders('', '*', 'file');
 
         if (!is_array($folders)) {
-            throw new Exception("Storage error. Unable to get folders list.", file_api::ERROR_CODE);
+            throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
         foreach ($folders as $folder) {
@@ -680,12 +680,12 @@ class kolab_file_storage implements file_storage
     protected function get_file_object(&$file_name, &$folder = null)
     {
         // extract file path and file name
-        $path        = explode(file_api::PATH_SEPARATOR, $file_name);
+        $path        = explode(file_storage::SEPARATOR, $file_name);
         $file_name   = array_pop($path);
-        $folder_name = implode(file_api::PATH_SEPARATOR, $path);
+        $folder_name = implode(file_storage::SEPARATOR, $path);
 
         if ($folder_name === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_storage::ERROR);
         }
 
         // get folder object
@@ -709,18 +709,18 @@ class kolab_file_storage implements file_storage
     protected function get_folder_object($folder_name)
     {
         if ($folder_name === null || $folder_name === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_storage::ERROR);
         }
 
         if (empty($this->folders[$folder_name])) {
             $storage     = $this->rc->get_storage();
             $separator   = $storage->get_hierarchy_delimiter();
-            $folder_name = str_replace(file_api::PATH_SEPARATOR, $separator, $folder_name);
+            $folder_name = str_replace(file_storage::SEPARATOR, $separator, $folder_name);
             $imap_name   = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
             $folder      = kolab_storage::get_folder($imap_name);
 
             if (!$folder) {
-                throw new Exception("Storage error. Folder not found.", file_api::ERROR_CODE);
+                throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
             }
 
             $this->folders[$folder_name] = $folder;
