@@ -470,14 +470,6 @@ function files_api()
         return 1;
     }
 
-    var obj = document.createElement('OBJECT');
-    obj.onload = function() { ref.env.browser_capabilities.pdf = 1; };
-    obj.onerror = function() { ref.env.browser_capabilities.pdf = 0; };
-    obj.style.display = 'none';
-    obj.type = 'application/pdf';
-    obj.data = this.env.resources_dir + '/blank.pdf';
-    document.body.appendChild(obj);
-
     return 0;
   };
 
