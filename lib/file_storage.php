@@ -143,14 +143,14 @@ interface file_storage
     public function folder_delete($folder_name);
 
     /**
-     * Rename a folder.
+     * Move/Rename a folder.
      *
      * @param string $folder_name Name of a folder with full path
      * @param string $new_name    New name of a folder with full path
      *
      * @throws Exception
      */
-    public function folder_rename($folder_name, $new_name);
+    public function folder_move($folder_name, $new_name);
 
     /**
      * Returns list of folders.

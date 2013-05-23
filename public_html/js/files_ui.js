@@ -569,7 +569,7 @@ function files_ui()
     this.folder_list();
   };
 
-  // folder edit (rename) request
+  // folder rename request
   this.folder_edit = function(folder)
   {
     if (!folder) {
@@ -578,7 +578,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'saving');
-    this.request('folder_rename', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
+    this.request('folder_move', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
   };
 
   // folder rename response handler

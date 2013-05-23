@@ -628,14 +628,14 @@ class kolab_file_storage implements file_storage
     }
 
     /**
-     * Rename a folder.
+     * Move/Rename a folder.
      *
      * @param string $folder_name Name of a folder with full path
      * @param string $new_name    New name of a folder with full path
      *
      * @throws Exception on error
      */
-    public function folder_rename($folder_name, $new_name)
+    public function folder_move($folder_name, $new_name)
     {
         $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
         $new_name    = rcube_charset::convert($new_name, RCUBE_CHARSET, 'UTF7-IMAP');
