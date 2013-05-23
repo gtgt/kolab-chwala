@@ -654,7 +654,7 @@ class kolab_file_storage implements file_storage
      */
     public function folder_list()
     {
-        $folders = kolab_storage::list_folders('', '*', 'file');
+        $folders = kolab_storage::list_folders('', '*', 'file', false);
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
