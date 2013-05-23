@@ -46,8 +46,8 @@ class kolab_file_storage implements file_storage
         // WARNING: We can use only plugins that are prepared for this
         //          e.g. are not using output or rcmail objects or
         //          doesn't throw errors when using them
-        $plugins  = (array)$this->rc->config->get('fileapi_plugins', array('kolab_auth', 'kolab_folders'));
-        $required = array('libkolab', 'kolab_folders');
+        $plugins  = (array)$this->rc->config->get('fileapi_plugins', array('kolab_auth'));
+        $required = array('libkolab');
 
         // Kolab WebDAV server supports plugins, no need to overwrite object
         if (!is_a($this->rc->plugins, 'rcube_plugin_api')) {
@@ -654,8 +654,7 @@ class kolab_file_storage implements file_storage
      */
     public function folder_list()
     {
-        $storage = $this->rc->get_storage();
-        $folders = $storage->list_folders('', '*', 'file');
+        $folders = kolab_storage::list_folders('', '*', 'file');
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
@@ -663,6 +662,13 @@ class kolab_file_storage implements file_storage
 
         foreach ($folders as $folder) {
             $folder = rcube_charset::convert($folder_name, 'UTF7-IMAP', RCUBE_CHARSET);
+        }
+
+        // create 'Files' folder in case there's no folder of type 'file'
+        if (empty($folders)) {
+            if (kolab_storage::folder_create('Files', 'file')) {
+                $folders[] = 'Files';
+            }
         }
 
         return $folders;
