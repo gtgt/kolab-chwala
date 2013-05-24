@@ -303,14 +303,16 @@ class kolab_file_storage implements file_storage
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
-        $object = $this->to_file_object(array(
-            'name' => $file_name,
-            'type' => $file['type'],
-            'path' => $file['path'],
+        $file_object['_attachments'] = array(
+            0 => array(
+                'name'     => $file['name'],
+                'path'     => $file['path'],
+                'mimetype' => $file['type'],
+                'size'     => $file['size'],
         ));
 
         // save the file object in IMAP
-        $saved = $folder->save($object, 'file');
+        $saved = $folder->save($file_object, 'file');
         if (!$saved) {
             rcube::raise_error(array(
                 'code' => 600, 'type' => 'php',
