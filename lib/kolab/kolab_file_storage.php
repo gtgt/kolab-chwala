@@ -421,10 +421,11 @@ class kolab_file_storage implements file_storage
         $file = $this->from_file_object($file);
 
         return array(
-            'name'   => $file['name'],
-            'size'   => (int) $file['size'],
-            'type'   => (string) $file['type'],
-            'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
+            'name'     => $file['name'],
+            'size'     => (int) $file['size'],
+            'type'     => (string) $file['type'],
+            'mtime'    => $file['changed']->format($_SESSION['config']['date_format']),
+            'modified' => $file['changed']->format('U'),
         );
     }
 
