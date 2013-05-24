@@ -57,8 +57,7 @@ class file_api
             return;
         }
 
-        // @TODO: config
-        $driver = 'kolab';
+        $driver = $this->conf->get('fileapi_backend', 'kolab');
         $class  = $driver . '_file_storage';
 
         $include_path = RCUBE_INSTALL_PATH . '/lib/' . $driver . PATH_SEPARATOR;
