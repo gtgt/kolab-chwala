@@ -65,6 +65,16 @@ interface file_storage
     public function file_create($file_name, $file);
 
     /**
+     * Update a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
+     *
+     * @throws Exception
+     */
+    public function file_update($file_name, $file);
+
+    /**
      * Delete a file.
      *
      * @param string $file_name Name of a file (with folder path)

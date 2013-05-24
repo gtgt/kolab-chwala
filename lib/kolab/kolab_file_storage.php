@@ -284,7 +284,41 @@ class kolab_file_storage implements file_storage
                 'message' => "Error saving object to Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. Saving object failed.", file_storage::ERROR);
+            throw new Exception("Storage error. Saving file failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Update a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
+     *
+     * @throws Exception
+     */
+    public function file_update($file_name, $file)
+    {
+        $file_object = $this->get_file_object($file_name, $folder);
+        if (empty($file_object)) {
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
+        }
+
+        $object = $this->to_file_object(array(
+            'name' => $file_name,
+            'type' => $file['type'],
+            'path' => $file['path'],
+        ));
+
+        // save the file object in IMAP
+        $saved = $folder->save($object, 'file');
+        if (!$saved) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error saving object to Kolab server"),
+                true, false);
+
+            throw new Exception("Storage error. Saving file failed.", file_storage::ERROR);
         }
     }
 
@@ -310,7 +344,7 @@ class kolab_file_storage implements file_storage
                 'message' => "Error deleting object from Kolab server"),
                 true, false);
 
-            throw new Exception("Storage error. Deleting object failed.", file_storage::ERROR);
+            throw new Exception("Storage error. Deleting file failed.", file_storage::ERROR);
         }
     }
 
