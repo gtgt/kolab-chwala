@@ -345,7 +345,7 @@ function files_api()
       // numeric comparison
       return this.env.sort_reverse ? data2 - data1 : data1 - data2;
     else {
-      // use Array.sort() for sting comparison
+      // use Array.sort() for string comparison
       var arr = [data1, data2];
       arr.sort(function (a, b) {
         // @TODO: use localeCompare() arguments for better results
