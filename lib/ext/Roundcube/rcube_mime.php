@@ -361,6 +361,11 @@ class rcube_mime
                 $address = $m[1];
                 $name    = '';
             }
+            // special case (#1489092)
+            else if (preg_match('/(\s*<MAILER-DAEMON>)$/', $val, $m)) {
+                $address = 'MAILER-DAEMON';
+                $name    = substr($val, 0, -strlen($m[1]));
+            }
             else {
                 $name = $val;
             }
@@ -653,6 +658,10 @@ class rcube_mime
                             $subString = $substr_func($subString, 0, $spacePos, $charset);
                             $cutLength = $spacePos + 1;
                         }
+                        else if ($cut === false && $breakPos === false) {
+                            $subString = $string;
+                            $cutLength = null;
+                        }
                         else if ($cut === false) {
                             $spacePos = $strpos_func($string, ' ', 0, $charset);
 
@@ -790,7 +799,7 @@ class rcube_mime
         }
 
         foreach ($file_paths as $fp) {
-            if (is_readable($fp)) {
+            if (@is_readable($fp)) {
                 $lines = file($fp, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                 break;
             }

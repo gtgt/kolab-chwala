@@ -3,15 +3,15 @@
 /*
  +-----------------------------------------------------------------------+
  | This file is part of the Roundcube Webmail client                     |
- | Copyright (C) 2011, The Roundcube Dev Team                            |
- | Copyright (C) 2011, Kolab Systems AG                                  |
+ | Copyright (C) 2011-2013, The Roundcube Dev Team                       |
+ | Copyright (C) 2011-2013, Kolab Systems AG                             |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
  | See the README file for a full license statement.                     |
  |                                                                       |
  | PURPOSE:                                                              |
- |   Caching engine                                                      |
+ |   Shared (cross-user) caching engine                                  |
  +-----------------------------------------------------------------------+
  | Author: Thomas Bruederli <roundcube@gmail.com>                        |
  | Author: Aleksander Machniak <alec@alec.pl>                            |
@@ -20,14 +20,14 @@
 
 
 /**
- * Interface class for accessing Roundcube cache
+ * Interface class for accessing Roundcube shared cache
  *
  * @package    Framework
  * @subpackage Cache
  * @author     Thomas Bruederli <roundcube@gmail.com>
  * @author     Aleksander Machniak <alec@alec.pl>
  */
-class rcube_cache
+class rcube_cache_shared
 {
     /**
      * Instance of database handler
@@ -36,11 +36,11 @@ class rcube_cache
      */
     private $db;
     private $type;
-    private $userid;
     private $prefix;
     private $ttl;
     private $packed;
     private $index;
+    private $table;
     private $cache         = array();
     private $cache_changes = array();
     private $cache_sums    = array();
@@ -50,14 +50,13 @@ class rcube_cache
      * Object constructor.
      *
      * @param string $type   Engine type ('db' or 'memcache' or 'apc')
-     * @param int    $userid User identifier
      * @param string $prefix Key name prefix
      * @param string $ttl    Expiration time of memcache/apc items
      * @param bool   $packed Enables/disabled data serialization.
      *                       It's possible to disable data serialization if you're sure
      *                       stored data will be always a safe string
      */
-    function __construct($type, $userid, $prefix='', $ttl=0, $packed=true)
+    function __construct($type, $prefix='', $ttl=0, $packed=true)
     {
         $rcube = rcube::get_instance();
         $type  = strtolower($type);
@@ -71,15 +70,15 @@ class rcube_cache
             $this->db   = function_exists('apc_exists'); // APC 3.1.4 required
         }
         else {
-            $this->type = 'db';
-            $this->db   = $rcube->get_dbh();
+            $this->type  = 'db';
+            $this->db    = $rcube->get_dbh();
+            $this->table = $this->db->table_name('cache_shared');
         }
 
         // convert ttl string to seconds
         $ttl = get_offset_sec($ttl);
         if ($ttl > 2592000) $ttl = 2592000;
 
-        $this->userid    = (int) $userid;
         $this->ttl       = $ttl;
         $this->packed    = $packed;
         $this->prefix    = $prefix;
@@ -194,12 +193,10 @@ class rcube_cache
     {
         if ($this->type == 'db' && $this->db && $this->ttl) {
             $this->db->query(
-                "DELETE FROM ".$this->db->table_name('cache').
-                " WHERE user_id = ?".
-                " AND cache_key LIKE ?".
-                " AND " . $this->db->unixtimestamp('created')." < ?",
-                $this->userid,
-                $this->prefix.'.%',
+                "DELETE FROM " . $this->table
+                . " WHERE cache_key LIKE ?"
+                . " AND " . $this->db->unixtimestamp('created') . " < ?",
+                $this->prefix . '.%',
                 time() - $this->ttl);
         }
     }
@@ -271,16 +268,14 @@ class rcube_cache
         else {
             $sql_result = $this->db->limitquery(
                 "SELECT data, cache_key".
-                " FROM ".$this->db->table_name('cache').
-                " WHERE user_id = ?".
-                " AND cache_key = ?".
+                " FROM " . $this->table .
+                " WHERE cache_key = ?".
                 // for better performance we allow more records for one key
                 // get the newer one
                 " ORDER BY created DESC",
-                0, 1, $this->userid, $this->prefix.'.'.$key);
+                0, 1, $this->prefix . '.' . $key);
 
             if ($sql_arr = $this->db->fetch_assoc($sql_result)) {
-                $key = substr($sql_arr['cache_key'], strlen($this->prefix)+1);
                 $md5sum = $sql_arr['data'] ? md5($sql_arr['data']) : null;
                 if ($sql_arr['data']) {
                     $data = $this->packed ? unserialize($sql_arr['data']) : $sql_arr['data'];
@@ -325,33 +320,27 @@ class rcube_cache
 
         // Remove NULL rows (here we don't need to check if the record exist)
         if ($data == 'N;') {
-            $this->db->query(
-                "DELETE FROM ".$this->db->table_name('cache').
-                " WHERE user_id = ?".
-                " AND cache_key = ?",
-                $this->userid, $key);
-
+            $this->db->query("DELETE FROM " . $this->table . " WHERE cache_key = ?", $key);
             return true;
         }
 
         // update existing cache record
         if ($key_exists) {
             $result = $this->db->query(
-                "UPDATE ".$this->db->table_name('cache').
-                " SET created = ". $this->db->now().", data = ?".
-                " WHERE user_id = ?".
-                " AND cache_key = ?",
-                $data, $this->userid, $key);
+                "UPDATE " . $this->table .
+                " SET created = " . $this->db->now() . ", data = ?" .
+                " WHERE cache_key = ?",
+                $data, $key);
         }
         // add new cache record
         else {
             // for better performance we allow more records for one key
             // so, no need to check if record exist (see rcube_cache::read_record())
             $result = $this->db->query(
-                "INSERT INTO ".$this->db->table_name('cache').
-                " (created, user_id, cache_key, data)".
-                " VALUES (".$this->db->now().", ?, ?, ?)",
-                $this->userid, $key, $data);
+                "INSERT INTO ".$this->table.
+                " (created, cache_key, data)".
+                " VALUES (".$this->db->now().", ?, ?)",
+                $key, $data);
         }
 
         return $this->db->affected_rows($result);
@@ -364,7 +353,6 @@ class rcube_cache
      * @param string  $key         Cache key name or pattern
      * @param boolean $prefix_mode Enable it to clear all keys starting
      *                             with prefix specified in $key
-     *
      */
     private function remove_record($key=null, $prefix_mode=false)
     {
@@ -400,21 +388,18 @@ class rcube_cache
 
         // Remove all keys (in specified cache)
         if ($key === null) {
-            $where = " AND cache_key LIKE " . $this->db->quote($this->prefix.'.%');
+            $where = " WHERE cache_key LIKE " . $this->db->quote($this->prefix.'.%');
         }
         // Remove keys by name prefix
         else if ($prefix_mode) {
-            $where = " AND cache_key LIKE " . $this->db->quote($this->prefix.'.'.$key.'%');
+            $where = " WHERE cache_key LIKE " . $this->db->quote($this->prefix.'.'.$key.'%');
         }
         // Remove one key by name
         else {
-            $where = " AND cache_key = " . $this->db->quote($this->prefix.'.'.$key);
+            $where = " WHERE cache_key = " . $this->db->quote($this->prefix.'.'.$key);
         }
 
-        $this->db->query(
-            "DELETE FROM ".$this->db->table_name('cache').
-            " WHERE user_id = ?" . $where,
-            $this->userid);
+        $this->db->query("DELETE FROM " . $this->table . $where);
     }
 
 
@@ -431,12 +416,14 @@ class rcube_cache
     {
         if ($this->type == 'memcache') {
             $result = $this->db->replace($key, $data, MEMCACHE_COMPRESSED, $this->ttl);
-            if (!$result)
+            if (!$result) {
                 $result = $this->db->set($key, $data, MEMCACHE_COMPRESSED, $this->ttl);
+            }
         }
         else if ($this->type == 'apc') {
-            if (apc_exists($key))
+            if (apc_exists($key)) {
                 apc_delete($key);
+            }
             $result = apc_store($key, $data, $this->ttl);
         }
 
@@ -519,6 +506,7 @@ class rcube_cache
         }
 
         $index_key = $this->ikey();
+
         if ($this->type == 'memcache') {
             $data = $this->db->get($index_key);
         }
@@ -531,7 +519,7 @@ class rcube_cache
 
 
     /**
-     * Creates per-user cache key name (for memcache and apc)
+     * Creates cache key name (for memcache and apc)
      *
      * @param string $key Cache key name
      *
@@ -539,18 +527,18 @@ class rcube_cache
      */
     private function ckey($key)
     {
-        return sprintf('%d:%s:%s', $this->userid, $this->prefix, $key);
+        return $this->prefix . ':' . $key;
     }
 
 
     /**
-     * Creates per-user index cache key name (for memcache and apc)
+     * Creates index cache key name (for memcache and apc)
      *
      * @return string Cache key
      */
     private function ikey()
     {
         // This way each cache will have its own index
-        return sprintf('%d:%s%s', $this->userid, $this->prefix, 'INDEX');
+        return $this->prefix . 'INDEX';
     }
 }

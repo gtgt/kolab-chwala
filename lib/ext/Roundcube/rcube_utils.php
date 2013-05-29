@@ -510,17 +510,24 @@ class rcube_utils
      */
     public static function file2class($mimetype, $filename)
     {
+        $mimetype = strtolower($mimetype);
+        $filename = strtolower($filename);
+
         list($primary, $secondary) = explode('/', $mimetype);
 
         $classes = array($primary ? $primary : 'unknown');
+
         if ($secondary) {
             $classes[] = $secondary;
         }
-        if (preg_match('/\.([a-z0-9]+)$/i', $filename, $m)) {
-            $classes[] = $m[1];
+
+        if (preg_match('/\.([a-z0-9]+)$/', $filename, $m)) {
+            if (!in_array($m[1], $classes)) {
+                $classes[] = $m[1];
+            }
         }
 
-        return strtolower(join(" ", $classes));
+        return join(" ", $classes);
     }
 
 
@@ -726,7 +733,7 @@ class rcube_utils
             return mktime(0,0,0, intval($matches[2]), intval($matches[3]), intval($matches[1]));
         }
         else if (is_numeric($date)) {
-            return $date;
+            return (int) $date;
         }
 
         // Clean malformed data
@@ -755,7 +762,7 @@ class rcube_utils
             $date = implode(' ', $d);
         }
 
-        return $ts;
+        return (int) $ts;
     }
 
 
