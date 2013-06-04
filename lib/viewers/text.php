@@ -48,6 +48,19 @@ class file_viewer_text extends file_viewer
         'message/rfc822' => 'text',
     );
 
+    /**
+     * File extension to highligter mode mapping
+     *
+     * @var array
+     */
+    protected $extensions = array(
+        'php'  => '/^(php|phpt|inc)$/',
+        'html' => '/^html?$/',
+        'css'  => '/^css$/',
+        'xml'  => '/^xml$/',
+        'javascript' => '/^js$/',
+        'sh'   => '/^sh$/',
+    );
 
     /**
      * Returns list of supported mimetype
@@ -115,7 +128,7 @@ class file_viewer_text extends file_viewer
      */
     public function output($file, $mimetype = null)
     {
-        $mode = $this->mimetypes[$mimetype] ?: 'text';
+        $mode = $this->get_mode($mimetype, $file);
 
         echo '<!DOCTYPE html>
 <html>
@@ -142,6 +155,28 @@ class file_viewer_text extends file_viewer
   </script>
 </body>
 </html>";
+    }
+
+    protected function get_mode($mimetype, $filename)
+    {
+        $mimetype = strtolower($mimetype);
+
+        if ($this->mimetypes[$mimetype]) {
+            return $this->mimetypes[$mimetype];
+        }
+
+        $filename = explode('.', $filename);
+        $extension = count($filename) > 1 ? array_pop($filename) : null;
+
+        if ($extension) {
+            foreach ($this->extensions as $mode => $regexp) {
+                if (preg_match($regexp, $extension)) {
+                    return $mode;
+                }
+            }
+        }
+
+        return 'text';
     }
 }
 
