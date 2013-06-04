@@ -204,6 +204,7 @@ function files_ui()
           $.each(this.buttons[cmd], function (i, button) {
             $('#'+button)[enable ? 'removeClass' : 'addClass']('disabled');
           });
+        this.trigger_event('enable-command', {command: cmd, status: enable});
       }
       // push array elements into commands array
       else {
@@ -1536,6 +1537,47 @@ function files_ui()
       this.file_list();
   };
 
+  this.file_edit = function()
+  {
+    if (this.file_editor) {
+      this.file_editor.enable();
+      this.enable_command('file.save', true);
+    }
+  };
+
+  this.file_save = function()
+  {
+    if (!this.file_editor)
+      return;
+
+    var content = this.file_editor.getContent();
+    this.file_editor.disable();
+
+    // because we currently can edit only text file
+    // and we do not expect them to be very big, we save
+    // file in a very simple way, no upload progress, etc.
+    this.set_busy(true, 'saving');
+    this.request('file_update', {file: this.env.file, content: content, info: 1}, 'file_save_response');
+  };
+
+  this.file_save_response = function(response)
+  {
+    this.file_editor.enable();
+
+    if (!this.response(response))
+      return;
+
+    // update file properties table
+    var table = $('#filedata table'), file = response.result;
+
+    if (response.result) {
+      $('td.filetype', table).text(file.type);
+      $('td.filesize', table).text(this.file_size(file.size));
+      $('td.filemtime', table).text(file.mtime);
+    }
+  };
+
+
   /*********************************************************/
   /*********             Utilities                 *********/
   /*********************************************************/
@@ -1644,6 +1686,13 @@ function files_ui()
   {
     $('#loader').hide();
     $(content).css('opacity', 1);
+
+    var win = content.contentWindow;
+
+    this.file_editor = win.file_editor && win.file_editor.editable ? win.file_editor : null;
+
+    if (this.file_editor)
+      ui.enable_command('file.edit', true);
   };
 };
 

@@ -58,7 +58,7 @@ interface file_storage
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)
-     * @param array  $file      File data (path, type)
+     * @param array  $file      File data (path/content, type)
      *
      * @throws Exception
      */
@@ -68,7 +68,7 @@ interface file_storage
      * Update a file.
      *
      * @param string $file_name Name of a file (with folder path)
-     * @param array  $file      File data (path, type)
+     * @param array  $file      File data (path/content, type)
      *
      * @throws Exception
      */

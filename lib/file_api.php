@@ -326,6 +326,28 @@ class file_api
 
                 return $result;
 
+            case 'file_create':
+            case 'file_update':
+                if (!isset($args['file']) || $args['file'] === '') {
+                    throw new Exception("Missing file name", file_api::ERROR_CODE);
+                }
+                if (!isset($args['content'])) {
+                    throw new Exception("Missing file content", file_api::ERROR_CODE);
+                }
+
+                $file = array(
+                    'content' => $args['content'],
+                    'type'    => rcube_mime::file_content_type($args['content'], $args['file'], $args['content-type'], true),
+                );
+
+                $this->api->$request($args['file'], $file);
+
+                if (!empty($args['info']) && rcube_utils::get_boolean($args['info'])) {
+                    return $this->api->file_info($args['file']);
+                }
+
+                return;
+
             case 'file_delete':
                 $files = (array) $args['file'];
 

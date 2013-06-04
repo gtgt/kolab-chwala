@@ -1232,6 +1232,14 @@ td span.branch span.l3
   background: url(images/search.png) center 6px no-repeat;
 }
 
+#file-save-button {
+  background: url(images/save.png) center 6px no-repeat;
+}
+
+#actionbar #file-save-button {
+  display: none;
+}
+
 #folderlist,
 #filedata {
   position: absolute;

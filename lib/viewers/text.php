@@ -124,6 +124,7 @@ class file_viewer_text extends file_viewer
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <title>Editor</title>
   <script src="viewers/text/ace.js" type="text/javascript" charset="utf-8"></script>
+  <script src="viewers/text/file_editor.js" type="text/javascript" charset="utf-8"></script>
   <style>
     #editor { top: 0; right: 0; bottom: 0; left: 0; position: absolute; font-size: 14px; padding: 0; margin: 0; }
     .ace_search_options { float: right; }
@@ -136,12 +137,8 @@ class file_viewer_text extends file_viewer
 
         echo "</pre>
   <script>
-    var editor = ace.edit('editor'),
-      session = editor.getSession();
-
-    editor.focus();
-    editor.setReadOnly(true);
-    session.setMode('ace/mode/$mode');
+    var file_editor = new file_editor;
+    file_editor.init('editor', '$mode');
   </script>
 </body>
 </html>";

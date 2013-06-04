@@ -23,6 +23,7 @@ $LANG['file.delete'] = 'Delete';
 $LANG['file.rename'] = 'Rename';
 $LANG['file.search'] = 'Search file';
 $LANG['file.type'] = 'Type';
+$LANG['file.save'] = 'Save';
 $LANG['file.skip'] = 'Skip';
 $LANG['file.skipall'] = 'Skip all';
 $LANG['file.overwrite'] = 'Overwrite';

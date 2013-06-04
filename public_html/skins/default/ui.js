@@ -92,10 +92,19 @@ function progress_update(data)
   }
 };
 
+function enable_command_handler(p)
+{
+  if (p.command == 'file.save') {
+    $('#'+ui.buttons['file.edit']).css('display', p.status ? 'none' : 'block');
+    $('#'+ui.buttons['file.save']).css('display', p.status ? 'block' : 'none');
+  }
+};
+
 
 $(window).load(function() {
   hack_file_input('file-upload-button');
   $('#forms > form').hide();
+  ui.add_event_listener('enable-command', enable_command_handler);
 });
 
 // register buttons
@@ -109,5 +118,6 @@ ui.buttons({
 'file.download': 'file-download-button',
 'file.edit': 'file-edit-button',
 'file.copy': 'file-copy-button',
-'file.move': 'file-move-button'
+'file.move': 'file-move-button',
+'file.save': 'file-save-button'
 });
