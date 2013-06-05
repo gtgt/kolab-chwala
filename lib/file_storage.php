@@ -25,10 +25,11 @@
 interface file_storage
 {
     // capabilities
-    const CAPS_MAX_UPLOAD    = 'MAX_UPLOAD';
     const CAPS_ACL           = 'ACL';
+    const CAPS_MAX_UPLOAD    = 'MAX_UPLOAD';
     const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
+    const CAPS_QUOTA         = 'QUOTA';
 
     // config
     const SEPARATOR = '/';
@@ -169,4 +170,14 @@ interface file_storage
      * @throws Exception
      */
     public function folder_list();
+
+    /**
+     * Return disk quota information for specified folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return array Quota
+     * @throws Exception
+     */
+    public function quota($folder);
 }

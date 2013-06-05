@@ -249,8 +249,12 @@ class kolab_file_storage implements file_storage
             $max_filesize = $max_postsize;
         }
 
+        $storage = $this->rc->get_storage();
+        $quota   = $storage->get_capability('QUOTA');
+
         return array(
             file_storage::CAPS_MAX_UPLOAD => $max_filesize,
+            file_storage::CAPS_QUOTA      => $quota,
         );
     }
 
@@ -713,6 +717,25 @@ class kolab_file_storage implements file_storage
         }
 
         return $folders;
+    }
+
+    /**
+     * Return disk quota information for specified folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return array Quota
+     * @throws Exception
+     */
+    public function quota($folder)
+    {
+        $storage = $this->rc->get_storage();
+        $quota   = $storage->get_quota();
+        $quota   = $this->rc->plugins->exec_hook('quota', $quota);
+
+        unset($quota['abort']);
+
+        return $quota;
     }
 
     /**

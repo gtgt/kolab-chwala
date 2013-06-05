@@ -484,6 +484,20 @@ class file_api
 
             case 'folder_list':
                 return $this->api->folder_list();
+
+            case 'quota':
+                $quota = $this->api->quota($args['folder']);
+
+                if (!$quota['total']) {
+                    $quota_result['percent'] = 0;
+                }
+                else if ($quota['total']) {
+                    if (!isset($quota['percent'])) {
+                        $quota_result['percent'] = min(100, round(($quota['used']/max(1,$quota['total']))*100));
+                    }
+                }
+
+                return $quota;
         }
 
         if ($request) {
