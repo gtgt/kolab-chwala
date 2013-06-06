@@ -733,25 +733,38 @@ class file_api
             $data = array();
         }
 
-        $this->output_send(array('status' => 'OK', 'result' => $data));
+        $response = array('status' => 'OK', 'result' => $data);
+
+        if (!empty($_REQUEST['req_id'])) {
+            $response['req_id'] = $_REQUEST['req_id'];
+        }
+
+        $this->output_send($response);
     }
 
     /**
      * Send error response
      *
-     * @param mixed $data Data
+     * @param mixed $response Response data
+     * @param int   $code     Error code
      */
-    public function output_error($errdata, $code = null)
+    public function output_error($response, $code = null)
     {
-        if (is_string($errdata)) {
-            $errdata = array('reason' => $errdata);
+        if (is_string($response)) {
+            $response = array('reason' => $response);
         }
 
-        if (!$code) {
-            $code = file_api::ERROR_CODE;
+        $response['status'] = 'ERROR';
+
+        if (!empty($_REQUEST['req_id'])) {
+            $response['req_id'] = $_REQUEST['req_id'];
         }
 
-        $this->output_send(array('status' => 'ERROR', 'code' => $code) + $errdata);
+        if (!$response['code']) {
+            $response['code'] = file_api::ERROR_CODE;
+        }
+
+        $this->output_send($response);
     }
 
     /**
