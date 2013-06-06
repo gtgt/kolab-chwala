@@ -33,6 +33,7 @@ class file_api
 
     private $app_name = 'Kolab File API';
     private $conf;
+    private $browser;
     private $output_type = self::OUTPUT_JSON;
     private $config = array(
         'date_format' => 'Y-m-d H:i',
@@ -705,6 +706,20 @@ class file_api
         return $_SERVER['SCRIPT_URI'] . '?method=file_get'
             . '&file=' . urlencode($file)
             . '&token=' . urlencode(session_id());
+    }
+
+    /**
+     * Returns web browser object
+     *
+     * @return rcube_browser Web browser object
+     */
+    public function get_browser()
+    {
+        if ($this->browser === null) {
+            $this->browser = new rcube_browser;
+        }
+
+        return $this->browser;
     }
 
     /**

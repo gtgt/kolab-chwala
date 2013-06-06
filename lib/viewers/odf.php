@@ -57,6 +57,13 @@ class file_viewer_odf extends file_viewer
     public function __construct($api)
     {
         $this->api = $api;
+
+        $browser = $api->get_browser();
+
+        // disable viewer in unsupported browsers
+        if ($browser->ie && $browser->ver < 9) {
+            $this->mimetypes = array();
+        }
     }
 
     /**
