@@ -81,7 +81,6 @@ class file_viewer_media extends file_viewer
 
         return <<<EOT
     <link rel="stylesheet" type="text/css" href="{$path}viewers/media/mediaelementplayer.css" />
-    <script type="text/javascript" src="{$path}js/jquery.min.js"></script>
     <script type="text/javascript" src="{$path}viewers/media/mediaelement-and-player.js"></script>
     <$tag id="media-player" controls preload="auto">$source</$tag>
     <style>
