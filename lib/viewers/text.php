@@ -114,10 +114,7 @@ class file_viewer_text extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
-        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
-            . '&viewer=text'
-            . '&file=' . urlencode($file)
-            . '&token=' . urlencode(session_id());
+        return $this->api->file_url($file) . '&viewer=text';
     }
 
     /**
@@ -129,6 +126,7 @@ class file_viewer_text extends file_viewer
     public function output($file, $mimetype = null)
     {
         $mode = $this->get_mode($mimetype, $file);
+        $href = addcslashes($this->api->file_url($file), "'");
 
         echo '<!DOCTYPE html>
 <html>
@@ -151,7 +149,7 @@ class file_viewer_text extends file_viewer
         echo "</pre>
   <script>
     var file_editor = new file_editor;
-    file_editor.init('editor', '$mode');
+    file_editor.init('editor', '$mode', '$href');
   </script>
 </body>
 </html>";
