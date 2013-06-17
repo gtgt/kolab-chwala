@@ -31,7 +31,7 @@ class kolab_format_contact extends kolab_format
     protected $read_func = 'readContact';
     protected $write_func = 'writeContact';
 
-    public static $fulltext_cols = array('name', 'firstname', 'surname', 'middlename', 'email');
+    public static $fulltext_cols = array('name', 'firstname', 'surname', 'middlename', 'email:address');
 
     public $phonetypes = array(
         'home'    => Telephone::Home,
@@ -45,6 +45,12 @@ class kolab_format_contact extends kolab_format
         'pager'   => Telephone::Pager,
         'car'     => Telephone::Car,
         'other'   => Telephone::Textphone,
+    );
+
+    public $emailtypes = array(
+        'home' => Email::Home,
+        'work' => Email::Work,
+        'other' => Email::NoType,
     );
 
     public $addresstypes = array(
@@ -125,9 +131,20 @@ class kolab_format_contact extends kolab_format
         }
         $org->setRelateds($rels);
 
-        // email, im, url
-        $this->obj->setEmailAddresses(self::array2vector($object['email']));
+        // im, email, url
         $this->obj->setIMaddresses(self::array2vector($object['im']));
+
+        if (class_exists('vectoremail')) {
+            $vemails = new vectoremail;
+            foreach ((array)$object['email'] as $email) {
+                $type = $this->emailtypes[$email['type']];
+                $vemails->push(new Email($email['address'], intval($type)));
+            }
+        }
+        else {
+            $vemails = self::array2vector(array_map(function($v){ return $v['address']; }, $object['email']));
+        }
+        $this->obj->setEmailAddresses($vemails);
 
         $vurls = new vectorurl;
         foreach ((array)$object['website'] as $url) {
@@ -290,8 +307,19 @@ class kolab_format_contact extends kolab_format
             $this->read_relateds($org->relateds(), $object);
         }
 
-        $object['email']   = self::vector2array($this->obj->emailAddresses());
-        $object['im']      = self::vector2array($this->obj->imAddresses());
+        $object['im'] = self::vector2array($this->obj->imAddresses());
+
+        $emails = $this->obj->emailAddresses();
+        if ($emails instanceof vectoremail) {
+            $emailtypes = array_flip($this->emailtypes);
+            for ($i=0; $i < $emails->size(); $i++) {
+                $email = $emails->get($i);
+                $object['email'][] = array('address' => $email->address(), 'type' => $emailtypes[$email->types()]);
+            }
+        }
+        else {
+            $object['email'] = self::vector2array($emails);
+        }
 
         $urls = $this->obj->urls();
         for ($i=0; $i < $urls->size(); $i++) {
@@ -357,7 +385,18 @@ class kolab_format_contact extends kolab_format
     {
         $data = '';
         foreach (self::$fulltext_cols as $col) {
-            $val = is_array($this->data[$col]) ? join(' ', $this->data[$col]) : $this->data[$col];
+            list($col, $field) = explode(':', $colname);
+
+            if ($field) {
+                $a = array();
+                foreach ((array)$this->data[$col] as $attr)
+                    $a[] = $attr[$field];
+                $val = join(' ', $a);
+            }
+            else {
+                $val = is_array($this->data[$col]) ? join(' ', $this->data[$col]) : $this->data[$col];
+            }
+
             if (strlen($val))
                 $data .= $val . ' ';
         }

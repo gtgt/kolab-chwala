@@ -30,6 +30,6 @@ try {
     $API = new file_api;
     $API->run();
 } catch (Exception $e) {
-    //console('API Error: ' . $e->getMessage());
+    //rcube::console('API Error: ' . $e->getMessage());
     $API->output_error($e->getMessage(), $e->getCode());
 }

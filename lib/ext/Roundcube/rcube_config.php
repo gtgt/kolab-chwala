@@ -43,6 +43,8 @@ class rcube_config
         'reply_mode'           => 'top_posting',
         'refresh_interval'     => 'keep_alive',
         'min_refresh_interval' => 'min_keep_alive',
+        'messages_cache_ttl'   => 'message_cache_lifetime',
+        'redundant_attachments_cache_ttl' => 'redundant_attachments_memcache_ttl',
     );
 
 
@@ -174,7 +176,7 @@ class rcube_config
             ob_end_clean();
 
             if (is_array($rcmail_config)) {
-                $this->prop = array_merge($this->prop, $rcmail_config, $this->userprefs);
+                $this->merge($rcmail_config);
                 return true;
             }
         }
@@ -194,9 +196,6 @@ class rcube_config
     {
         if (isset($this->prop[$name])) {
             $result = $this->prop[$name];
-        }
-        else if (isset($this->legacy_props[$name])) {
-            return $this->get($this->legacy_props[$name], $def);
         }
         else {
             $result = $def;
@@ -241,6 +240,7 @@ class rcube_config
     public function merge($prefs)
     {
         $this->prop = array_merge($this->prop, $prefs, $this->userprefs);
+        $this->fix_legacy_props();
     }
 
 
@@ -272,6 +272,8 @@ class rcube_config
 
         $this->userprefs = $prefs;
         $this->prop      = array_merge($this->prop, $prefs);
+
+        $this->fix_legacy_props();
 
         // override timezone settings with client values
         if ($this->prop['timezone'] == 'auto') {
@@ -435,4 +437,18 @@ class rcube_config
         return date_default_timezone_get();
     }
 
+    /**
+     * Convert legacy options into new ones
+     */
+    private function fix_legacy_props()
+    {
+        foreach ($this->legacy_props as $new => $old) {
+            if (isset($this->prop[$old])) {
+                if (!isset($this->prop[$new])) {
+                    $this->prop[$new] = $this->prop[$old];
+                }
+                unset($this->prop[$old]);
+            }
+        }
+    }
 }

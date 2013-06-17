@@ -144,7 +144,7 @@ class rcube_cache_shared
      */
     function write($key, $data)
     {
-        return $this->write_record($key, $this->packed ? serialize($data) : $data);
+        return $this->write_record($key, $this->serialize($data));
     }
 
 
@@ -195,10 +195,21 @@ class rcube_cache_shared
             $this->db->query(
                 "DELETE FROM " . $this->table
                 . " WHERE cache_key LIKE ?"
-                . " AND " . $this->db->unixtimestamp('created') . " < ?",
-                $this->prefix . '.%',
-                time() - $this->ttl);
+                . " AND expires < " . $this->db->now(),
+                $this->prefix . '.%');
         }
+    }
+
+
+    /**
+     * Remove expired records of all caches
+     */
+    static function gc()
+    {
+        $rcube = rcube::get_instance();
+        $db    = $rcube->get_dbh();
+
+        $db->query("DELETE FROM " . $db->table_name('cache_shared') . " WHERE expires < " . $db->now());
     }
 
 
@@ -216,7 +227,7 @@ class rcube_cache_shared
             if ($this->cache_changes[$key]) {
                 // Make sure we're not going to write unchanged data
                 // by comparing current md5 sum with the sum calculated on DB read
-                $data = $this->packed ? serialize($data) : $data;
+                $data = $this->serialize($data);
 
                 if (!$this->cache_sums[$key] || $this->cache_sums[$key] != md5($data)) {
                     $this->write_record($key, $data);
@@ -252,7 +263,7 @@ class rcube_cache_shared
 
             if ($data) {
                 $md5sum = md5($data);
-                $data   = $this->packed ? unserialize($data) : $data;
+                $data   = $this->unserialize($data);
 
                 if ($nostore) {
                     return $data;
@@ -278,7 +289,7 @@ class rcube_cache_shared
             if ($sql_arr = $this->db->fetch_assoc($sql_result)) {
                 $md5sum = $sql_arr['data'] ? md5($sql_arr['data']) : null;
                 if ($sql_arr['data']) {
-                    $data = $this->packed ? unserialize($sql_arr['data']) : $sql_arr['data'];
+                    $data = $this->unserialize($sql_arr['data']);
                 }
 
                 if ($nostore) {
@@ -328,7 +339,9 @@ class rcube_cache_shared
         if ($key_exists) {
             $result = $this->db->query(
                 "UPDATE " . $this->table .
-                " SET created = " . $this->db->now() . ", data = ?" .
+                " SET created = " . $this->db->now() .
+                    ", expires = " . ($this->ttl ? $this->db->now($this->ttl) : 'NULL') .
+                    ", data = ?".
                 " WHERE cache_key = ?",
                 $data, $key);
         }
@@ -338,8 +351,8 @@ class rcube_cache_shared
             // so, no need to check if record exist (see rcube_cache::read_record())
             $result = $this->db->query(
                 "INSERT INTO ".$this->table.
-                " (created, cache_key, data)".
-                " VALUES (".$this->db->now().", ?, ?)",
+                " (created, expires, cache_key, data)".
+                " VALUES (".$this->db->now().", " . ($this->ttl ? $this->db->now($this->ttl) : 'NULL') . ", ?, ?)",
                 $key, $data);
         }
 
@@ -540,5 +553,29 @@ class rcube_cache_shared
     {
         // This way each cache will have its own index
         return $this->prefix . 'INDEX';
+    }
+
+    /**
+     * Serializes data for storing
+     */
+    private function serialize($data)
+    {
+        if ($this->type == 'db') {
+            return $this->db->encode($data, $this->packed);
+        }
+
+        return $this->packed ? serialize($data) : $data;
+    }
+
+    /**
+     * Unserializes serialized data
+     */
+    private function unserialize($data)
+    {
+        if ($this->type == 'db') {
+            return $this->db->decode($data, $this->packed);
+        }
+
+        return $this->packed ? @unserialize($data) : $data;
     }
 }

@@ -29,6 +29,17 @@ class rcube_db_pgsql extends rcube_db
     public $db_provider = 'postgres';
 
     /**
+     * Driver-specific configuration of database connection
+     *
+     * @param array $dsn DSN for DB connections
+     * @param PDO   $dbh Connection handler
+     */
+    protected function conn_configure($dsn, $dbh)
+    {
+        $this->query("SET NAMES 'utf8'");
+    }
+
+    /**
      * Get last inserted record ID
      *
      * @param string $table Table name (to find the incremented sequence)
@@ -75,9 +86,6 @@ class rcube_db_pgsql extends rcube_db
     /**
      * Return SQL statement to convert a field value into a unix timestamp
      *
-     * This method is deprecated and should not be used anymore due to limitations
-     * of timestamp functions in Mysql (year 2038 problem)
-     *
      * @param string $field Field name
      *
      * @return string SQL statement to use in query
@@ -86,6 +94,24 @@ class rcube_db_pgsql extends rcube_db
     public function unixtimestamp($field)
     {
         return "EXTRACT (EPOCH FROM $field)";
+    }
+
+    /**
+     * Return SQL function for current time and date
+     *
+     * @param int $interval Optional interval (in seconds) to add/subtract
+     *
+     * @return string SQL function to use in query
+     */
+    public function now($interval = 0)
+    {
+        if ($interval) {
+            $add = ' ' . ($interval > 0 ? '+' : '-') . " interval '";
+            $add .= $interval > 0 ? intval($interval) : intval($interval) * -1;
+            $add .= " seconds'";
+        }
+
+        return "now()" . $add;
     }
 
     /**
@@ -128,6 +154,40 @@ class rcube_db_pgsql extends rcube_db
         }
 
         return isset($this->variables[$varname]) ? $this->variables[$varname] : $default;
+    }
+
+    /**
+     * Returns PDO DSN string from DSN array
+     *
+     * @param array $dsn DSN parameters
+     *
+     * @return string DSN string
+     */
+    protected function dsn_string($dsn)
+    {
+        $params = array();
+        $result = 'pgsql:';
+
+        if ($dsn['hostspec']) {
+            $params[] = 'host=' . $dsn['hostspec'];
+        }
+        else if ($dsn['socket']) {
+            $params[] = 'host=' . $dsn['socket'];
+        }
+
+        if ($dsn['port']) {
+            $params[] = 'port=' . $dsn['port'];
+        }
+
+        if ($dsn['database']) {
+            $params[] = 'dbname=' . $dsn['database'];
+        }
+
+        if (!empty($params)) {
+            $result .= implode(';', $params);
+        }
+
+        return $result;
     }
 
 }

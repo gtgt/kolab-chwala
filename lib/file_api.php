@@ -154,11 +154,13 @@ class file_api
         // use database for storing session data
         $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
 
-        $this->session->register_gc_handler(array($rcube, 'temp_gc'));
-        $this->session->register_gc_handler(array($rcube, 'cache_gc'));
+        $this->session->register_gc_handler(array($rcube, 'gc'));
 
         $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
         $this->session->set_ip_check($this->conf->get('ip_check'));
+
+        // this is needed to correctly close session in shutdown function
+        $rcube->session = $this->session;
     }
 
     /**
@@ -166,8 +168,6 @@ class file_api
      */
     public function shutdown()
     {
-        session_write_close();
-
         // write performance stats to logs/console
         if ($this->conf->get('devel_mode')) {
             if (function_exists('memory_get_peak_usage'))

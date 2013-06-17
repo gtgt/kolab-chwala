@@ -35,7 +35,8 @@ class kolab_storage_cache
     private $synched = false;
     private $synclock = false;
     private $ready = false;
-    private $max_sql_packet = 1046576;  // 1 MB - 2000 bytes
+    private $max_sql_packet;
+    private $max_sync_lock_time = 600;
     private $binary_cols = array('photo','pgppublickey','pkcs7publickey');
 
 
@@ -52,9 +53,6 @@ class kolab_storage_cache
         if ($this->enabled) {
             // remove sync-lock on script termination
             $rcmail->add_shutdown_function(array($this, '_sync_unlock'));
-
-            // read max_allowed_packet from mysql config
-            $this->max_sql_packet = min($this->db->get_variable('max_allowed_packet', 1048500), 4*1024*1024) - 2000;  // mysql limit or max 4 MB
         }
 
         if ($storage_folder)
@@ -92,7 +90,7 @@ class kolab_storage_cache
             return;
 
         // increase time limit
-        @set_time_limit(500);
+        @set_time_limit($this->max_sync_lock_time);
 
         // lock synchronization for this folder or wait if locked
         $this->_sync_lock();
@@ -157,7 +155,7 @@ class kolab_storage_cache
     {
         // delegate to another cache instance
         if ($foldername && $foldername != $this->folder->name) {
-            return kolab_storage::get_folder($foldername)->cache->get($msguid, $object);
+            return kolab_storage::get_folder($foldername)->cache->get($msguid, $type);
         }
 
         // load object if not in memory
@@ -275,12 +273,12 @@ class kolab_storage_cache
      * @param string Entry's Object UID
      * @param string Target IMAP folder to move it to
      */
-    public function move($msguid, $objuid, $target_folder)
+    public function move($msguid, $uid, $target_folder)
     {
         $target = kolab_storage::get_folder($target_folder);
 
         // resolve new message UID in target folder
-        if ($new_msguid = $target->cache->uid2msguid($objuid)) {
+        if ($new_msguid = $target->cache->uid2msguid($uid)) {
             $this->db->query(
                 "UPDATE kolab_cache SET resource=?, msguid=? ".
                 "WHERE resource=? AND msguid=? AND type<>?",
@@ -418,7 +416,7 @@ class kolab_storage_cache
         $sql_where = '';
         foreach ($query as $param) {
             if (is_array($param[0])) {
-                $subs = array();
+                $subq = array();
                 foreach ($param[0] as $q) {
                     $subq[] = preg_replace('/^\s*AND\s+/i', '', $this->_sql_where(array($q)));
                 }
@@ -647,7 +645,7 @@ class kolab_storage_cache
             $line = '(' . join(',', $values) . ')';
         }
 
-        if ($buffer && (!$msguid || (strlen($buffer) + strlen($line) > $this->max_sql_packet))) {
+        if ($buffer && (!$msguid || (strlen($buffer) + strlen($line) > $this->max_sql_packet()))) {
             $result = $this->db->query(
                 "INSERT INTO kolab_cache ".
                 " (resource, type, msguid, uid, created, changed, data, xml, dtstart, dtend, tags, words, filename)".
@@ -667,6 +665,20 @@ class kolab_storage_cache
     }
 
     /**
+     * Returns max_allowed_packet from mysql config
+     */
+    private function max_sql_packet()
+    {
+        if (!$this->max_sql_packet) {
+            // mysql limit or max 4 MB
+            $value = $this->db->get_variable('max_allowed_packet', 1048500);
+            $this->max_sql_packet = min($value, 4*1024*1024) - 2000;
+        }
+
+        return $this->max_sql_packet;
+    }
+
+    /**
      * Check lock record for this folder and wait if locked or set lock
      */
     private function _sync_lock()
@@ -674,12 +686,9 @@ class kolab_storage_cache
         if (!$this->ready)
             return;
 
-        $sql_arr = $this->db->fetch_assoc($this->db->query(
-            "SELECT msguid AS locked, ".$this->db->unixtimestamp('created')." AS created FROM kolab_cache ".
-            "WHERE resource=? AND type=?",
-            $this->resource_uri,
-            'lock'
-        ));
+        $sql_query = "SELECT msguid AS locked, ".$this->db->unixtimestamp('created')." AS created FROM kolab_cache ".
+            "WHERE resource=? AND type=?";
+        $sql_arr = $this->db->fetch_assoc($this->db->query($sql_query, $this->resource_uri, 'lock'));
 
         // abort if database is not set-up
         if ($this->db->is_error()) {
@@ -688,6 +697,12 @@ class kolab_storage_cache
         }
 
         $this->synclock = true;
+
+        // wait if locked (expire locks after 10 minutes)
+        while ($sql_arr && intval($sql_arr['locked']) > 0 && $sql_arr['created'] + $this->max_sync_lock_time > time()) {
+            usleep(500000);
+            $sql_arr = $this->db->fetch_assoc($this->db->query($sql_query, $this->resource_uri, 'lock'));
+        }
 
         // create lock record if not exists
         if (!$sql_arr) {
@@ -699,12 +714,6 @@ class kolab_storage_cache
                 date('Y-m-d H:i:s')
             );
         }
-        // wait if locked (expire locks after 10 minutes)
-        else if (intval($sql_arr['locked']) > 0 && (time() - $sql_arr['created']) < 600) {
-            usleep(500000);
-            return $this->_sync_lock();
-        }
-        // set lock
         else {
             $this->db->query(
                 "UPDATE kolab_cache SET msguid=1, created=? ".

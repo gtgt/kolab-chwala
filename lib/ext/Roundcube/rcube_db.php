@@ -100,27 +100,15 @@ class rcube_db
 
         $this->db_dsnw_array = self::parse_dsn($db_dsnw);
         $this->db_dsnr_array = self::parse_dsn($db_dsnr);
-
-        // Initialize driver class
-        $this->init();
-    }
-
-    /**
-     * Initialization of the object with driver specific code
-     */
-    protected function init()
-    {
-        // To be used by driver classes
     }
 
     /**
      * Connect to specific database
      *
-     * @param array $dsn DSN for DB connections
-     *
-     * @return PDO database handle
+     * @param array  $dsn  DSN for DB connections
+     * @param string $mode Connection mode (r|w)
      */
-    protected function dsn_connect($dsn)
+    protected function dsn_connect($dsn, $mode)
     {
         $this->db_error     = false;
         $this->db_error_msg = null;
@@ -158,9 +146,10 @@ class rcube_db
             return null;
         }
 
+        $this->dbh          = $dbh;
+        $this->db_mode      = $mode;
+        $this->db_connected = true;
         $this->conn_configure($dsn, $dbh);
-
-        return $dbh;
     }
 
     /**
@@ -180,16 +169,6 @@ class rcube_db
      */
     protected function conn_configure($dsn, $dbh)
     {
-    }
-
-    /**
-     * Driver-specific database character set setting
-     *
-     * @param string $charset Character set name
-     */
-    protected function set_charset($charset)
-    {
-        $this->query("SET NAMES 'utf8'");
     }
 
     /**
@@ -219,23 +198,14 @@ class rcube_db
 
         $dsn = ($mode == 'r') ? $this->db_dsnr_array : $this->db_dsnw_array;
 
-        $this->dbh          = $this->dsn_connect($dsn);
-        $this->db_connected = is_object($this->dbh);
+        $this->dsn_connect($dsn, $mode);
 
         // use write-master when read-only fails
         if (!$this->db_connected && $mode == 'r' && $this->is_replicated()) {
-            $mode = 'w';
-            $this->dbh          = $this->dsn_connect($this->db_dsnw_array);
-            $this->db_connected = is_object($this->dbh);
+            $this->dsn_connect($this->db_dsnw_array, 'w');
         }
 
-        if ($this->db_connected) {
-            $this->db_mode = $mode;
-            $this->set_charset('utf8');
-        }
-        else {
-            $this->conn_failure = true;
-        }
+        $this->conn_failure = !$this->db_connected;
     }
 
     /**
@@ -368,8 +338,10 @@ class rcube_db
      */
     protected function _query($query, $offset, $numrows, $params)
     {
+        $query = trim($query);
+
         // Read or write ?
-        $mode = preg_match('/^(select|show)/i', ltrim($query)) ? 'r' : 'w';
+        $mode = preg_match('/^(select|show|set)/i', $query) ? 'r' : 'w';
 
         $this->db_connect($mode);
 
@@ -415,13 +387,16 @@ class rcube_db
 
         if ($result === false) {
             $error = $this->dbh->errorInfo();
-            $this->db_error = true;
-            $this->db_error_msg = sprintf('[%s] %s', $error[1], $error[2]);
 
-            rcube::raise_error(array('code' => 500, 'type' => 'db',
-                'line' => __LINE__, 'file' => __FILE__,
-                'message' => $this->db_error_msg . " (SQL Query: $query)"
-                ), true, false);
+            if (empty($this->options['ignore_key_errors']) || $error[0] != '23000') {
+                $this->db_error = true;
+                $this->db_error_msg = sprintf('[%s] %s', $error[1], $error[2]);
+
+                rcube::raise_error(array('code' => 500, 'type' => 'db',
+                    'line' => __LINE__, 'file' => __FILE__,
+                    'message' => $this->db_error_msg . " (SQL Query: $query)"
+                    ), true, false);
+            }
         }
 
         $this->last_result = $result;
@@ -708,11 +683,19 @@ class rcube_db
     /**
      * Return SQL function for current time and date
      *
+     * @param int $interval Optional interval (in seconds) to add/subtract
+     *
      * @return string SQL function to use in query
      */
-    public function now()
+    public function now($interval = 0)
     {
-        return "now()";
+        if ($interval) {
+            $add = ' ' . ($interval > 0 ? '+' : '-') . ' INTERVAL ';
+            $add .= $interval > 0 ? intval($interval) : intval($interval) * -1;
+            $add .= ' SECOND';
+        }
+
+        return "now()" . $add;
     }
 
     /**
@@ -795,12 +778,19 @@ class rcube_db
     /**
      * Encodes non-UTF-8 characters in string/array/object (recursive)
      *
-     * @param mixed $input Data to fix
+     * @param mixed $input      Data to fix
+     * @param bool  $serialized Enable serialization
      *
      * @return mixed Properly UTF-8 encoded data
      */
-    public static function encode($input)
+    public static function encode($input, $serialized = false)
     {
+        // use Base64 encoding to workaround issues with invalid
+        // or null characters in serialized string (#1489142)
+        if ($serialized) {
+            return base64_encode(serialize($input));
+        }
+
         if (is_object($input)) {
             foreach (get_object_vars($input) as $idx => $value) {
                 $input->$idx = self::encode($value);
@@ -811,6 +801,7 @@ class rcube_db
             foreach ($input as $idx => $value) {
                 $input[$idx] = self::encode($value);
             }
+
             return $input;
         }
 
@@ -820,12 +811,24 @@ class rcube_db
     /**
      * Decodes encoded UTF-8 string/object/array (recursive)
      *
-     * @param mixed $input Input data
+     * @param mixed $input      Input data
+     * @param bool  $serialized Enable serialization
      *
      * @return mixed Decoded data
      */
-    public static function decode($input)
+    public static function decode($input, $serialized = false)
     {
+        // use Base64 encoding to workaround issues with invalid
+        // or null characters in serialized string (#1489142)
+        if ($serialized) {
+            // Keep backward compatybility where base64 wasn't used
+            if (strpos(substr($input, 0, 16), ':') !== false) {
+                return self::decode(@unserialize($input));
+            }
+
+            return @unserialize(base64_decode($input));
+        }
+
         if (is_object($input)) {
             foreach (get_object_vars($input) as $idx => $value) {
                 $input->$idx = self::decode($value);
@@ -859,6 +862,17 @@ class rcube_db
         }
 
         return $table;
+    }
+
+    /**
+     * Set class option value
+     *
+     * @param string $name  Option name
+     * @param mixed  $value Option value
+     */
+    public function set_option($name, $value)
+    {
+        $this->options[$name] = $value;
     }
 
     /**

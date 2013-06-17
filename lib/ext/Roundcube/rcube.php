@@ -99,7 +99,6 @@ class rcube
     protected $texts;
     protected $caches = array();
     protected $shutdown_functions = array();
-    protected $expunge_cache = false;
 
 
     /**
@@ -457,22 +456,32 @@ class rcube
         ini_set('session.name', $sess_name ? $sess_name : 'roundcube_sessid');
         ini_set('session.use_cookies', 1);
         ini_set('session.use_only_cookies', 1);
-        ini_set('session.serialize_handler', 'php');
         ini_set('session.cookie_httponly', 1);
 
         // use database for storing session data
         $this->session = new rcube_session($this->get_dbh(), $this->config);
 
-        $this->session->register_gc_handler(array($this, 'temp_gc'));
-        $this->session->register_gc_handler(array($this, 'cache_gc'));
-
+        $this->session->register_gc_handler(array($this, 'gc'));
         $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
         $this->session->set_ip_check($this->config->get('ip_check'));
 
         // start PHP session (if not in CLI mode)
         if ($_SERVER['REMOTE_ADDR']) {
-            session_start();
+            $this->session->start();
         }
+    }
+
+
+    /**
+     * Garbage collector - cache/temp cleaner
+     */
+    public function gc()
+    {
+        rcube_cache::gc();
+        rcube_cache_shared::gc();
+        $this->get_storage()->cache_gc();
+
+        $this->gc_temp();
     }
 
 
@@ -480,7 +489,7 @@ class rcube
      * Garbage collector function for temp files.
      * Remove temp files older than two days
      */
-    public function temp_gc()
+    public function gc_temp()
     {
         $tmp = unslashify($this->config->get('temp_dir'));
         $expire = time() - 172800;  // expire in 48 hours
@@ -502,14 +511,21 @@ class rcube
 
 
     /**
-     * Garbage collector for cache entries.
-     * Set flag to expunge caches on shutdown
+     * Runs garbage collector with probability based on
+     * session settings. This is intended for environments
+     * without a session.
      */
-    public function cache_gc()
+    public function gc_run()
     {
-        // because this gc function is called before storage is initialized,
-        // we just set a flag to expunge storage cache on shutdown.
-        $this->expunge_cache = true;
+        $probability = (int) ini_get('session.gc_probability');
+        $divisor     = (int) ini_get('session.gc_divisor');
+
+        if ($divisor > 0 && $probability > 0) {
+            $random = mt_rand(1, $divisor);
+            if ($random <= $probability) {
+                $this->gc();
+            }
+        }
     }
 
 
@@ -893,23 +909,25 @@ class rcube
             call_user_func($function);
         }
 
+        // write session data as soon as possible and before
+        // closing database connection, don't do this before
+        // registered shutdown functions, they may need the session
+        // Note: this will run registered gc handlers (ie. cache gc)
+        if ($_SERVER['REMOTE_ADDR'] && is_object($this->session)) {
+            $this->session->write_close();
+        }
+
         if (is_object($this->smtp)) {
             $this->smtp->disconnect();
         }
 
         foreach ($this->caches as $cache) {
             if (is_object($cache)) {
-                if ($this->expunge_cache) {
-                    $cache->expunge();
-                }
                 $cache->close();
             }
         }
 
         if (is_object($this->storage)) {
-            if ($this->expunge_cache) {
-                $this->storage->expunge_cache();
-            }
             $this->storage->close();
         }
     }
