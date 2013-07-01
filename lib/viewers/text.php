@@ -46,6 +46,7 @@ class file_viewer_text extends file_viewer
         'application/xml' => 'xml',
         'application/x-vbscript' => 'vbscript',
         'message/rfc822' => 'text',
+        'application/x-empty' => 'text',
     );
 
     /**
