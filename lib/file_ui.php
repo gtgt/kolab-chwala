@@ -162,7 +162,10 @@ class file_ui
 //        $this->output->assign('tasks', $this->menu);
 //        $this->output->assign('main_menu', $this->menu());
         $this->output->assign('user', $_SESSION['user']);
-        $this->output->assign('max_upload', $this->show_bytes($_SESSION['caps']['MAX_UPLOAD']));
+
+        if ($_SESSION['caps']['MAX_UPLOAD']) {
+            $this->output->assign('max_upload', $this->show_bytes($_SESSION['caps']['MAX_UPLOAD']));
+        }
     }
 
     /**
@@ -639,10 +642,6 @@ class file_ui
      */
     protected function show_bytes($bytes)
     {
-        if (!$bytes) {
-            return null;
-        }
-
         if ($bytes >= 1073741824) {
             $gb  = $bytes/1073741824;
             $str = sprintf($gb>=10 ? "%d " : "%.1f ", $gb) . $this->translate('size.GB');
