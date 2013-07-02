@@ -378,7 +378,9 @@ class kolab_file_storage implements file_storage
 
         // write to file pointer, send no headers
         if ($fp) {
-            $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fp);
+            if ($file['size']) {
+                $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], false, $fp);
+            }
             return;
         }
 
@@ -411,7 +413,9 @@ class kolab_file_storage implements file_storage
         header("Content-Length: " . $file['size']);
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
-        $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
+        if ($file['size']) {
+            $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
+        }
     }
 
     /**
@@ -549,7 +553,9 @@ class kolab_file_storage implements file_storage
             throw new Exception("Storage error. File copying failed.", file_storage::ERROR);
         }
 
-        $folder->get_attachment($file['uid'], $file['fileid'], null, false, $fh, true);
+        if ($file['size']) {
+            $folder->get_attachment($file['uid'], $file['fileid'], null, false, $fh, true);
+        }
         fclose($fh);
 
         if (!file_exists($file_path)) {
@@ -569,6 +575,9 @@ class kolab_file_storage implements file_storage
         $file   = array_intersect_key($file, array_combine($fields, $fields));
 
         $saved = $new_folder->save($file, 'file');
+
+        @unlink($file_path);
+
         if (!$saved) {
             rcube::raise_error(array(
                 'code' => 600, 'type' => 'php',
