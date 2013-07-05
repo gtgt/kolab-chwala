@@ -66,6 +66,9 @@ class file_api
         set_include_path($include_path);
 
         $this->api = new $class;
+
+        // configure api
+        $this->api->configure(!empty($_SESSION['config']) ? $_SESSION['config'] : $this->config);
     }
 
     /**

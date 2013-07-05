@@ -49,6 +49,13 @@ interface file_storage
     public function authenticate($username, $password);
 
     /**
+     * Configures environment
+     *
+     * @param array $config COnfiguration
+     */
+    public function configure($config);
+
+    /**
      * Storage driver capabilities
      *
      * @return array List of capabilities

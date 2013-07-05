@@ -34,6 +34,11 @@ class kolab_file_storage implements file_storage
      */
     protected $folders;
 
+    /**
+     * @var array
+     */
+    protected $config;
+
 
     /**
      * Class constructor
@@ -233,6 +238,16 @@ class kolab_file_storage implements file_storage
 
             setlocale(LC_ALL, 'en_US.utf8', 'en_US.UTF-8');
         }
+    }
+
+    /**
+     * Configures environment
+     *
+     * @param array $config COnfiguration
+     */
+    public function configure($config)
+    {
+        $this->config = $config;
     }
 
     /**
@@ -438,8 +453,8 @@ class kolab_file_storage implements file_storage
             'name'     => $file['name'],
             'size'     => (int) $file['size'],
             'type'     => (string) $file['type'],
-            'mtime'    => $file['changed'] ? $file['changed']->format($_SESSION['config']['date_format']) : '',
-            'ctime'    => $file['created'] ? $file['created']->format($_SESSION['config']['date_format']) : '',
+            'mtime'    => $file['changed'] ? $file['changed']->format($this->config['date_format']) : '',
+            'ctime'    => $file['created'] ? $file['created']->format($this->config['date_format']) : '',
             'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
             'created'  => $file['created'] ? $file['created']->format('U') : 0,
         );
@@ -493,8 +508,8 @@ class kolab_file_storage implements file_storage
                 'name'     => $file['name'],
                 'size'     => (int) $file['size'],
                 'type'     => (string) $file['type'],
-                'mtime'    => $file['changed'] ? $file['changed']->format($_SESSION['config']['date_format']) : '',
-                'ctime'    => $file['created'] ? $file['created']->format($_SESSION['config']['date_format']) : '',
+                'mtime'    => $file['changed'] ? $file['changed']->format($this->config['date_format']) : '',
+                'ctime'    => $file['created'] ? $file['created']->format($this->config['date_format']) : '',
                 'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
                 'created'  => $file['created'] ? $file['created']->format('U') : 0,
             );
