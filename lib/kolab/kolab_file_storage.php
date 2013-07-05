@@ -438,8 +438,10 @@ class kolab_file_storage implements file_storage
             'name'     => $file['name'],
             'size'     => (int) $file['size'],
             'type'     => (string) $file['type'],
-            'mtime'    => $file['changed']->format($_SESSION['config']['date_format']),
-            'modified' => $file['changed']->format('U'),
+            'mtime'    => $file['changed'] ? $file['changed']->format($_SESSION['config']['date_format']) : '',
+            'ctime'    => $file['created'] ? $file['created']->format($_SESSION['config']['date_format']) : '',
+            'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
+            'created'  => $file['created'] ? $file['created']->format('U') : 0,
         );
     }
 
@@ -488,11 +490,13 @@ class kolab_file_storage implements file_storage
             $filename = $folder_name . file_storage::SEPARATOR . $file['name'];
 
             $result[$filename] = array(
-                'name'   => $file['name'],
-                'size'   => (int) $file['size'],
-                'type'   => (string) $file['type'],
-                'mtime'  => $file['changed']->format($_SESSION['config']['date_format']),
-                'modified' => $file['changed']->format('U'),
+                'name'     => $file['name'],
+                'size'     => (int) $file['size'],
+                'type'     => (string) $file['type'],
+                'mtime'    => $file['changed'] ? $file['changed']->format($_SESSION['config']['date_format']) : '',
+                'ctime'    => $file['created'] ? $file['created']->format($_SESSION['config']['date_format']) : '',
+                'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
+                'created'  => $file['created'] ? $file['created']->format('U') : 0,
             );
             unset($files[$idx]);
         }
