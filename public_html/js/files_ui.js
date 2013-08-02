@@ -1689,7 +1689,14 @@ function files_ui()
 
     var win = content.contentWindow;
 
-    this.file_editor = win.file_editor && win.file_editor.editable ? win.file_editor : null;
+    this.file_editor = null;
+
+    try {
+      // it throws "permission denied" sometimes
+      if (win.file_editor && win.file_editor.editable)
+        this.file_editor = win.file_editor;
+    }
+    catch (e) {}
 
     if (this.file_editor)
       ui.enable_command('file.edit', true);
