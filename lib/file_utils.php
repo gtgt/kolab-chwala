@@ -120,4 +120,21 @@ class file_utils
         return $mimetype;
     }
 
+    /**
+     * Returns script URI
+     *
+     * @return string Script URI
+     */
+    static function script_uri()
+    {
+        if (!empty($_SERVER['SCRIPT_URI'])) {
+            return $_SERVER['SCRIPT_URI'];
+        }
+
+        $uri = $_SERVER['SERVER_PORT'] == 443 ? 'https://' : 'http://';
+        $uri .= $_SERVER['HTTP_HOST'];
+        $uri .= preg_replace('/\?.*$/', '', $_SERVER['REQUEST_URI']);
+
+        return $uri;
+    }
 }

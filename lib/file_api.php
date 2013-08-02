@@ -706,7 +706,7 @@ class file_api
      */
     public function file_url($file)
     {
-        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
+        return file_utils::script_uri(). '?method=file_get'
             . '&file=' . urlencode($file)
             . '&token=' . urlencode(session_id());
     }

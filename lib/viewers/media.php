@@ -67,7 +67,7 @@ class file_viewer_media extends file_viewer
      */
     public function frame($file, $mimetype = null)
     {
-        $path     = $_SERVER['SCRIPT_URI'];
+        $path     = file_utils::script_uri();
         $file_uri = htmlentities($this->api->file_url($file));
         $mimetype = htmlentities($mimetype);
         $source   = "<source src=\"$file_uri\" type=\"$mimetype\"></source>";

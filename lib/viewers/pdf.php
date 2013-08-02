@@ -61,7 +61,7 @@ class file_viewer_pdf extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
-        return $_SERVER['SCRIPT_URI'] . 'viewers/pdf/viewer.html'
+        return file_utils::script_uri() . 'viewers/pdf/viewer.html'
             . '?file=' . urlencode($this->api->file_url($file));
     }
 }

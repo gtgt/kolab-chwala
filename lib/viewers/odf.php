@@ -108,7 +108,7 @@ class file_viewer_odf extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
-        return $_SERVER['SCRIPT_URI'] . '?method=file_get'
+        return file_utils::script_uri() . '?method=file_get'
             . '&viewer=odf'
             . '&file=' . urlencode($file)
             . '&token=' . urlencode(session_id());

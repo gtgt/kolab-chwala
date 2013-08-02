@@ -60,7 +60,7 @@ class file_viewer_image extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
-        $href = $_SERVER['SCRIPT_URI'] . '?method=file_get'
+        $href = file_utils::script_uri() . '?method=file_get'
             . '&file=' . urlencode($file)
             . '&token=' . urlencode(session_id());
 
