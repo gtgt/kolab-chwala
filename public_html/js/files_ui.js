@@ -834,9 +834,9 @@ function files_ui()
       return;
 
     if (this.env.file) {
-      // @TODO: reload list if on the same folder only
-      if (window.opener && window.opener.ui)
-        window.opener.ui.file_list();
+      var path = this.file_path(this.env.file);
+      if (window.opener && opener.ui && (!opener.ui.env.folder || opener.ui.env.folder == path))
+        opener.ui.file_list();
       window.close();
     }
     else
