@@ -1,5 +1,3 @@
 <?php
-
-$labels['loginas'] = 'Login As';
-
+$labels['loginas'] = 'ログイン';
 ?>

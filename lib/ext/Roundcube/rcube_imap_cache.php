@@ -27,6 +27,9 @@
  */
 class rcube_imap_cache
 {
+    const MODE_INDEX   = 1;
+    const MODE_MESSAGE = 2;
+
     /**
      * Instance of rcube_imap
      *
@@ -56,6 +59,13 @@ class rcube_imap_cache
     private $ttl;
 
     /**
+     * Maximum cached message size
+     *
+     * @var int
+     */
+    private $threshold;
+
+    /**
      * Internal (in-memory) cache
      *
      * @var array
@@ -63,6 +73,7 @@ class rcube_imap_cache
     private $icache = array();
 
     private $skip_deleted = false;
+    private $mode;
 
     /**
      * List of known flags. Thanks to this we can handle flag changes
@@ -88,6 +99,7 @@ class rcube_imap_cache
     );
 
 
+
     /**
      * Object constructor.
      *
@@ -96,9 +108,9 @@ class rcube_imap_cache
      * @param int        $userid       User identifier
      * @param bool       $skip_deleted skip_deleted flag
      * @param string     $ttl          Expiration time of memcache/apc items
-     *
+     * @param int        $threshold    Maximum cached message size
      */
-    function __construct($db, $imap, $userid, $skip_deleted, $ttl=0)
+    function __construct($db, $imap, $userid, $skip_deleted, $ttl=0, $threshold=0)
     {
         // convert ttl string to seconds
         $ttl = get_offset_sec($ttl);
@@ -109,6 +121,10 @@ class rcube_imap_cache
         $this->userid       = $userid;
         $this->skip_deleted = $skip_deleted;
         $this->ttl          = $ttl;
+        $this->threshold    = $threshold;
+
+        // cache all possible information by default
+        $this->mode = self::MODE_INDEX | self::MODE_MESSAGE;
     }
 
 
@@ -119,6 +135,17 @@ class rcube_imap_cache
     {
         $this->save_icache();
         $this->icache = null;
+    }
+
+
+    /**
+     * Set cache mode
+     *
+     * @param int $mode Cache mode
+     */
+    public function set_mode($mode)
+    {
+        $this->mode = $mode;
     }
 
 
@@ -300,38 +327,46 @@ class rcube_imap_cache
             return array();
         }
 
-        // Fetch messages from cache
-        $sql_result = $this->db->query(
-            "SELECT uid, data, flags"
-            ." FROM ".$this->db->table_name('cache_messages')
-            ." WHERE user_id = ?"
-                ." AND mailbox = ?"
-                ." AND uid IN (".$this->db->array2list($msgs, 'integer').")",
-            $this->userid, $mailbox);
-
-        $msgs   = array_flip($msgs);
         $result = array();
 
-        while ($sql_arr = $this->db->fetch_assoc($sql_result)) {
-            $uid          = intval($sql_arr['uid']);
-            $result[$uid] = $this->build_message($sql_arr);
+        if ($this->mode & self::MODE_MESSAGE) {
+            // Fetch messages from cache
+            $sql_result = $this->db->query(
+                "SELECT uid, data, flags"
+                ." FROM ".$this->db->table_name('cache_messages')
+                ." WHERE user_id = ?"
+                    ." AND mailbox = ?"
+                    ." AND uid IN (".$this->db->array2list($msgs, 'integer').")",
+                $this->userid, $mailbox);
 
-            if (!empty($result[$uid])) {
-                // save memory, we don't need message body here (?)
-                $result[$uid]->body = null;
+            $msgs = array_flip($msgs);
 
-                unset($msgs[$uid]);
+            while ($sql_arr = $this->db->fetch_assoc($sql_result)) {
+                $uid          = intval($sql_arr['uid']);
+                $result[$uid] = $this->build_message($sql_arr);
+
+                if (!empty($result[$uid])) {
+                    // save memory, we don't need message body here (?)
+                    $result[$uid]->body = null;
+
+                    unset($msgs[$uid]);
+                }
             }
+
+            $msgs = array_flip($msgs);
         }
 
         // Fetch not found messages from IMAP server
         if (!empty($msgs)) {
-            $messages = $this->imap->fetch_headers($mailbox, array_keys($msgs), false, true);
+            $messages = $this->imap->fetch_headers($mailbox, $msgs, false, true);
 
             // Insert to DB and add to result list
             if (!empty($messages)) {
                 foreach ($messages as $msg) {
-                    $this->add_message($mailbox, $msg, !array_key_exists($msg->uid, $result));
+                    if ($this->mode & self::MODE_MESSAGE) {
+                        $this->add_message($mailbox, $msg, !array_key_exists($msg->uid, $result));
+                    }
+
                     $result[$msg->uid] = $msg;
                 }
             }
@@ -362,23 +397,29 @@ class rcube_imap_cache
             return $this->icache['__message']['object'];
         }
 
-        $sql_result = $this->db->query(
-            "SELECT flags, data"
-            ." FROM ".$this->db->table_name('cache_messages')
-            ." WHERE user_id = ?"
-                ." AND mailbox = ?"
-                ." AND uid = ?",
-                $this->userid, $mailbox, (int)$uid);
+        if ($this->mode & self::MODE_MESSAGE) {
+            $sql_result = $this->db->query(
+                "SELECT flags, data"
+                ." FROM ".$this->db->table_name('cache_messages')
+                ." WHERE user_id = ?"
+                    ." AND mailbox = ?"
+                    ." AND uid = ?",
+                    $this->userid, $mailbox, (int)$uid);
 
-        if ($sql_arr = $this->db->fetch_assoc($sql_result)) {
-            $message = $this->build_message($sql_arr);
-            $found   = true;
+            if ($sql_arr = $this->db->fetch_assoc($sql_result)) {
+                $message = $this->build_message($sql_arr);
+                $found   = true;
+            }
         }
 
         // Get the message from IMAP server
         if (empty($message) && $update) {
             $message = $this->imap->get_message_headers($uid, $mailbox, true);
             // cache will be updated in close(), see below
+        }
+
+        if (!($this->mode & self::MODE_MESSAGE)) {
+            return $message;
         }
 
         // Save the message in internal cache, will be written to DB in close()
@@ -413,6 +454,10 @@ class rcube_imap_cache
     function add_message($mailbox, $message, $force = false)
     {
         if (!is_object($message) || empty($message->uid)) {
+            return;
+        }
+
+        if (!($this->mode & self::MODE_MESSAGE)) {
             return;
         }
 
@@ -487,6 +532,10 @@ class rcube_imap_cache
             return;
         }
 
+        if (!($this->mode & self::MODE_MESSAGE)) {
+            return;
+        }
+
         $flag = strtoupper($flag);
         $idx  = (int) array_search($flag, $this->flags);
         $uids = (array) $uids;
@@ -527,6 +576,10 @@ class rcube_imap_cache
      */
     function remove_message($mailbox = null, $uids = null)
     {
+        if (!($this->mode & self::MODE_MESSAGE)) {
+            return;
+        }
+
         if (!strlen($mailbox)) {
             $this->db->query(
                 "DELETE FROM ".$this->db->table_name('cache_messages')
@@ -1028,15 +1081,17 @@ class rcube_imap_cache
         $removed = array();
 
         // Get known UIDs
-        $sql_result = $this->db->query(
-            "SELECT uid"
-            ." FROM ".$this->db->table_name('cache_messages')
-            ." WHERE user_id = ?"
-                ." AND mailbox = ?",
-            $this->userid, $mailbox);
+        if ($this->mode & self::MODE_MESSAGE) {
+            $sql_result = $this->db->query(
+                "SELECT uid"
+                ." FROM ".$this->db->table_name('cache_messages')
+                ." WHERE user_id = ?"
+                    ." AND mailbox = ?",
+                $this->userid, $mailbox);
 
-        while ($sql_arr = $this->db->fetch_assoc($sql_result)) {
-            $uids[] = $sql_arr['uid'];
+            while ($sql_arr = $this->db->fetch_assoc($sql_result)) {
+                $uids[] = $sql_arr['uid'];
+            }
         }
 
         // Synchronize messages data
@@ -1155,13 +1210,13 @@ class rcube_imap_cache
         // Save current message from internal cache
         if ($message = $this->icache['__message']) {
             // clean up some object's data
-            $object = $this->message_object_prepare($message['object']);
+            $this->message_object_prepare($message['object']);
 
             // calculate current md5 sum
-            $md5sum = md5(serialize($object));
+            $md5sum = md5(serialize($message['object']));
 
             if ($message['md5sum'] != $md5sum) {
-                $this->add_message($message['mailbox'], $object, !$message['exists']);
+                $this->add_message($message['mailbox'], $message['object'], !$message['exists']);
             }
 
             $this->icache['__message']['md5sum'] = $md5sum;
@@ -1171,12 +1226,19 @@ class rcube_imap_cache
 
     /**
      * Prepares message object to be stored in database.
+     *
+     * @param rcube_message_header|rcube_message_part
      */
-    private function message_object_prepare($msg)
+    private function message_object_prepare(&$msg, &$size = 0)
     {
-        // Remove body too big (>25kB)
-        if ($msg->body && strlen($msg->body) > 25 * 1024) {
-            unset($msg->body);
+        // Remove body too big
+        if ($msg->body && ($length = strlen($msg->body))) {
+            $size += $length;
+
+            if ($size > $this->threshold * 1024) {
+                $size -= $length;
+                unset($msg->body);
+            }
         }
 
         // Fix mimetype which might be broken by some code when message is displayed
@@ -1186,13 +1248,19 @@ class rcube_imap_cache
             list($msg->ctype_primary, $msg->ctype_secondary) = explode('/', $msg->mimetype);
         }
 
+        unset($msg->replaces);
+
         if (is_array($msg->structure->parts)) {
-            foreach ($msg->structure->parts as $idx => $part) {
-                $msg->structure->parts[$idx] = $this->message_object_prepare($part);
+            foreach ($msg->structure->parts as $part) {
+                $this->message_object_prepare($part, $size);
             }
         }
 
-        return $msg;
+        if (is_array($msg->parts)) {
+            foreach ($msg->parts as $part) {
+                $this->message_object_prepare($part, $size);
+            }
+        }
     }
 
 

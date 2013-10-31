@@ -218,6 +218,27 @@ abstract class kolab_format_xcal extends kolab_format
             }
         }
 
+        // handle attachments
+        $vattach = $this->obj->attachments();
+        for ($i=0; $i < $vattach->size(); $i++) {
+            $attach = $vattach->get($i);
+
+            // skip cid: attachments which are mime message parts handled by kolab_storage_folder
+            if (substr($attach->uri(), 0, 4) != 'cid:' && $attach->label()) {
+                $name    = $attach->label();
+                $content = $attach->data();
+                $object['_attachments'][$name] = array(
+                    'name'     => $name,
+                    'mimetype' => $attach->mimetype(),
+                    'size'     => strlen($content),
+                    'content'  => $content,
+                );
+            }
+            else if (substr($attach->uri(), 0, 4) == 'http') {
+                $object['links'][] = $attach->uri();
+            }
+        }
+
         return $object;
     }
 
@@ -237,7 +258,8 @@ abstract class kolab_format_xcal extends kolab_format
         parent::set($object);
 
         // increment sequence on updates
-        $object['sequence'] = !$is_new ? $this->obj->sequence()+1 : 0;
+        if (empty($object['sequence']))
+            $object['sequence'] = !$is_new ? $this->obj->sequence()+1 : 0;
         $this->obj->setSequence($object['sequence']);
 
         $this->obj->setSummary($object['title']);
@@ -286,8 +308,10 @@ abstract class kolab_format_xcal extends kolab_format
         }
 
         // save recurrence rule
+        $rr = new RecurrenceRule;
+        $rr->setFrequency(RecurrenceRule::FreqNone);
+
         if ($object['recurrence']) {
-            $rr = new RecurrenceRule;
             $rr->setFrequency($this->rrule_type_map[$object['recurrence']['FREQ']]);
 
             if ($object['recurrence']['INTERVAL'])
@@ -327,8 +351,6 @@ abstract class kolab_format_xcal extends kolab_format
                 $rr->setEnd(self::get_datetime($object['recurrence']['UNTIL'], null, true));
 
             if ($rr->isValid()) {
-                $this->obj->setRecurrenceRule($rr);
-
                 // add exception dates (only if recurrence rule is valid)
                 $exdates = new vectordatetime;
                 foreach ((array)$object['recurrence']['EXDATE'] as $exdate)
@@ -344,12 +366,14 @@ abstract class kolab_format_xcal extends kolab_format
             }
         }
 
+        $this->obj->setRecurrenceRule($rr);
+
         // save alarm
         $valarms = new vectoralarm;
         if ($object['alarms']) {
             list($offset, $type) = explode(":", $object['alarms']);
 
-            if ($type == 'EMAIL') {  // email alarms implicitly go to event owner
+            if ($type == 'EMAIL' && !empty($object['_owner'])) {  // email alarms implicitly go to event owner
                 $recipients = new vectorcontactref;
                 $recipients->push(new ContactReference(ContactReference::EmailReference, $object['_owner']));
                 $alarm = new Alarm($object['title'], strval($object['description']), $recipients);
@@ -361,7 +385,7 @@ abstract class kolab_format_xcal extends kolab_format
             if (preg_match('/^@(\d+)/', $offset, $d)) {
                 $alarm->setStart(self::get_datetime($d[1], new DateTimeZone('UTC')));
             }
-            else if (preg_match('/^([-+]?)(\d+)([SMHDW])/', $offset, $d)) {
+            else if (preg_match('/^([-+]?)P?T?(\d+)([SMHDW])/', $offset, $d)) {
                 $days = $hours = $minutes = $seconds = 0;
                 switch ($d[3]) {
                     case 'W': $days  = 7*intval($d[2]); break;
@@ -376,6 +400,25 @@ abstract class kolab_format_xcal extends kolab_format
             $valarms->push($alarm);
         }
         $this->obj->setAlarms($valarms);
+
+        // save attachments
+        $vattach = new vectorattachment;
+        foreach ((array)$object['_attachments'] as $cid => $attr) {
+            if (empty($attr))
+                continue;
+            $attach = new Attachment;
+            $attach->setLabel((string)$attr['name']);
+            $attach->setUri('cid:' . $cid, $attr['mimetype']);
+            $vattach->push($attach);
+        }
+
+        foreach ((array)$object['links'] as $link) {
+            $attach = new Attachment;
+            $attach->setUri($link, 'unknown');
+            $vattach->push($attach);
+        }
+
+        $this->obj->setAttachments($vattach);
     }
 
     /**

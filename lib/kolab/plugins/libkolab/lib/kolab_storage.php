@@ -31,6 +31,9 @@ class kolab_storage
     const COLOR_KEY_PRIVATE = '/private/vendor/kolab/color';
     const NAME_KEY_SHARED   = '/shared/vendor/kolab/displayname';
     const NAME_KEY_PRIVATE  = '/private/vendor/kolab/displayname';
+    const UID_KEY_SHARED    = '/shared/vendor/kolab/uniqueid';
+    const UID_KEY_PRIVATE   = '/private/vendor/kolab/uniqueid';
+    const UID_KEY_CYRUS     = '/shared/vendor/cmu/cyrus-imapd/uniqueid';
 
     public static $version = '3.0';
     public static $last_error;
@@ -40,6 +43,23 @@ class kolab_storage
     private static $states;
     private static $config;
     private static $imap;
+
+    // Default folder names
+    private static $default_folders = array(
+        'event'         => 'Calendar',
+        'contact'       => 'Contacts',
+        'task'          => 'Tasks',
+        'note'          => 'Notes',
+        'file'          => 'Files',
+        'configuration' => 'Configuration',
+        'journal'       => 'Journal',
+        'mail.inbox'       => 'INBOX',
+        'mail.drafts'      => 'Drafts',
+        'mail.sentitems'   => 'Sent',
+        'mail.wastebasket' => 'Trash',
+        'mail.outbox'      => 'Outbox',
+        'mail.junkemail'   => 'Junk',
+    );
 
 
     /**
@@ -86,15 +106,16 @@ class kolab_storage
      * Get a list of storage folders for the given data type
      *
      * @param string Data type to list folders for (contact,distribution-list,event,task,note)
+     * @param boolean Enable to return subscribed folders only (null to use configured subscription mode)
      *
      * @return array List of Kolab_Folder objects (folder names in UTF7-IMAP)
      */
-    public static function get_folders($type)
+    public static function get_folders($type, $subscribed = null)
     {
         $folders = $folderdata = array();
 
         if (self::setup()) {
-            foreach ((array)self::list_folders('', '*', $type, null, $folderdata) as $foldername) {
+            foreach ((array)self::list_folders('', '*', $type, $subscribed, $folderdata) as $foldername) {
                 $folders[$foldername] = new kolab_storage_folder($foldername, $folderdata[$foldername]);
             }
         }
@@ -137,7 +158,7 @@ class kolab_storage
      * This will search all folders storing objects of the given type.
      *
      * @param string Object UID
-     * @param string Object type (contact,distribution-list,event,task,note)
+     * @param string Object type (contact,event,task,journal,file,note,configuration)
      * @return array The Kolab object represented as hash array or false if not found
      */
     public static function get_object($uid, $type)
@@ -150,7 +171,7 @@ class kolab_storage
             else
                 $folder->set_folder($foldername);
 
-            if ($object = $folder->get_object($uid))
+            if ($object = $folder->get_object($uid, '*'))
                 return $object;
         }
 
@@ -259,8 +280,21 @@ class kolab_storage
     {
         self::setup();
 
+        $oldfolder = self::get_folder($oldname);
+        $active = self::folder_is_active($oldname);
         $success = self::$imap->rename_folder($oldname, $newname);
         self::$last_error = self::$imap->get_error_str();
+
+        // pass active state to new folder name
+        if ($success && $active) {
+            self::set_state($oldnam, false);
+            self::set_state($newname, true);
+        }
+
+        // assign existing cache entries to new resource uri
+        if ($success && $oldfolder) {
+            $oldfolder->cache->rename($newname);
+        }
 
         return $success;
     }
@@ -349,25 +383,8 @@ class kolab_storage
             $result = self::folder_create($folder, $prop['type'], $prop['subscribed'], $prop['active']);
         }
 
-        // save displayname and color in METADATA
-        // TODO: also save 'showalarams' and other properties here
         if ($result) {
-            $ns = null;
-            foreach (array('color'       => array(self::COLOR_KEY_SHARED,self::COLOR_KEY_PRIVATE),
-                           'displayname' => array(self::NAME_KEY_SHARED,self::NAME_KEY_PRIVATE)) as $key => $metakeys) {
-                if (!empty($prop[$key])) {
-                    if (!isset($ns))
-                        $ns = self::$imap->folder_namespace($folder);
-
-                    $meta_saved = false;
-                    if ($ns == 'personal')  // save in shared namespace for personal folders
-                        $meta_saved = self::$imap->set_metadata($folder, array($metakeys[0] => $prop[$key]));
-                    if (!$meta_saved)    // try in private namespace
-                        $meta_saved = self::$imap->set_metadata($folder, array($metakeys[1] => $prop[$key]));
-                    if ($meta_saved)
-                        unset($prop[$key]);  // unsetting will prevent fallback to local user prefs
-                }
-            }
+            self::set_folder_props($folder, $prop);
         }
 
         return $result ? $folder : false;
@@ -388,8 +405,7 @@ class kolab_storage
         self::setup();
 
         // find custom display name in folder METADATA
-        $metadata = self::$imap->get_metadata($folder, array(self::NAME_KEY_PRIVATE, self::NAME_KEY_SHARED));
-        if (($name = $metadata[$folder][self::NAME_KEY_PRIVATE]) || ($name = $metadata[$folder][self::NAME_KEY_SHARED])) {
+        if ($name = self::custom_displayname($folder)) {
             return $name;
         }
 
@@ -459,6 +475,21 @@ class kolab_storage
         return $folder;
     }
 
+    /**
+     * Get custom display name (saved in metadata) for the given folder
+     */
+    public static function custom_displayname($folder)
+    {
+      // find custom display name in folder METADATA
+      if (self::$config->get('kolab_custom_display_names', true)) {
+          $metadata = self::$imap->get_metadata($folder, array(self::NAME_KEY_PRIVATE, self::NAME_KEY_SHARED));
+          if (($name = $metadata[$folder][self::NAME_KEY_PRIVATE]) || ($name = $metadata[$folder][self::NAME_KEY_SHARED])) {
+              return $name;
+          }
+      }
+
+      return false;
+    }
 
     /**
      * Helper method to generate a truncated folder name to display
@@ -473,7 +504,7 @@ class kolab_storage
                 $length = strlen($names[$i] . ' &raquo; ');
                 $prefix = substr($name, 0, $length);
                 $count  = count(explode(' &raquo; ', $prefix));
-                $name   = str_repeat('&nbsp;&nbsp;', $count-1) . '&raquo; ' . substr($name, $length);
+                $name   = str_repeat('&nbsp;&nbsp;&nbsp;', $count-1) . '&raquo; ' . substr($name, $length);
                 break;
             }
         }
@@ -495,7 +526,7 @@ class kolab_storage
     public static function folder_selector($type, $attrs, $current = '')
     {
         // get all folders of specified type
-        $folders = self::get_folders($type);
+        $folders = self::get_folders($type, false);
 
         $delim = self::$imap->get_hierarchy_delimiter();
         $names = array();
@@ -568,7 +599,7 @@ class kolab_storage
      *
      * @param string  Optional root folder
      * @param string  Optional name pattern
-     * @param string  Data type to list folders for (contact,distribution-list,event,task,note,mail)
+     * @param string  Data type to list folders for (contact,event,task,journal,file,note,mail,configuration)
      * @param boolean Enable to return subscribed folders only (null to use configured subscription mode)
      * @param array   Will be filled with folder-types data
      *
@@ -596,16 +627,14 @@ class kolab_storage
         }
 
         $prefix = $root . $mbox;
+        $regexp = '/^' . preg_quote($filter, '/') . '(\..+)?$/';
 
         // get folders types
-        $folderdata = self::$imap->get_metadata($prefix, array(self::CTYPE_KEY, self::CTYPE_KEY_PRIVATE));
+        $folderdata = self::folders_typedata($prefix);
 
         if (!is_array($folderdata)) {
             return array();
         }
-
-        $folderdata = array_map(array('kolab_storage', 'folder_select_metadata'), $folderdata);
-        $regexp     = '/^' . preg_quote($filter, '/') . '(\..+)?$/';
 
         // In some conditions we can skip LIST command (?)
         if (!$subscribed && $filter != 'mail' && $prefix == '*') {
@@ -647,9 +676,63 @@ class kolab_storage
 
 
     /**
+     * Sort the given list of kolab folders by namespace/name
+     *
+     * @param array List of kolab_storage_folder objects
+     * @return array Sorted list of folders
+     */
+    public static function sort_folders($folders)
+    {
+        $pad = '  ';
+        $nsnames = array('personal' => array(), 'shared' => array(), 'other' => array());
+        foreach ($folders as $folder) {
+            $folders[$folder->name] = $folder;
+            $ns = $folder->get_namespace();
+            $nsnames[$ns][$folder->name] = strtolower(html_entity_decode(self::object_name($folder->name, $ns), ENT_COMPAT, RCUBE_CHARSET)) . $pad;  // decode &raquo;
+        }
+
+        $names = array();
+        foreach ($nsnames as $ns => $dummy) {
+            asort($nsnames[$ns], SORT_LOCALE_STRING);
+            $names += $nsnames[$ns];
+        }
+
+        $out = array();
+        foreach ($names as $utf7name => $name) {
+            $out[] = $folders[$utf7name];
+        }
+
+        return $out;
+    }
+
+
+    /**
+     * Returns folder types indexed by folder name
+     *
+     * @param string $prefix Folder prefix (Default '*' for all folders)
+     *
+     * @return array|bool List of folders, False on failure
+     */
+    public static function folders_typedata($prefix = '*')
+    {
+        if (!self::setup()) {
+            return false;
+        }
+
+        $folderdata = self::$imap->get_metadata($prefix, array(self::CTYPE_KEY, self::CTYPE_KEY_PRIVATE));
+
+        if (!is_array($folderdata)) {
+            return false;
+        }
+
+        return array_map(array('kolab_storage', 'folder_select_metadata'), $folderdata);
+    }
+
+
+    /**
      * Callback for array_map to select the correct annotation value
      */
-    static function folder_select_metadata($types)
+    public static function folder_select_metadata($types)
     {
         if (!empty($types[self::CTYPE_KEY_PRIVATE])) {
             return $types[self::CTYPE_KEY_PRIVATE];
@@ -669,7 +752,7 @@ class kolab_storage
      *
      * @return string Folder type
      */
-    static function folder_type($folder)
+    public static function folder_type($folder)
     {
         self::setup();
 
@@ -695,7 +778,7 @@ class kolab_storage
      *
      * @return boolean True on success
      */
-    static function set_folder_type($folder, $type='mail')
+    public static function set_folder_type($folder, $type='mail')
     {
         self::setup();
 
@@ -860,4 +943,107 @@ class kolab_storage
         $rcube   = rcube::get_instance();
         return $rcube->user->save_prefs(array('kolab_active_folders' => $folders));
     }
+
+    /**
+     * Creates default folder of specified type
+     * To be run when none of subscribed folders (of specified type) is found
+     *
+     * @param string $type  Folder type
+     * @param string $props Folder properties (color, etc)
+     *
+     * @return string Folder name
+     */
+    public static function create_default_folder($type, $props = array())
+    {
+        if (!self::setup()) {
+            return;
+        }
+
+        $folders = self::$imap->get_metadata('*', array(kolab_storage::CTYPE_KEY_PRIVATE));
+
+        // from kolab_folders config
+        $folder_type  = strpos($type, '.') ? str_replace('.', '_', $type) : $type . '_default';
+        $default_name = self::$config->get('kolab_folders_' . $folder_type);
+        $folder_type  = str_replace('_', '.', $folder_type);
+
+        // check if we have any folder in personal namespace
+        // folder(s) may exist but not subscribed
+        foreach ($folders as $f => $data) {
+            if (strpos($data[self::CTYPE_KEY_PRIVATE], $type) === 0) {
+                $folder = $f;
+                break;
+            }
+        }
+
+        if (!$folder) {
+            if (!$default_name) {
+                $default_name = self::$default_folders[$type];
+            }
+
+            if (!$default_name) {
+                return;
+            }
+
+            $folder = rcube_charset::convert($default_name, RCUBE_CHARSET, 'UTF7-IMAP');
+            $prefix = self::$imap->get_namespace('prefix');
+
+            // add personal namespace prefix if needed
+            if ($prefix && strpos($folder, $prefix) !== 0 && $folder != 'INBOX') {
+                $folder = $prefix . $folder;
+            }
+
+            if (!self::$imap->folder_exists($folder)) {
+                if (!self::$imap->create_folder($folder)) {
+                    return;
+                }
+            }
+
+            self::set_folder_type($folder, $folder_type);
+        }
+
+        self::folder_subscribe($folder);
+
+        if ($props['active']) {
+            self::set_state($folder, true);
+        }
+
+        if (!empty($props)) {
+            self::set_folder_props($folder, $props);
+        }
+
+        return $folder;
+    }
+
+    /**
+     * Sets folder metadata properties
+     *
+     * @param string $folder Folder name
+     * @param array  $prop   Folder properties
+     */
+    public static function set_folder_props($folder, &$prop)
+    {
+        if (!self::setup()) {
+            return;
+        }
+
+        // TODO: also save 'showalarams' and other properties here
+        $ns        = self::$imap->folder_namespace($folder);
+        $supported = array(
+            'color'       => array(self::COLOR_KEY_SHARED, self::COLOR_KEY_PRIVATE),
+            'displayname' => array(self::NAME_KEY_SHARED, self::NAME_KEY_PRIVATE),
+        );
+
+        foreach ($supported as $key => $metakeys) {
+            if (array_key_exists($key, $prop)) {
+                $meta_saved = false;
+                if ($ns == 'personal')  // save in shared namespace for personal folders
+                    $meta_saved = self::$imap->set_metadata($folder, array($metakeys[0] => $prop[$key]));
+                if (!$meta_saved)    // try in private namespace
+                    $meta_saved = self::$imap->set_metadata($folder, array($metakeys[1] => $prop[$key]));
+                if ($meta_saved)
+                    unset($prop[$key]);  // unsetting will prevent fallback to local user prefs
+            }
+        }
+    }
+
 }

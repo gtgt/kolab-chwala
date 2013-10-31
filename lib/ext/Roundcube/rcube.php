@@ -105,13 +105,14 @@ class rcube
      * This implements the 'singleton' design pattern
      *
      * @param integer Options to initialize with this instance. See rcube::INIT_WITH_* constants
+     * @param string Environment name to run (e.g. live, dev, test)
      *
      * @return rcube The one and only instance
      */
-    static function get_instance($mode = 0)
+    static function get_instance($mode = 0, $env = '')
     {
         if (!self::$instance) {
-            self::$instance = new rcube();
+            self::$instance = new rcube($env);
             self::$instance->init($mode);
         }
 
@@ -122,10 +123,10 @@ class rcube
     /**
      * Private constructor
      */
-    protected function __construct()
+    protected function __construct($env = '')
     {
         // load configuration
-        $this->config  = new rcube_config;
+        $this->config  = new rcube_config($env);
         $this->plugins = new rcube_dummy_plugin_api;
 
         register_shutdown_function(array($this, 'shutdown'));
@@ -377,6 +378,7 @@ class rcube
             'auth_pw'     => $this->config->get("{$driver}_auth_pw"),
             'debug'       => (bool) $this->config->get("{$driver}_debug"),
             'force_caps'  => (bool) $this->config->get("{$driver}_force_caps"),
+            'disabled_caps' => $this->config->get("{$driver}_disabled_caps"),
             'timeout'     => (int) $this->config->get("{$driver}_timeout"),
             'skip_deleted' => (bool) $this->config->get('skip_deleted'),
             'driver'      => $driver,
@@ -465,6 +467,10 @@ class rcube
         $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
         $this->session->set_ip_check($this->config->get('ip_check'));
 
+        if ($this->config->get('session_auth_name')) {
+            $this->session->set_cookiename($this->config->get('session_auth_name'));
+        }
+
         // start PHP session (if not in CLI mode)
         if ($_SERVER['REMOTE_ADDR']) {
             $this->session->start();
@@ -492,15 +498,22 @@ class rcube
     public function gc_temp()
     {
         $tmp = unslashify($this->config->get('temp_dir'));
-        $expire = time() - 172800;  // expire in 48 hours
+
+        // expire in 48 hours by default
+        $temp_dir_ttl = $this->config->get('temp_dir_ttl', '48h');
+        $temp_dir_ttl = get_offset_sec($temp_dir_ttl);
+        if ($temp_dir_ttl < 6*3600)
+            $temp_dir_ttl = 6*3600;   // 6 hours sensible lower bound.
+
+        $expire = time() - $temp_dir_ttl;
 
         if ($tmp && ($dir = opendir($tmp))) {
             while (($fname = readdir($dir)) !== false) {
-                if ($fname{0} == '.') {
+                if ($fname[0] == '.') {
                     continue;
                 }
 
-                if (filemtime($tmp.'/'.$fname) < $expire) {
+                if (@filemtime($tmp.'/'.$fname) < $expire) {
                     @unlink($tmp.'/'.$fname);
                 }
             }
@@ -689,7 +702,11 @@ class rcube
         // user HTTP_ACCEPT_LANGUAGE if no language is specified
         if (empty($lang) || $lang == 'auto') {
             $accept_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
-            $lang         = str_replace('-', '_', $accept_langs[0]);
+            $lang         = $accept_langs[0];
+
+            if (preg_match('/^([a-z]+)[_-]([a-z]+)$/i', $lang, $m)) {
+                $lang = $m[1] . '_' . strtoupper($m[2]);
+            }
         }
 
         if (empty($rcube_languages)) {
@@ -1119,8 +1136,8 @@ class rcube
      *      - code:    Error code (required)
      *      - type:    Error type [php|db|imap|javascript] (required)
      *      - message: Error message
-     *      - file:    File where error occured
-     *      - line:    Line where error occured
+     *      - file:    File where error occurred
+     *      - line:    Line where error occurred
      * @param boolean True to log the error
      * @param boolean Terminate script execution
      */
@@ -1390,6 +1407,10 @@ class rcube
             'mailto'  => $mailto,
             'options' => $options,
         ));
+
+        if ($plugin['abort']) {
+            return isset($plugin['result']) ? $plugin['result'] : false;
+        }
 
         $from    = $plugin['from'];
         $mailto  = $plugin['mailto'];

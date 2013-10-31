@@ -44,8 +44,8 @@ class rcube_base_replacer
     public function replace($body)
     {
         return preg_replace_callback(array(
-            '/(src|background|href)=(["\']?)([^"\'\s]+)(\2|\s|>)/Ui',
-            '/(url\s*\()(["\']?)([^"\'\)\s]+)(\2)\)/Ui',
+            '/(src|background|href)=(["\']?)([^"\'\s>]+)(\2|\s|>)/i',
+            '/(url\s*\()(["\']?)([^"\'\)\s]+)(\2)\)/i',
         ),
         array($this, 'callback'), $body);
     }
@@ -90,8 +90,8 @@ class rcube_base_replacer
 
             if (preg_match_all('/\.\.\//', $path, $matches, PREG_SET_ORDER)) {
                 foreach ($matches as $a_match) {
-                    if (strrpos($base_url, '/')) {
-                        $base_url = substr($base_url, 0, strrpos($base_url, '/'));
+                    if ($pos = strrpos($base_url, '/')) {
+                        $base_url = substr($base_url, 0, $pos);
                     }
                     $path = substr($path, 3);
                 }

@@ -67,12 +67,11 @@ class kolab_format_file extends kolab_format
             // make sure size is set, so object saved in cache contains this info
             if (!isset($attach_attr['size'])) {
                 $size = 0;
+
                 if (!empty($attach_attr['content'])) {
                     if (is_resource($attach_attr['content'])) {
-                        $stat = fstat($msg[$i]);
-                        if ($stat) {
-                            $size = $stat['size'];
-                        }
+                        $stat = fstat($attach_attr['content']);
+                        $size = $stat ? $stat['size'] : 0;
                     }
                     else {
                         $size = strlen($attach_attr['content']);
@@ -81,6 +80,7 @@ class kolab_format_file extends kolab_format
                 else if (isset($attach_attr['path'])) {
                     $size = @filesize($attach_attr['path']);
                 }
+
                 $object['_attachments'][$cid]['size'] = $size;
             }
         }
@@ -91,11 +91,11 @@ class kolab_format_file extends kolab_format
     }
 
     /**
-     *
+     * Check if object's data validity
      */
     public function is_valid()
     {
-        return $this->data || (is_object($this->obj) && $this->obj->isValid());
+        return !$this->formaterror && ($this->data || (is_object($this->obj) && $this->obj->isValid()));
     }
 
     /**

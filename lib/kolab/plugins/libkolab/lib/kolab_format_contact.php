@@ -255,6 +255,8 @@ class kolab_format_contact extends kolab_format
 
         // TODO: handle language, gpslocation, etc.
 
+        // set type property for proper caching
+        $object['_type'] = 'contact';
 
         // cache this data
         $this->data = $object;
@@ -266,7 +268,7 @@ class kolab_format_contact extends kolab_format
      */
     public function is_valid()
     {
-        return $this->data || (is_object($this->obj) && $this->obj->uid() /*$this->obj->isValid()*/);
+        return !$this->formaterror && ($this->data || (is_object($this->obj) && $this->obj->uid() /*$this->obj->isValid()*/));
     }
 
     /**
@@ -384,7 +386,7 @@ class kolab_format_contact extends kolab_format
     public function get_words()
     {
         $data = '';
-        foreach (self::$fulltext_cols as $col) {
+        foreach (self::$fulltext_cols as $colname) {
             list($col, $field) = explode(':', $colname);
 
             if ($field) {

@@ -3,7 +3,7 @@
 /*
  +-----------------------------------------------------------------------+
  | This file is part of the Roundcube Webmail client                     |
- | Copyright (C) 2005-2011, The Roundcube Dev Team                       |
+ | Copyright (C) 2005-2013, The Roundcube Dev Team                       |
  |                                                                       |
  | Licensed under the GNU General Public License version 3 or            |
  | any later version with exceptions for skins & plugins.                |
@@ -32,8 +32,8 @@ class html
 
     public static $doctype = 'xhtml';
     public static $lc_tags = true;
-    public static $common_attrib = array('id','class','style','title','align');
-    public static $containers = array('iframe','div','span','p','h1','h2','h3','form','textarea','table','thead','tbody','tr','th','td','style','script');
+    public static $common_attrib = array('id','class','style','title','align','unselectable');
+    public static $containers = array('iframe','div','span','p','h1','h2','h3','ul','form','textarea','table','thead','tbody','tr','th','td','style','script');
 
 
     /**
@@ -358,7 +358,7 @@ class html_inputfield extends html
     protected $tagname = 'input';
     protected $type = 'text';
     protected $allowed = array(
-        'type','name','value','size','tabindex','autocapitalize',
+        'type','name','value','size','tabindex','autocapitalize','required',
         'autocomplete','checked','onchange','onclick','disabled','readonly',
         'spellcheck','results','maxlength','src','multiple','accept',
         'placeholder','autofocus',
@@ -604,16 +604,17 @@ class html_select extends html
      *
      * @param mixed $names  Option name or array with option names
      * @param mixed $values Option value or array with option values
+     * @param array $attrib Additional attributes for the option entry
      */
-    public function add($names, $values = null)
+    public function add($names, $values = null, $attrib = array())
     {
         if (is_array($names)) {
             foreach ($names as $i => $text) {
-                $this->options[] = array('text' => $text, 'value' => $values[$i]);
+                $this->options[] = array('text' => $text, 'value' => $values[$i]) + $attrib;
             }
         }
         else {
-            $this->options[] = array('text' => $names, 'value' => $values);
+            $this->options[] = array('text' => $names, 'value' => $values) + $attrib;
         }
     }
 
@@ -644,7 +645,7 @@ class html_select extends html
                 $option_content = self::quote($option_content);
             }
 
-            $this->content .= self::tag('option', $attr, $option_content);
+            $this->content .= self::tag('option', $attr + $option, $option_content, array('value','label','class','style','title','disabled','selected'));
         }
 
         return parent::show();

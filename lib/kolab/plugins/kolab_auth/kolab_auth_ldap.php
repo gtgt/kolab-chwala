@@ -287,7 +287,8 @@ class kolab_auth_ldap extends rcube_ldap_generic
                 if ($limit && $limit <= $i) {
                     break;
                 }
-                $dn = $result->get_dn();
+                $dn        = $result->get_dn();
+                $entry     = rcube_ldap_generic::normalize_entry($entry);
                 $list[$dn] = $this->field_mapping($dn, $entry);
                 $i++;
             }
@@ -369,7 +370,8 @@ class kolab_auth_ldap extends rcube_ldap_generic
         if (!$user) {
             $user = $_SESSION['username'];
         }
-        else if (isset($this->icache[$user])) {
+
+        if (isset($this->icache[$user])) {
             list($user, $dc) = $this->icache[$user];
         }
         else {
@@ -391,17 +393,11 @@ class kolab_auth_ldap extends rcube_ldap_generic
                 list($usr, $dom) = explode('@', $user);
 
                 // unrealm domain, user login can contain a domain alias
-                if ($dom != $domain && ($r_domain = $this->find_domain($dom))) {
-                    // $dom is a domain DN string?
-                    if (strpos($r_domain, '=')) {
-                        $dc = $r_domain;
-                    }
-                    else {
-                        $user = $usr . '@' . $r_domain;
-                    }
+                if ($dom != $domain && ($dc = $this->find_domain($dom))) {
+                    // @FIXME: we should replace domain in $user, I suppose
                 }
             }
-            else if ($domain && !strpos($user, '@')) {
+            else if ($domain) {
                 $user .= '@' . $domain;
             }
 
@@ -418,6 +414,8 @@ class kolab_auth_ldap extends rcube_ldap_generic
 
         $replaces = array('%dc' => $dc, '%d' => $d, '%fu' => $user, '%u' => $u);
 
+        $this->parse_replaces = $replaces;
+
         return strtr($str, $replaces);
     }
 
@@ -426,7 +424,7 @@ class kolab_auth_ldap extends rcube_ldap_generic
      *
      * @param string $domain Domain name
      *
-     * @return string Domain name or domain DN string
+     * @return string Domain DN string
      */
     function find_domain($domain)
     {
@@ -458,8 +456,20 @@ class kolab_auth_ldap extends rcube_ldap_generic
                 return $entry['inetdomainbasedn'];
             }
 
-            return is_array($entry[$name_attr]) ? $entry[$name_attr][0] : $entry[$name_attr];
+            $domain = is_array($entry[$name_attr]) ? $entry[$name_attr][0] : $entry[$name_attr];
+
+            return $domain ? 'dc=' . implode(',dc=', explode('.', $domain)) : null;
         }
+    }
+
+    /**
+     * Returns variables used for replacement in (last) parse_vars() call
+     *
+     * @return array Variable-value hash array
+     */
+    public function get_parse_vars()
+    {
+        return $this->parse_replaces;
     }
 
     /**

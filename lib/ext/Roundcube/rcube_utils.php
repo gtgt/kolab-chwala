@@ -390,12 +390,13 @@ class rcube_utils
      * Convert array of request parameters (prefixed with _)
      * to a regular array with non-prefixed keys.
      *
-     * @param int    $mode   Source to get value from (GPC)
-     * @param string $ignore PCRE expression to skip parameters by name
+     * @param int     $mode       Source to get value from (GPC)
+     * @param string  $ignore     PCRE expression to skip parameters by name
+     * @param boolean $allow_html Allow HTML tags in field value
      *
      * @return array Hash array with all request parameters
      */
-    public static function request2param($mode = null, $ignore = 'task|action')
+    public static function request2param($mode = null, $ignore = 'task|action', $allow_html = false)
     {
         $out = array();
         $src = $mode == self::INPUT_GET ? $_GET : ($mode == self::INPUT_POST ? $_POST : $_REQUEST);
@@ -403,7 +404,7 @@ class rcube_utils
         foreach (array_keys($src) as $key) {
             $fname = $key[0] == '_' ? substr($key, 1) : $key;
             if ($ignore && !preg_match('/^(' . $ignore . ')$/', $fname)) {
-                $out[$fname] = self::get_input_value($key, $mode);
+                $out[$fname] = self::get_input_value($key, $mode, $allow_html);
             }
         }
 
@@ -444,41 +445,48 @@ class rcube_utils
         $source   = self::xss_entity_decode($source);
         $stripped = preg_replace('/[^a-z\(:;]/i', '', $source);
         $evilexpr = 'expression|behavior|javascript:|import[^a]' . (!$allow_remote ? '|url\(' : '');
+
         if (preg_match("/$evilexpr/i", $stripped)) {
             return '/* evil! */';
         }
 
+        $strict_url_regexp = '!url\s*\([ "\'](https?:)//[a-z0-9/._+-]+["\' ]\)!Uims';
+
         // cut out all contents between { and }
         while (($pos = strpos($source, '{', $last_pos)) && ($pos2 = strpos($source, '}', $pos))) {
-            $styles = substr($source, $pos+1, $pos2-($pos+1));
+            $nested = strpos($source, '{', $pos+1);
+            if ($nested && $nested < $pos2)  // when dealing with nested blocks (e.g. @media), take the inner one
+                $pos = $nested;
+            $length = $pos2 - $pos - 1;
+            $styles = substr($source, $pos+1, $length);
 
             // check every line of a style block...
             if ($allow_remote) {
                 $a_styles = preg_split('/;[\r\n]*/', $styles, -1, PREG_SPLIT_NO_EMPTY);
+
                 foreach ($a_styles as $line) {
                     $stripped = preg_replace('/[^a-z\(:;]/i', '', $line);
                     // ... and only allow strict url() values
-                    $regexp = '!url\s*\([ "\'](https?:)//[a-z0-9/._+-]+["\' ]\)!Uims';
-                    if (stripos($stripped, 'url(') && !preg_match($regexp, $line)) {
+                    if (stripos($stripped, 'url(') && !preg_match($strict_url_regexp, $line)) {
                         $a_styles = array('/* evil! */');
                         break;
                     }
                 }
+
                 $styles = join(";\n", $a_styles);
             }
 
-            $key = $replacements->add($styles);
-            $source = substr($source, 0, $pos+1)
-                . $replacements->get_replacement($key)
-                . substr($source, $pos2, strlen($source)-$pos2);
-            $last_pos = $pos+2;
+            $key      = $replacements->add($styles);
+            $repl     = $replacements->get_replacement($key);
+            $source   = substr_replace($source, $repl, $pos+1, $length);
+            $last_pos = $pos2 - ($length - strlen($repl));
         }
 
         // remove html comments and add #container to each tag selector.
         // also replace body definition because we also stripped off the <body> tag
-        $styles = preg_replace(
+        $source = preg_replace(
             array(
-                '/(^\s*<!--)|(-->\s*$)/',
+                '/(^\s*<\!--)|(-->\s*$)/m',
                 '/(^\s*|,\s*|\}\s*)([a-z0-9\._#\*][a-z0-9\.\-_]*)/im',
                 '/'.preg_quote($container_id, '/').'\s+body/i',
             ),
@@ -490,9 +498,9 @@ class rcube_utils
             $source);
 
         // put block contents back in
-        $styles = $replacements->resolve($styles);
+        $source = $replacements->resolve($source);
 
-        return $styles;
+        return $source;
     }
 
 
@@ -666,6 +674,21 @@ class rcube_utils
 
 
     /**
+     * Returns the real remote IP address
+     *
+     * @return string Remote IP address
+     */
+    public static function remote_addr()
+    {
+        foreach (array('HTTP_X_FORWARDED_FOR','HTTP_X_REAL_IP','REMOTE_ADDR') as $prop) {
+            if (!empty($_SERVER[$prop]))
+                return $_SERVER[$prop];
+        }
+
+        return '';
+    }
+
+    /**
      * Read a specific HTTP request header.
      *
      * @param  string $name Header name
@@ -724,28 +747,12 @@ class rcube_utils
      */
     public static function strtotime($date)
     {
-        // check for MS Outlook vCard date format YYYYMMDD
-        if (preg_match('/^([12][90]\d\d)([01]\d)(\d\d)$/', trim($date), $matches)) {
-            return mktime(0,0,0, intval($matches[2]), intval($matches[3]), intval($matches[1]));
-        }
-        else if (is_numeric($date)) {
+        $date = self::clean_datestr($date);
+
+        // unix timestamp
+        if (is_numeric($date)) {
             return (int) $date;
         }
-
-        // Clean malformed data
-        $date = preg_replace(
-            array(
-                '/GMT\s*([+-][0-9]+)/',                     // support non-standard "GMTXXXX" literal
-                '/[^a-z0-9\x20\x09:+-]/i',                  // remove any invalid characters
-                '/\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*/i',   // remove weekday names
-            ),
-            array(
-                '\\1',
-                '',
-                '',
-            ), $date);
-
-        $date = trim($date);
 
         // if date parsing fails, we have a date in non-rfc format.
         // remove token from the end and try again
@@ -761,6 +768,90 @@ class rcube_utils
         return (int) $ts;
     }
 
+    /**
+     * Date parsing function that turns the given value into a DateTime object
+     *
+     * @param string $date  Date string
+     *
+     * @return object DateTime instance or false on failure
+     */
+    public static function anytodatetime($date)
+    {
+        if (is_object($date) && is_a($date, 'DateTime')) {
+            return $date;
+        }
+
+        $dt   = false;
+        $date = self::clean_datestr($date);
+
+        // try to parse string with DateTime first
+        if (!empty($date)) {
+            try {
+                $dt = new DateTime($date);
+            }
+            catch (Exception $e) {
+                // ignore
+            }
+        }
+
+        // try our advanced strtotime() method
+        if (!$dt && ($timestamp = self::strtotime($date))) {
+            try {
+                $dt = new DateTime("@".$timestamp);
+            }
+            catch (Exception $e) {
+                // ignore
+            }
+        }
+
+        return $dt;
+    }
+
+    /**
+     * Clean up date string for strtotime() input
+     *
+     * @param string $date Date string
+     *
+     * @return string Date string
+     */
+    public static function clean_datestr($date)
+    {
+        $date = trim($date);
+
+        // check for MS Outlook vCard date format YYYYMMDD
+        if (preg_match('/^([12][90]\d\d)([01]\d)([0123]\d)$/', $date, $m)) {
+            return sprintf('%04d-%02d-%02d 00:00:00', intval($m[1]), intval($m[2]), intval($m[3]));
+        }
+
+        // Clean malformed data
+        $date = preg_replace(
+            array(
+                '/GMT\s*([+-][0-9]+)/',                     // support non-standard "GMTXXXX" literal
+                '/[^a-z0-9\x20\x09:+-\/]/i',                  // remove any invalid characters
+                '/\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*/i',   // remove weekday names
+            ),
+            array(
+                '\\1',
+                '',
+                '',
+            ), $date);
+
+        $date = trim($date);
+
+        // try to fix dd/mm vs. mm/dd discrepancy, we can't do more here
+        if (preg_match('/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/', $date, $m)) {
+            $mdy   = $m[2] > 12 && $m[1] <= 12;
+            $day   = $mdy ? $m[2] : $m[1];
+            $month = $mdy ? $m[1] : $m[2];
+            $date  = sprintf('%04d-%02d-%02d 00:00:00', intval($m[3]), $month, $day);
+        }
+        // I've found that YYYY.MM.DD is recognized wrong, so here's a fix
+        else if (preg_match('/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/', $date)) {
+            $date = str_replace('.', '-', $date) . ' 00:00:00';
+        }
+
+        return $date;
+    }
 
     /*
      * Idn_to_ascii wrapper.
