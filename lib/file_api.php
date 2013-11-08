@@ -335,14 +335,29 @@ class file_api
                 if (!isset($args['file']) || $args['file'] === '') {
                     throw new Exception("Missing file name", file_api::ERROR_CODE);
                 }
-                if (!isset($args['content'])) {
+
+                // file content might be in a request argument or uploaded file
+                if (!empty($_FILES['content'])) {
+                    $files = $this->upload('content');
+
+                    if (count($files) != 1) {
+                        throw new Exception("Missing file content", file_api::ERROR_CODE);
+                    }
+
+                    $file = array(
+                        'path' => $files[0]['path'],
+                        'type' => $files[0]['type'],
+                    );
+                }
+                else if (!isset($args['content'])) {
                     throw new Exception("Missing file content", file_api::ERROR_CODE);
                 }
-
-                $file = array(
-                    'content' => $args['content'],
-                    'type'    => rcube_mime::file_content_type($args['content'], $args['file'], $args['content-type'], true),
-                );
+                else {
+                    $file = array(
+                        'content' => $args['content'],
+                        'type'    => rcube_mime::file_content_type($args['content'], $args['file'], $args['content-type'], true),
+                    );
+                }
 
                 $this->api->$request($args['file'], $file);
 
@@ -511,25 +526,33 @@ class file_api
 
     /**
      * File uploads handler
+     *
+     * @param string $fieldname Name of the for field ($_FILES index)
      */
-    protected function upload()
+    protected function upload($fieldname = 'file')
     {
         $files = array();
 
-        if (is_array($_FILES['file']['tmp_name'])) {
-            foreach ($_FILES['file']['tmp_name'] as $i => $filepath) {
-                if ($err = $_FILES['file']['error'][$i]) {
-                    if ($err == UPLOAD_ERR_INI_SIZE || $err == UPLOAD_ERR_FORM_SIZE) {
+        if (!empty($_FILES[$fieldname]['tmp_name'])) {
+            foreach ((array)$_FILES[$fieldname]['tmp_name'] as $i => $filepath) {
+                // looks strange? we support single and miltiple fields
+                $error = is_array($_FILES[$fieldname]['error']) ? $_FILES[$fieldname]['error'][$i] : $_FILES[$fieldname]['error'];
+
+                if ($error) {
+                    if ($error == UPLOAD_ERR_INI_SIZE || $error == UPLOAD_ERR_FORM_SIZE) {
                         throw new Exception("Maximum file size exceeded", file_api::ERROR_CODE);
                     }
                     throw new Exception("File upload failed", file_api::ERROR_CODE);
                 }
 
+                $filename = is_array($_FILES[$fieldname]['name']) ? $_FILES[$fieldname]['name'][$i] : $_FILES[$fieldname]['name'];
+                $filetype = is_array($_FILES[$fieldname]['type']) ? $_FILES[$fieldname]['type'][$i] : $_FILES[$fieldname]['type'];
+
                 $files[] = array(
                     'path' => $filepath,
-                    'name' => $_FILES['file']['name'][$i],
+                    'name' => $filename,
                     'size' => filesize($filepath),
-                    'type' => rcube_mime::file_content_type($filepath, $_FILES['file']['name'][$i], $_FILES['file']['type']),
+                    'type' => rcube_mime::file_content_type($filepath, $filename, $filetype),
                 );
             }
         }

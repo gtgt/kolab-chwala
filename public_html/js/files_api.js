@@ -501,6 +501,106 @@ function files_api()
 
     return (new Date(1970, 1, 1, 0, 0, s, 0)).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
   };
+
+  // file uploader
+  this.file_uploader = function(e, config)
+  {
+    if (!config)
+      config = this.env.filedrop;
+
+    // prepare multipart form data composition
+    var files = $.isArray(e) ? e : e.target.files || e.dataTransfer.files,
+      formdata = window.FormData ? new FormData() : null,
+      fieldname = (config.fieldname || '_file') + (config.single ? '' : '[]'),
+      boundary = '------multipartformboundary' + (new Date).getTime(),
+      dashdash = '--', crlf = '\r\n',
+      multipart = dashdash + boundary + crlf;
+
+    if (!files || !files.length)
+      return;
+
+    // inline function to submit the files to the server
+    var submit_data = function() {
+      var multiple = files.length > 1,
+        ts = new Date().getTime(),
+        url_params = $.extend({uploadid: ts}, config.params || {});
+
+      // complete multipart content and post request
+      multipart += dashdash + boundary + dashdash + crlf;
+
+      $.ajax({
+        type: 'POST',
+        dataType: 'json',
+        url: ref.env.url + ref.url(config.action || 'upload', url_params),
+        contentType: formdata ? false : 'multipart/form-data; boundary=' + boundary,
+        processData: false,
+        timeout: 0, // disable default timeout set in ajaxSetup()
+        data: formdata || multipart,
+        xhr: function() { var xhr = jQuery.ajaxSettings.xhr(); if (!formdata && xhr.sendAsBinary) xhr.send = xhr.sendAsBinary; return xhr; },
+        success: function(data) { config.response_handler ? ref[config.response_handler](data) : ref.response(data); },
+        error: function(o, status, err) { ref.http_error(o, status, err, null, 'attachment'); }
+      });
+    };
+
+    // get contents of all dropped files
+    var last = config.single ? 0 : files.length - 1;
+    for (var j=0, i=0, f; j <= last && (f = files[i]); i++) {
+      if (!f.name) f.name = f.fileName;
+      if (!f.size) f.size = f.fileSize;
+      if (!f.type) f.type = 'application/octet-stream';
+
+      // file name contains non-ASCII characters, do UTF8-binary string conversion.
+      if (!formdata && /[^\x20-\x7E]/.test(f.name))
+        f.name_bin = unescape(encodeURIComponent(f.name));
+
+      // do it the easy way with FormData (FF 4+, Chrome 5+, Safari 5+)
+      if (formdata) {
+        formdata.append(fieldname, f);
+        if (j == last)
+          return submit_data();
+      }
+      // use FileReader supporetd by Firefox 3.6
+      else if (window.FileReader) {
+        var reader = new FileReader();
+
+        // closure to pass file properties to async callback function
+        reader.onload = (function(file, j) {
+          return function(e) {
+            multipart += 'Content-Disposition: form-data; name="' + fieldname + '"';
+            multipart += '; filename="' + (f.name_bin || file.name) + '"' + crlf;
+            multipart += 'Content-Length: ' + file.size + crlf;
+            multipart += 'Content-Type: ' + file.type + crlf + crlf;
+            multipart += reader.result + crlf;
+            multipart += dashdash + boundary + crlf;
+
+            if (j == last)  // we're done, submit the data
+              return submit_data();
+          }
+        })(f,j);
+        reader.readAsBinaryString(f);
+      }
+      // Firefox 3
+      else if (f.getAsBinary) {
+        multipart += 'Content-Disposition: form-data; name="' + fieldname + '"';
+        multipart += '; filename="' + (f.name_bin || f.name) + '"' + crlf;
+        multipart += 'Content-Length: ' + f.size + crlf;
+        multipart += 'Content-Type: ' + f.type + crlf + crlf;
+        multipart += f.getAsBinary() + crlf;
+        multipart += dashdash + boundary +crlf;
+
+        if (j == last)
+          return submit_data();
+      }
+
+      j++;
+    }
+  };
+
+  // check file uploading support
+  this.file_uploader_support = function()
+  {
+    return window.FormData || (window.XMLHttpRequest && XMLHttpRequest.prototype && XMLHttpRequest.prototype.sendAsBinary);
+  };
 };
 
 // Add escape() method to RegExp object

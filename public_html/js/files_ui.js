@@ -1550,13 +1550,33 @@ function files_ui()
     if (!this.file_editor)
       return;
 
-    var content = this.file_editor.getContent();
+    // binary files like ODF need to be updated using FormData
+    if (this.file_editor.getContentCallback) {
+      if (!this.file_uploader_support())
+        return;
+
+      this.set_busy(true, 'saving');
+
+      this.file_editor.disable();
+      this.file_editor.getContentCallback(function(content, filename) {
+        ui.file_uploader([content], {
+          action: 'file_update',
+          params: {file: ui.env.file, info: 1},
+          response_handler: 'file_save_response',
+          fieldname: 'content',
+          single: true
+        });
+      });
+
+      return;
+    }
+
+    this.set_busy(true, 'saving');
     this.file_editor.disable();
 
-    // because we currently can edit only text file
-    // and we do not expect them to be very big, we save
+    // we do not expect text files to be very big, we save
     // file in a very simple way, no upload progress, etc.
-    this.set_busy(true, 'saving');
+    var content = this.file_editor.getContent();
     this.request('file_update', {file: this.env.file, content: content, info: 1}, 'file_save_response');
   };
 
