@@ -27,25 +27,39 @@
  */
 class file_viewer_odf extends file_viewer
 {
+    /**
+     * Supported mime types
+     *
+     * @var array
+     */
     protected $mimetypes = array(
         'application/vnd.oasis.opendocument.text',
         'application/vnd.oasis.opendocument.spreadsheet',
         'application/vnd.oasis.opendocument.presentation',
         'application/vnd.oasis.opendocument.graphics',
-        'application/vnd.oasis.opendocument.chart',
+//        'application/vnd.oasis.opendocument.chart',
 //        'application/vnd.oasis.opendocument.formula',
-        'application/vnd.oasis.opendocument.image',
-        'application/vnd.oasis.opendocument.text-master',
+//        'application/vnd.oasis.opendocument.image',
+//        'application/vnd.oasis.opendocument.text-master',
 //        'application/vnd.sun.xml.base',
 //        'application/vnd.oasis.opendocument.base',
 //        'application/vnd.oasis.opendocument.database',
-        'application/vnd.oasis.opendocument.text-template',
-        'application/vnd.oasis.opendocument.spreadsheet-template',
-        'application/vnd.oasis.opendocument.presentation-template',
-        'application/vnd.oasis.opendocument.graphics-template',
-        'application/vnd.oasis.opendocument.chart-template',
+//        'application/vnd.oasis.opendocument.text-template',
+//        'application/vnd.oasis.opendocument.spreadsheet-template',
+//        'application/vnd.oasis.opendocument.presentation-template',
+//        'application/vnd.oasis.opendocument.graphics-template',
+//        'application/vnd.oasis.opendocument.chart-template',
 //        'application/vnd.oasis.opendocument.formula-template',
-        'application/vnd.oasis.opendocument.image-template',
+//        'application/vnd.oasis.opendocument.image-template',
+    );
+
+    /**
+     * Editable document types
+     *
+     * @var array
+     */
+    protected $editable = array(
+        'application/vnd.oasis.opendocument.text',
     );
 
 
@@ -73,7 +87,6 @@ class file_viewer_odf extends file_viewer
      */
     public function supported_mimetypes()
     {
-        // @TODO: check supported browsers
         return $this->mimetypes;
     }
 
@@ -123,11 +136,15 @@ class file_viewer_odf extends file_viewer
     public function output($file, $mimetype = null)
     {
         $file_uri = $this->api->file_url($file);
+        $editable = in_array($mimetype, $this->editable);
 
-        echo <<<EOT
+        // viewer mode
+        if (!$editable) {
+            echo <<<EOT
+<!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" type="text/css" href="viewers/odf/webodf.css" />
+    <link type="text/css" href="viewers/odf/viewer/viewer.css" rel="stylesheet" />
     <script type="text/javascript" src="viewers/odf/webodf.js" charset="utf-8"></script>
     <script type="text/javascript" charset="utf-8">
       function init() {
@@ -143,5 +160,55 @@ class file_viewer_odf extends file_viewer
   </body>
 </html>
 EOT;
+        }
+        // editor mode
+        else {
+            echo <<<EOT
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="viewers/odf/editor/editor.css"/>
+    <link rel="stylesheet" type="text/css" href="viewers/odf/editor/app/resources/app.css"/>
+    <style>
+    #container, #mainContainer { background-color: #f0f0f0; }
+    #toolbar { border-bottom: 1px solid #d0d0d0; }
+    </style>
+    <script type="text/javascript" charset="utf-8">
+      var file_uri = "$file_uri";
+      var usedLocale = "C";
+
+      if (navigator && navigator.language && navigator.language.match(/^(ru|de)/)) {
+        usedLocale = navigator.language.substr(0,2);
+      }
+
+      dojoConfig = {
+        locale: usedLocale,
+        paths: {
+          "webodf/editor": "viewers/odf/editor",
+          "dijit": "viewers/odf/editordijit",
+          "dojox": "viewers/odf/editor/dojox",
+          "dojo": "viewers/odf/editor/dojo",
+          "resources": "viewers/odf/editor/resources"
+        }
+      }
+    </script>
+    <script type="text/javascript" src="viewers/odf/editor/dojo-amalgamation.js" data-dojo-config="async: true"></script>
+    <script type="text/javascript" src="viewers/odf/webodf.js" charset="utf-8"></script>
+    <script type="text/javascript" src="viewers/odf/file_editor.js" charset="utf-8"></script>
+  </head>
+  <body class="claro" onload="file_editor.init(file_uri)">
+    <div id="mainContainer">
+      <div id="editor">
+        <span id="menubar"></span>
+        <span id="toolbar"></span>
+        <div id="container">
+          <div id="canvas"></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+EOT;
+        }
     }
 }
