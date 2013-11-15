@@ -502,6 +502,32 @@ class file_api
                 }
 
                 return $quota;
+
+            case 'lock':
+                // arguments: uri, owner, timeout, scope, depth, token
+                foreach (array('uri', 'token') as $arg) {
+                    if (!isset($args[$arg]) || $args[$arg] === '') {
+                        throw new Exception("Missing lock $arg", file_api::ERROR_CODE);
+                    }
+                }
+
+                $this->api->lock($args['uri'], $args);
+                return;
+
+            case 'unlock':
+                foreach (array('uri', 'token') as $arg) {
+                    if (!isset($args[$arg]) || $args[$arg] === '') {
+                        throw new Exception("Missing lock $arg", file_api::ERROR_CODE);
+                    }
+                }
+
+                $this->api->unlock($args['uri'], $args);
+                return;
+
+            case 'lock_list':
+                $child_locks = !empty($args['child_locks']) && rcube_utils::get_boolean($args['child_locks']);
+
+                return $this->api->lock_list($args['uri'], $child_locks);
         }
 
         if ($request) {
@@ -759,11 +785,15 @@ class file_api
 
         $response['status'] = 'ERROR';
 
+        if ($code) {
+            $response['code'] = $code;
+        }
+
         if (!empty($_REQUEST['req_id'])) {
             $response['req_id'] = $_REQUEST['req_id'];
         }
 
-        if (!$response['code']) {
+        if (empty($response['code'])) {
             $response['code'] = file_api::ERROR_CODE;
         }
 

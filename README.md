@@ -20,7 +20,9 @@ $ chown <www-user> logs
 $ chown <www-user> cache
 $ chown <www-user> temp
 
-3. Optionally, configure your webserver to point to the 'public_html' directory of this
+3. Execute database initialization scripts from doc/SQL/ on Roundcube database.
+
+4. Optionally, configure your webserver to point to the 'public_html' directory of this
 package as document root.
 
 

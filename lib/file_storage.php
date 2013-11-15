@@ -30,13 +30,21 @@ interface file_storage
     const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
     const CAPS_QUOTA         = 'QUOTA';
+    const CAPS_LOCKS         = 'LOCKS';
 
     // config
     const SEPARATOR = '/';
 
     // error codes
     const ERROR             = 500;
+    const ERROR_LOCKED      = 423;
     const ERROR_FILE_EXISTS = 550;
+    const ERROR_UNSUPPORTED = 570;
+
+    // locks
+    const LOCK_SHARED    = 'shared';
+    const LOCK_EXCLUSIVE = 'exclusive';
+    const LOCK_INFINITE  = 'infinite';
 
     /**
      * Authenticates a user
@@ -177,6 +185,48 @@ interface file_storage
      * @throws Exception
      */
     public function folder_list();
+
+    /**
+     * Returns a list of locks
+     *
+     * This method should return all the locks for a particular URI, including
+     * locks that might be set on a parent URI.
+     *
+     * If child_locks is set to true, this method should also look for
+     * any locks in the subtree of the URI for locks.
+     *
+     * @param string $uri         URI
+     * @param bool   $child_locks Enables subtree checks
+     *
+     * @return array List of locks
+     * @throws Exception
+     */
+    public function lock_list($uri, $child_locks = false);
+
+    /**
+     * Locks a URI
+     *
+     * @param string $uri  URI
+     * @param array  $lock Lock data
+     *                     - depth: 0/'infinite'
+     *                     - scope: 'shared'/'exclusive'
+     *                     - owner: string
+     *                     - token: string
+     *                     - timeout: int
+     *
+     * @throws Exception
+     */
+    public function lock($uri, $lock);
+
+    /**
+     * Removes a lock from a URI
+     *
+     * @param string $path URI
+     * @param array  $lock Lock data
+     *
+     * @throws Exception
+     */
+    public function unlock($uri, $lock);
 
     /**
      * Return disk quota information for specified folder.

@@ -270,6 +270,7 @@ class kolab_file_storage implements file_storage
         return array(
             file_storage::CAPS_MAX_UPLOAD => $max_filesize,
             file_storage::CAPS_QUOTA      => $quota,
+            file_storage::CAPS_LOCKS      => true,
         );
     }
 
@@ -748,6 +749,84 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Returns a list of locks
+     *
+     * This method should return all the locks for a particular URI, including
+     * locks that might be set on a parent URI.
+     *
+     * If child_locks is set to true, this method should also look for
+     * any locks in the subtree of the URI for locks.
+     *
+     * @param string $uri         URI
+     * @param bool   $child_locks Enables subtree checks
+     *
+     * @return array List of locks
+     * @throws Exception
+     */
+    public function lock_list($uri, $child_locks = false)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        // get locks list
+        $list = $this->lock_db->lock_list($uri, $child_locks);
+
+        // convert back resource string into URIs
+        foreach ($list as $idx => $lock) {
+            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+        }
+
+        return $list;
+    }
+
+    /**
+     * Locks a URI
+     *
+     * @param string $uri  URI
+     * @param array  $lock Lock data
+     *                     - depth: 0/'infinite'
+     *                     - scope: 'shared'/'exclusive'
+     *                     - owner: string
+     *                     - token: string
+     *                     - timeout: int
+     *
+     * @throws Exception
+     */
+    public function lock($uri, $lock)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        if (!$this->lock_db->lock($uri, $lock)) {
+            throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Removes a lock from a URI
+     *
+     * @param string $path URI
+     * @param array  $lock Lock data
+     *
+     * @throws Exception
+     */
+    public function unlock($uri, $lock)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        if (!$this->lock_db->unlock($uri, $lock)) {
+            throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
+        }
+    }
+
+    /**
      * Return disk quota information for specified folder.
      *
      * @param string $folder_name Name of a folder with full path
@@ -872,5 +951,101 @@ class kolab_file_storage implements file_storage
         unset($file['fileid']);
 
         return $file;
+    }
+
+    protected function uri2resource($uri)
+    {
+        $storage   = $this->rc->get_storage();
+        $namespace = $storage->get_namespace();
+        $separator = $storage->get_hierarchy_delimiter();
+        $uri       = str_replace(file_storage::SEPARATOR, $separator, $uri);
+        $owner     = $this->rc->get_user_name();
+
+        // find the owner and remove namespace prefix
+        foreach ($namespace as $type => $ns) {
+            foreach ($ns as $root) {
+                if (is_array($root) && $root[0] && strpos($uri, $root[0]) === 0) {
+                    $uri = substr($uri, strlen($root[0]));
+
+                    switch ($type) {
+                    case 'shared':
+                        // in theory there can be more than one shared root
+                        // we add it to dummy user name, so we can revert conversion
+                        $owner = "shared({$root[0]})";
+                        break;
+
+                    case 'other':
+                        list($user, $uri) = explode($separator, $uri, 2);
+
+                        if (strpos($user, '@') === false) {
+                            $domain = strstr($owner, '@');
+                            if (!empty($domain)) {
+                                $user .= $domain;
+                            }
+                        }
+
+                        $owner = $user;
+                        break;
+                    }
+
+                    break 2;
+                }
+            }
+        }
+
+        // convert to imap charset (to be safe to store in DB)
+        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
+
+        return 'imap://' . urlencode($owner) . '@' . $storage->options['host'] . '/' . $uri;
+    }
+
+    protected function resource2uri($resource)
+    {
+        if (!preg_match('|^imap://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+            throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
+        }
+
+        $storage   = $this->rc->get_storage();
+        $separator = $storage->get_hierarchy_delimiter();
+        $owner     = $this->rc->get_user_name();
+
+        $user = urldecode($matches[1]);
+        $uri  = $matches[3];
+
+        // convert from imap charset (to be safe to store in DB)
+        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+
+        // personal namespace
+        if ($user == $owner) {
+            // do nothing
+            // Note: that might not work if personal namespace uses e.g. INBOX/ prefix.
+        }
+        // shared namespace
+        else if (preg_match('/^shared\((.*)\)$/', $user, $matches)) {
+            $uri = $matches[1] . $uri;
+        }
+        // other users namespace
+        else {
+            $namespace = $storage->get_namespace('other');
+
+            list($local, $domain) = explode('@', $user);
+
+            // here we assume there's only one other users namespace root
+            $uri = $namespace[0][0] . $local . $separator . $uri;
+        }
+
+        $uri = str_replace($separator, file_storage::SEPARATOR, $uri);
+
+        return $uri;
+    }
+
+    /**
+     * Initializes file_locks object
+     */
+    protected function init_lock_db()
+    {
+        if (!$this->lock_db) {
+            $this->lock_db = new file_locks;
+        }
     }
 }
