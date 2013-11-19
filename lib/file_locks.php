@@ -60,7 +60,7 @@ class file_locks {
      *
      * @param string $table Table name
      */
-    public function __construct($table = 'locks')
+    public function __construct($table = 'chwala_locks')
     {
         $rcube = rcube::get_instance();
 

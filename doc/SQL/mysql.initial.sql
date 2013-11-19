@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `locks` (
+CREATE TABLE IF NOT EXISTS `chwala_locks` (
     `uri`     varchar(512) BINARY NOT NULL,
     `owner`   varchar(256),
     `timeout` integer unsigned,
