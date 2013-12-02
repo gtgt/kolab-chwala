@@ -107,7 +107,7 @@ function files_api()
     data.method = action;
 
     return $.ajax({
-      type: 'GET', url: url, data: data,
+      type: 'GET', url: url, data: data, dataType: 'json',
       success: function(response) { ref[func](response); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
       cache: false,
