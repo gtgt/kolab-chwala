@@ -22,10 +22,15 @@ function hack_file_input(id)
     file = $('<input>'),
     offset = link.offset();
 
-  file.attr({name: 'file[]', type: 'file', multiple: 'multiple', size: 5})
+  function move_file_input(e) {
+    file.css({top: (e.pageY - offset.top - 10) + 'px', left: (e.pageX - offset.left - 10) + 'px'});
+  }
+
+  file.attr({name: 'file[]', type: 'file', multiple: 'multiple', size: 5, title: ''})
     .change(function() { ui.file_upload(); })
+    .click(function() { setTimeout(function() { link.mouseleave(); }, 20); })
     // opacity:0 does the trick, display/visibility doesn't work
-    .css({opacity: 0, cursor: 'pointer', position: 'relative', outline: 'none', top: '10000px', left: '10000px'});
+    .css({opacity: 0, cursor: 'pointer', position: 'relative', outline: 'none'});
 
   // In FF and IE we need to move the browser file-input's button under the cursor
   // Thanks to the size attribute above we know the length of the input field
@@ -34,15 +39,28 @@ function hack_file_input(id)
 
   // Note: now, I observe problem with cursor style on FF < 4 only
   link.css({overflow: 'hidden', cursor: 'pointer'})
+    .mouseenter(function() { this.__active = ui.commands['file.upload'] ? true : false; })
     // place button under the cursor
     .mousemove(function(e) {
-      if (ui.commands['file.upload'])
-        file.css({top: (e.pageY - offset.top - 10) + 'px', left: (e.pageX - offset.left - 10) + 'px'});
+      if (ui.commands['file.upload'] && this.__active)
+        move_file_input(e);
       // move the input away if button is disabled
       else
         $(this).mouseleave();
     })
-    .mouseleave(function() { file.css({top: '10000px', left: '10000px'}); })
+    .mouseleave(function() {
+      file.css({top: '-10000px', left: '-10000px'});
+      this.__active = false;
+    })
+    .click(function(e) {
+      // forward click if mouse-enter event was missed
+      if (ui.commands['file.upload'] && !this.__active) {
+        this.__active = true;
+        move_file_input(e);
+        file.trigger(e);
+      }
+    })
+    .mouseleave()
     .append(file);
 };
 
