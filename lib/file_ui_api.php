@@ -40,6 +40,8 @@ class file_ui_api
     const ERROR_INTERNAL   = 100;
     const ERROR_CONNECTION = 200;
 
+    const ACCEPT_HEADER = "application/json,text/javascript,*/*";
+
     /**
      * Class constructor.
      *
@@ -104,6 +106,9 @@ class file_ui_api
 
         // proxy User-Agent
         $request->setHeader('user-agent', $_SERVER['HTTP_USER_AGENT']);
+
+        // some HTTP server configurations require this header
+        $request->setHeader('accept', self::ACCEPT_HEADER);
     }
 
     /**
