@@ -872,7 +872,7 @@ class kolab_file_storage implements file_storage
             array('filename', '=', $file_name)
         ));
 
-        return array_shift($files);
+        return $files[0];
     }
 
     /**
