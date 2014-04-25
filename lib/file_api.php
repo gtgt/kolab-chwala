@@ -546,7 +546,9 @@ class file_api
             foreach ($_FILES['file']['tmp_name'] as $i => $filepath) {
                 if ($err = $_FILES['file']['error'][$i]) {
                     if ($err == UPLOAD_ERR_INI_SIZE || $err == UPLOAD_ERR_FORM_SIZE) {
-                        throw new Exception("Maximum file size exceeded", file_api::ERROR_CODE);
+                        $maxsize = ini_get('upload_max_filesize');
+                        $maxsize = $this->show_bytes(parse_bytes($maxsize));
+                        throw new Exception("Maximum file size ($maxsize) exceeded", file_api::ERROR_CODE);
                     }
                     throw new Exception("File upload failed", file_api::ERROR_CODE);
                 }
@@ -560,6 +562,11 @@ class file_api
             }
         }
         else if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            // if filesize exceeds post_max_size then $_FILES array is empty,
+            if ($maxsize = ini_get('post_max_size')) {
+                $maxsize = $this->show_bytes(parse_bytes($maxsize));
+                throw new Exception("Maximum file size ($maxsize) exceeded", file_api::ERROR_CODE);
+            }
             throw new Exception("File upload failed", file_api::ERROR_CODE);
         }
 
@@ -811,5 +818,32 @@ class file_api
         header("Content-Type: {$this->output_type}; charset=utf-8");
         echo json_encode($data);
         exit;
+    }
+
+    /**
+     * Create a human readable string for a number of bytes
+     *
+     * @param int Number of bytes
+     *
+     * @return string Byte string
+     */
+    public function show_bytes($bytes)
+    {
+        if ($bytes >= 1073741824) {
+            $gb  = $bytes/1073741824;
+            $str = sprintf($gb >= 10 ? "%d " : "%.1f ", $gb) . 'GB';
+        }
+        else if ($bytes >= 1048576) {
+            $mb  = $bytes/1048576;
+            $str = sprintf($mb >= 10 ? "%d " : "%.1f ", $mb) . 'MB';
+        }
+        else if ($bytes >= 1024) {
+            $str = sprintf("%d ",  round($bytes/1024)) . 'KB';
+        }
+        else {
+            $str = sprintf('%d ', $bytes) . 'B';
+        }
+
+        return $str;
     }
 }
