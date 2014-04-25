@@ -69,6 +69,7 @@ $LANG['size.MB'] = 'MB';
 $LANG['size.GB'] = 'GB';
 
 $LANG['upload.size'] = 'Size:';
+$LANG['upload.size.error'] = 'Maximum upload size ($size) exceeded!';
 $LANG['upload.progress'] = 'Progress:';
 $LANG['upload.rate'] = 'Rate:';
 $LANG['upload.eta'] = 'ETA:';
