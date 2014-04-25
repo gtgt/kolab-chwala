@@ -35,6 +35,7 @@ select[multiple="multiple"] {
 
 table.list {
   width: 100%;
+  table-layout: fixed;
   border-spacing: 0;
   border-radius: 3px;
   -moz-border-radius: 3px;
@@ -1264,16 +1265,23 @@ td span.branch span.l3
 #filelist td {
   white-space: nowrap;
   cursor: default;
+  width: 70px;
+  overflow: hidden;
 }
 
 #filelist td.filename {
   width: 98%;
   height: 20px;
   padding: 0 4px;
+  text-overflow: ellipsis;
 }
 
 #filelist td.filesize {
   text-align: right;
+}
+
+#filelist td.filemtime {
+  width: 115px;
 }
 
 #filelist tbody td.filename span {
