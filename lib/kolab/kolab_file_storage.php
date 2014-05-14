@@ -734,15 +734,15 @@ class kolab_file_storage implements file_storage
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
-        foreach ($folders as $folder) {
-            $folder = rcube_charset::convert($folder_name, 'UTF7-IMAP', RCUBE_CHARSET);
-        }
-
         // create 'Files' folder in case there's no folder of type 'file'
         if (empty($folders)) {
             if (kolab_storage::folder_create('Files', 'file')) {
                 $folders[] = 'Files';
             }
+        }
+        else {
+            $callback = function($folder) { return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET); };
+            $folders  = array_map($callback, $folders);
         }
 
         return $folders;
