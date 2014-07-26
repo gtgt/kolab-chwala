@@ -70,7 +70,7 @@ class file_ui_client_file extends file_ui
         }
 
         // src attribute will be set on page load
-        return html::iframe(array('id' => 'file-content'));
+        return html::iframe(array('id' => 'file-content', 'allowfullscreen' => true));
     }
 
     /**

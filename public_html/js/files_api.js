@@ -376,6 +376,10 @@ function files_api()
     if (/^text\/(?!(pdf|x-pdf))/i.test(type))
       return 2;
 
+    // types with viewer support
+    if ($.inArray(type, this.env.supported_mimetypes) > -1)
+      return 2;
+
     if (caps.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
       regexps.push(/^text\/(pdf|x-pdf)/i);
@@ -393,10 +397,6 @@ function files_api()
       if (t == type && navigator.mimeTypes[i].enabledPlugin)
         return 1;
     }
-
-    // types with viewer support
-    if ($.inArray(type, this.env.supported_mimetypes) > -1)
-      return 2;
   };
 
   // Return browser capabilities

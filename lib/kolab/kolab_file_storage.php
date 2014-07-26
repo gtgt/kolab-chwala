@@ -792,8 +792,8 @@ class kolab_file_storage implements file_storage
             array('type', '=', 'file'),
             array('filename', '=', $file_name)
         ));
-
-        return array_shift($files);
+rcube::console($files[0]);
+        return $files[0];
     }
 
     /**

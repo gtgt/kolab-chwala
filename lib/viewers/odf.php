@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2011-2013, Kolab Systems AG                                |
+ | Copyright (C) 2011-2014, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -121,6 +121,14 @@ class file_viewer_odf extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
+        $editable = in_array($mimetype, $this->editable);
+
+        if (!$editable) {
+            // read-only mode - use ViewerJS
+            return file_utils::script_uri() . 'viewers/odf/viewer/index.html'
+                . '#' . $this->api->file_url($file);
+        }
+
         return file_utils::script_uri() . '?method=file_get'
             . '&viewer=odf'
             . '&file=' . urlencode($file)
@@ -135,80 +143,32 @@ class file_viewer_odf extends file_viewer
      */
     public function output($file, $mimetype = null)
     {
-        $file_uri = $this->api->file_url($file);
-        $editable = in_array($mimetype, $this->editable);
+        // here we're in read-write mode, see self::href()
 
-        // viewer mode
-        if (!$editable) {
-            echo <<<EOT
+        $file_uri     = $this->api->file_url($file);
+        $file_uri_enc = htmlspecialchars($file_uri, ENT_QUOTES);
+        $username     = htmlspecialchars($_SESSION['user'], ENT_QUOTES);
+
+        echo <<<EOT
 <!DOCTYPE html>
-<html>
+<html style="width:100%; height:100%; margin:0; padding:0" xml:lang="en" lang="en">
   <head>
-    <link type="text/css" href="viewers/odf/viewer/viewer.css" rel="stylesheet" />
-    <script type="text/javascript" src="viewers/odf/webodf.js" charset="utf-8"></script>
-    <script type="text/javascript" charset="utf-8">
-      function init() {
-        var odfelement = document.getElementById("odf"),
-          odfcanvas = new odf.OdfCanvas(odfelement);
-        odfcanvas.load("$file_uri");
-      }
-      window.setTimeout(init, 0);
-    </script>
-  </head>
-  <body>
-    <div id="odf"></div>
-  </body>
-</html>
-EOT;
-        }
-        // editor mode
-        else {
-            echo <<<EOT
-<!DOCTYPE html>
-<html>
-  <head>
-    <link rel="stylesheet" type="text/css" href="viewers/odf/editor/editor.css"/>
-    <link rel="stylesheet" type="text/css" href="viewers/odf/editor/app/resources/app.css"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <style>
-    #container, #mainContainer { background-color: #f0f0f0; }
-    #toolbar { border-bottom: 1px solid #d0d0d0; }
+    .webodfeditor-canvascontainer { background-color: #f0f0f0 !important; }
+    .webodfeditor-canvas { box-shadow: none !important; }
+    .webodfeditor-editor { border: 0 !important; }
+    .webodfeditor-toolbarcontainer { box-shadow: none !important; }
+    .webodfeditor-toolbarcontainer > div { border-bottom: 1px solid #d0d0d0 !important; }
     </style>
-    <script type="text/javascript" charset="utf-8">
-      var file_uri = "$file_uri";
-      var usedLocale = "C";
-
-      if (navigator && navigator.language && navigator.language.match(/^(ru|de)/)) {
-        usedLocale = navigator.language.substr(0,2);
-      }
-
-      dojoConfig = {
-        locale: usedLocale,
-        paths: {
-          "webodf/editor": "viewers/odf/editor",
-          "dijit": "viewers/odf/editordijit",
-          "dojox": "viewers/odf/editor/dojox",
-          "dojo": "viewers/odf/editor/dojo",
-          "resources": "viewers/odf/editor/resources"
-        }
-      }
-    </script>
-    <script type="text/javascript" src="viewers/odf/editor/dojo-amalgamation.js" data-dojo-config="async: true"></script>
-    <script type="text/javascript" src="viewers/odf/webodf.js" charset="utf-8"></script>
+    <script type="text/javascript" src="viewers/odf/editor/wodotexteditor.js" charset="utf-8"></script>
     <script type="text/javascript" src="viewers/odf/file_editor.js" charset="utf-8"></script>
   </head>
-  <body class="claro" onload="file_editor.init(file_uri)">
-    <div id="mainContainer">
-      <div id="editor">
-        <span id="menubar"></span>
-        <span id="toolbar"></span>
-        <div id="container">
-          <div id="canvas"></div>
-        </div>
-      </div>
+  <body style="width:100%; height:100%; margin:0; padding:0" onload="file_editor.init('$file_uri_enc', '$username')">
+    <div id="editorContainer" style="width:100%; height:100%; margin:0; padding:0">
     </div>
   </body>
 </html>
 EOT;
-        }
     }
 }

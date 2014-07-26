@@ -16,15 +16,7 @@
     <body>
         <div id = "viewer">
             <div id = "titlebar">
-                <div id = "documentName"></div>
-                <div id = "toolbarRight">
-                    <button id = "presentation" class = "toolbarButton presentation" title = "Presentation"></button>
-                    <button id = "fullscreen" class = "toolbarButton fullscreen" title = "Fullscreen"></button>
-                    <button id = "download" class = "toolbarButton download" title = "Download"></button>
-                </div>
-           </div>
-            <div id = "toolbarContainer">
-                <div id = "toolbar">
+                <div id = "documentName" style="display:none"></div>
                     <div id = "toolbarLeft">
                         <div id = "navButtons" class = "splitToolbarButton">
                             <button id = "previous" class = "toolbarButton pageUp" title = "Previous Page"></button>
@@ -61,9 +53,17 @@
                             </div>
                         </div>
                     </div>
+                <div id = "toolbarRight">
+                    <button id = "presentation" class = "toolbarButton presentation" title = "Presentation"></button>
+                    <button id = "fullscreen" class = "toolbarButton fullscreen" title = "Fullscreen"></button>
+                    <button id = "download" class = "toolbarButton download" title = "Download" style="display:none"></button>
                 </div>
             </div>
-            <div id = "canvasContainer">
+            <div id = "toolbarContainer" style="display:none">
+                <div id = "toolbar">
+                </div>
+            </div>
+            <div id = "canvasContainer" style="bottom:0">
                 <div id = "canvas"></div>
             </div>
             <div id = "overlayNavigator">

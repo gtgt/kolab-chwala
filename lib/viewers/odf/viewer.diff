@@ -1,0 +1,63 @@
+diff -u Viewer.js/index.html viewer/index.html
+--- Viewer.js/index.html	2013-09-18 07:53:02.000000000 +0200
++++ viewer/index.html	2014-07-24 10:14:17.512023355 +0200
+@@ -16,15 +16,7 @@
+     <body>
+         <div id = "viewer">
+             <div id = "titlebar">
+-                <div id = "documentName"></div>
+-                <div id = "toolbarRight">
+-                    <button id = "presentation" class = "toolbarButton presentation" title = "Presentation"></button>
+-                    <button id = "fullscreen" class = "toolbarButton fullscreen" title = "Fullscreen"></button>
+-                    <button id = "download" class = "toolbarButton download" title = "Download"></button>
+-                </div>
+-           </div>
+-            <div id = "toolbarContainer">
+-                <div id = "toolbar">
++                <div id = "documentName" style="display:none"></div>
+                     <div id = "toolbarLeft">
+                         <div id = "navButtons" class = "splitToolbarButton">
+                             <button id = "previous" class = "toolbarButton pageUp" title = "Previous Page"></button>
+@@ -61,9 +53,17 @@
+                             </div>
+                         </div>
+                     </div>
++                <div id = "toolbarRight">
++                    <button id = "presentation" class = "toolbarButton presentation" title = "Presentation"></button>
++                    <button id = "fullscreen" class = "toolbarButton fullscreen" title = "Fullscreen"></button>
++                    <button id = "download" class = "toolbarButton download" title = "Download" style="display:none"></button>
++                </div>
++            </div>
++            <div id = "toolbarContainer" style="display:none">
++                <div id = "toolbar">
+                 </div>
+             </div>
+-            <div id = "canvasContainer">
++            <div id = "canvasContainer" style="bottom:0">
+                 <div id = "canvas"></div>
+             </div>
+             <div id = "overlayNavigator">
+diff -u Viewer.js/ODFViewerPlugin.js viewer/ODFViewerPlugin.js
+--- Viewer.js/ODFViewerPlugin.js	2013-09-18 07:53:02.000000000 +0200
++++ viewer/ODFViewerPlugin.js	2014-07-24 10:14:33.311023775 +0200
+@@ -41,7 +41,7 @@
+     function init(callback) {
+         var lib = document.createElement('script');
+         lib.async = false;
+-        lib.src = './webodf.js';
++        lib.src = '../editor/webodf.js';
+         lib.type = 'text/javascript';
+         lib.onload = function () {
+             runtime.currentDirectory = function () {
+diff -u Viewer.js/viewer.css viewer/viewer.css
+--- Viewer.js/viewer.css	2013-09-18 07:53:02.000000000 +0200
++++ viewer/viewer.css	2014-07-24 09:54:09.395995442 +0200
+@@ -49,7 +49,7 @@
+     z-index: 2; 
+     bottom: 0px;
+     left: 0px;
+-    height: 32px;
++    height: 0;
+     width: 100%;
+     overflow: hidden;
+ 

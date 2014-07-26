@@ -730,8 +730,8 @@ class file_api
     public function file_url($file)
     {
         return file_utils::script_uri(). '?method=file_get'
-            . '&file=' . urlencode($file)
-            . '&token=' . urlencode(session_id());
+            . '&token=' . urlencode(session_id())
+            . '&file=' . urlencode($file);
     }
 
     /**

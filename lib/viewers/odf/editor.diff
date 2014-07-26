@@ -1,0 +1,31 @@
+--- wodotexteditor/wodotexteditor.js	2014-07-17 23:46:32.000000000 +0200
++++ editor/wodotexteditor.js	2014-07-24 15:17:26.000000000 +0200
+@@ -350,9 +350,9 @@
+         function startEditing() {
+             runtime.assert(editorSession, "editorSession should exist here.");
+ 
+-            tools.setEditorSession(editorSession);
++//            tools.setEditorSession(editorSession);
+             editorSession.sessionController.insertLocalCursor();
+-            editorSession.sessionController.startEditing();
++//            editorSession.sessionController.startEditing();
+         }
+ 
+         /**
+@@ -366,6 +366,16 @@
+             editorSession.sessionController.removeLocalCursor();
+         }
+ 
++        this.startEdit = function() {
++            tools.setEditorSession(editorSession);
++            editorSession.sessionController.startEditing();
++        };
++
++        this.stopEdit = function() {
++            tools.setEditorSession(undefined);
++            editorSession.sessionController.endEditing();
++        };
++
+         /**
+          * Loads an ODT document into the editor.
+          * @name TextEditor#openDocumentFromUrl

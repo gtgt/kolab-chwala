@@ -1672,6 +1672,8 @@ function files_ui()
     if (!iframe.length)
       return;
 
+    this.file_editor = null;
+
     var href = filedata.href,
       div = iframe.parent(),
       loader = $('#loader'),
@@ -1704,14 +1706,16 @@ function files_ui()
   // hide content loader element, show content element
   this.loader_hide = function(content)
   {
+    if (this.file_editor) {
+      return;
+    }
+
     $('#loader').hide();
     $(content).css('opacity', 1);
 
-    var win = content.contentWindow;
-
-    this.file_editor = null;
-
     try {
+      var win = content.contentWindow;
+
       // it throws "permission denied" sometimes
       if (win.file_editor && win.file_editor.editable)
         this.file_editor = win.file_editor;
