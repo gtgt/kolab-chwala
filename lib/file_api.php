@@ -474,7 +474,7 @@ class file_api
                 }
                 return $this->api->folder_delete($args['folder']);
 
-            case 'folder_rename':
+            case 'folder_move':
                 if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing source folder name", file_api::ERROR_CODE);
                 }
@@ -484,7 +484,7 @@ class file_api
                 if ($args['new'] === $args['folder']) {
                     return;
                 }
-                return $this->api->folder_rename($args['folder'], $args['new']);
+                return $this->api->folder_move($args['folder'], $args['new']);
 
             case 'folder_list':
                 return $this->api->folder_list();
