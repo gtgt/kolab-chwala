@@ -474,6 +474,7 @@ class file_api
                 }
                 return $this->api->folder_delete($args['folder']);
 
+            case 'folder_rename':
             case 'folder_move':
                 if (!isset($args['folder']) || $args['folder'] === '') {
                     throw new Exception("Missing source folder name", file_api::ERROR_CODE);
