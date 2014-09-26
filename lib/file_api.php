@@ -61,7 +61,7 @@ class file_api
         $driver = $this->conf->get('fileapi_backend', 'kolab');
         $class  = $driver . '_file_storage';
 
-        $include_path = RCUBE_INSTALL_PATH . '/lib/' . $driver . PATH_SEPARATOR;
+        $include_path = RCUBE_INSTALL_PATH . "/lib/drivers/$driver" . PATH_SEPARATOR;
         $include_path .= ini_get('include_path');
         set_include_path($include_path);
 

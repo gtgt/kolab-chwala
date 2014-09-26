@@ -1,0 +1,994 @@
+<?php
+/*
+ +--------------------------------------------------------------------------+
+ | This file is part of the Kolab File API                                  |
+ |                                                                          |
+ | Copyright (C) 2012-2014, Kolab Systems AG                                |
+ |                                                                          |
+ | This program is free software: you can redistribute it and/or modify     |
+ | it under the terms of the GNU Affero General Public License as published |
+ | by the Free Software Foundation, either version 3 of the License, or     |
+ | (at your option) any later version.                                      |
+ |                                                                          |
+ | This program is distributed in the hope that it will be useful,          |
+ | but WITHOUT ANY WARRANTY; without even the implied warranty of           |
+ | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the             |
+ | GNU Affero General Public License for more details.                      |
+ |                                                                          |
+ | You should have received a copy of the GNU Affero General Public License |
+ | along with this program. If not, see <http://www.gnu.org/licenses/>      |
+ +--------------------------------------------------------------------------+
+ | Author: Aleksander Machniak <machniak@kolabsys.com>                      |
+ +--------------------------------------------------------------------------+
+*/
+
+class seafile_file_storage implements file_storage
+{
+    /**
+     * @var rcube
+     */
+    protected $rc;
+
+    /**
+     * @var array
+     */
+    protected $config = array();
+
+    /**
+     * @var seafile_api
+     */
+    protected $api;
+
+    /**
+     * List of SeaFile libraries
+     *
+     * @var array
+     */
+    protected $libraries;
+
+
+    /**
+     * Class constructor
+     */
+    public function __construct()
+    {
+        $this->rc = rcube::get_instance();
+    }
+
+    /**
+     * Authenticates a user
+     *
+     * @param string $username User name
+     * @param string $password User password
+     *
+     * @param bool True on success, False on failure
+     */
+    public function authenticate($username, $password)
+    {
+        $this->init(true);
+
+        $token = $this->api->authenticate($username, $password);
+
+        if ($token) {
+            $_SESSION['seafile_user']  = $username;
+            $_SESSION['seafile_token'] = $this->rc->encrypt($token);
+            $_SESSION['seafile_pass']  = $this->rc->encrypt($password);
+
+            return true;
+        }
+
+        $this->api = false;
+
+        return false;
+    }
+
+    /**
+     * Initialize SeaFile Web API connection
+     */
+    protected function init($skip_auth = false)
+    {
+        if ($this->api !== null) {
+            return $this->api !== false;
+        }
+
+        // read configuration
+        $config = array(
+            'host'            => $this->rc->config->get('seafile_host', 'localhost'),
+            'ssl_verify_peer' => $this->rc->config->get('seafile_ssl_verify_peer', true),
+            'ssl_verify_host' => $this->rc->config->get('seafile_ssl_verify_host', true),
+            'debug'           => $this->rc->config->get('seafile_debug', false),
+        );
+
+        $this->config = array_merge($this->config, $config);
+
+        // initialize Web API
+        $this->api = new seafile_api($this->config);
+
+        if ($skip_auth) {
+            return true;
+        }
+
+        // try session token
+        if ($_SESSION['seafile_token'] && ($token = $this->rc->decrypt($_SESSION['seafile_token']))) {
+            $valid = $this->api->ping($token);
+        }
+
+        if (!$valid && $_SESSION['seafile_password'] && $_SESSION['seafile_user']) {
+            $pass  = $this->rc->decrypt($_SESSION['seafile_pass']);
+            $valid = $this->authenticate($_SESSION['seafile_user'], $pass);
+        }
+
+        return $valid;
+    }
+
+    /**
+     * Configures environment
+     *
+     * @param array $config Configuration
+     */
+    public function configure($config)
+    {
+        $this->config = array_merge($this->config, $config);
+    }
+
+    /**
+     * Storage driver capabilities
+     *
+     * @return array List of capabilities
+     */
+    public function capabilities()
+    {
+        // find max filesize value
+        $max_filesize = parse_bytes(ini_get('upload_max_filesize'));
+        $max_postsize = parse_bytes(ini_get('post_max_size'));
+        if ($max_postsize && $max_postsize < $max_filesize) {
+            $max_filesize = $max_postsize;
+        }
+
+        return array(
+            file_storage::CAPS_MAX_UPLOAD => $max_filesize,
+            file_storage::CAPS_QUOTA      => true,
+            file_storage::CAPS_LOCKS      => true,
+        );
+    }
+
+    /**
+     * Create a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
+     *
+     * @throws Exception
+     */
+    public function file_create($file_name, $file)
+    {
+        list($fn, $repo_id) = $this->find_library($file_name);
+
+        if (empty($repo_id)) {
+            throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
+        }
+
+        $file['data'] = $file['path'];
+
+        $created = $this->api->file_upload($repo_id, $fn, $file);
+
+        if (!$created) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error saving file to SeaFile server"),
+                true, false);
+
+            throw new Exception("Storage error. Saving file failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Update a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param array  $file      File data (path, type)
+     *
+     * @throws Exception
+     */
+    public function file_update($file_name, $file)
+    {
+        list($fn, $repo_id) = $this->find_library($file_name);
+
+        if (empty($repo_id)) {
+            throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
+        }
+
+        if ($file['path']) {
+            $file['data'] = $file['path'];
+        }
+        else {
+            $fp = fopen('php://temp', 'wb');
+            fwrite($fp, $file['content'], strlen($file['content']));
+            $file['data'] = $fp;
+            unset($file['content']);
+        }
+
+        $saved = $this->api->file_update($repo_id, $fn, $file);
+
+        if ($fp) {
+            fclose($fp);
+        }
+
+        if (!$saved) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error saving file to SeaFile server"),
+                true, false);
+
+            throw new Exception("Storage error. Saving file failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Delete a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_delete($file_name)
+    {
+        list($file_name, $repo_id) = $this->find_library($file_name);
+
+        if ($repo_id && $file_name != '/') {
+            $deleted = $this->api->file_delete($repo_id, $file_name);
+        }
+
+        if (!$deleted) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error deleting object from SeaFile server"),
+                true, false);
+
+            throw new Exception("Storage error. Deleting file failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Return file body.
+     *
+     * @param string   $file_name Name of a file (with folder path)
+     * @param array    $params    Parameters (force-download)
+     * @param resource $fp        Print to file pointer instead (send no headers)
+     *
+     * @throws Exception
+     */
+    public function file_get($file_name, $params = array(), $fp = null)
+    {
+        list($fn, $repo_id) = $this->find_library($file_name);
+
+        $file = $this->api->file_info($repo_id, $fn);
+
+        if (empty($file)) {
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
+        }
+
+        $file = $this->from_file_object($file);
+
+        // get file location on SeaFile server for download
+        if ($file['size']) {
+            $link = $this->api->file_get($repo_id, $fn);
+        }
+
+        // write to file pointer, send no headers
+        if ($fp) {
+            if ($file['size']) {
+                $this->save_file_content($link, $fp);
+            }
+
+            return;
+        }
+
+        if (!empty($params['force-download'])) {
+            $disposition = 'attachment';
+            header("Content-Type: application/octet-stream");
+// @TODO
+//            if ($browser->ie)
+//                header("Content-Type: application/force-download");
+        }
+        else {
+            $mimetype    = file_utils::real_mimetype($params['force-type'] ? $params['force-type'] : $file['type']);
+            $disposition = 'inline';
+
+            header("Content-Transfer-Encoding: binary");
+            header("Content-Type: $mimetype");
+        }
+
+        $filename = addcslashes($file['name'], '"');
+
+        // Workaround for nasty IE bug (#1488844)
+        // If Content-Disposition header contains string "attachment" e.g. in filename
+        // IE handles data as attachment not inline
+/*
+@TODO
+        if ($disposition == 'inline' && $browser->ie && $browser->ver < 9) {
+            $filename = str_ireplace('attachment', 'attach', $filename);
+        }
+*/
+        header("Content-Length: " . $file['size']);
+        header("Content-Disposition: $disposition; filename=\"$filename\"");
+
+        // just send redirect to SeaFile server
+        if ($file['size']) {
+            header("Location: $link");
+        }
+        die;
+    }
+
+    /**
+     * Returns file metadata.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_info($file_name)
+    {
+        list($file, $repo_id) = $this->find_library($file_name);
+
+        $file = $this->api->file_info($repo_id, $file);
+
+        if (empty($file)) {
+            throw new Exception("Storage error. File not found.", file_storage::ERROR);
+        }
+
+        $file = $this->from_file_object($file);
+
+        return array(
+            'name'     => $file['name'],
+            'size'     => (int) $file['size'],
+            'type'     => (string) $file['type'],
+            'mtime'    => $file['changed'] ? $file['changed']->format($this->config['date_format']) : '',
+            'ctime'    => $file['created'] ? $file['created']->format($this->config['date_format']) : '',
+            'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
+            'created'  => $file['created'] ? $file['created']->format('U') : 0,
+        );
+    }
+
+    /**
+     * List files in a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     * @param array  $params      List parameters ('sort', 'reverse', 'search')
+     *
+     * @return array List of files (file properties array indexed by filename)
+     * @throws Exception
+     */
+    public function file_list($folder_name, $params = array())
+    {
+        list($folder, $repo_id) = $this->find_library($folder_name);
+
+        // prepare search filter
+        if (!empty($params['search'])) {
+            foreach ($params['search'] as $idx => $value) {
+                if ($idx == 'name') {
+                    $params['search'][$idx] = mb_strtoupper($value);
+                }
+                else if ($idx == 'class') {
+                    $params['search'][$idx] = file_utils::class2mimetypes($value);
+                }
+            }
+        }
+
+        // get directory entries
+        $entries = $this->api->directory_entries($repo_id, $folder);
+        $result  = array();
+
+        foreach ((array) $entries as $idx => $file) {
+            if ($file['type'] != 'file') {
+                continue;
+            }
+
+            $file = $this->from_file_object($file);
+
+            // search filter
+            if (!empty($params['search'])) {
+                foreach ($params['search'] as $idx => $value) {
+                    if ($idx == 'name') {
+                        if (strpos(mb_strtoupper($file['name']), $value) === false) {
+                            continue 2;
+                        }
+                    }
+                    else if ($idx == 'class') {
+                        foreach ($value as $v) {
+                            if (stripos($file['type'], $v) === 0) {
+                                break 2;
+                            }
+                        }
+
+                        continue 2;
+                    }
+                }
+            }
+
+            $filename = $folder_name . file_storage::SEPARATOR . $file['name'];
+
+            $result[$filename] = array(
+                'name'     => $file['name'],
+                'size'     => (int) $file['size'],
+                'type'     => (string) $file['type'],
+                'mtime'    => $file['changed'] ? $file['changed']->format($this->config['date_format']) : '',
+                'ctime'    => $file['created'] ? $file['created']->format($this->config['date_format']) : '',
+                'modified' => $file['changed'] ? $file['changed']->format('U') : 0,
+                'created'  => $file['created'] ? $file['created']->format('U') : 0,
+            );
+
+            unset($files[$idx]);
+        }
+
+        // @TODO: pagination, search (by filename, mimetype)
+
+        // Sorting
+        $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
+        $index = array();
+
+        if ($sort == 'mtime') {
+            $sort = 'modified';
+        }
+
+        if (in_array($sort, array('name', 'size', 'modified'))) {
+            foreach ($result as $key => $val) {
+                $index[$key] = $val[$sort];
+            }
+            array_multisort($index, SORT_ASC, SORT_NUMERIC, $result);
+        }
+
+        if ($params['reverse']) {
+            $result = array_reverse($result, true);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Copy a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_copy($file_name, $new_name)
+    {
+        list($src_name, $repo_id)     = $this->find_library($file_name);
+        list($dst_name, $dst_repo_id) = $this->find_library($new_name);
+
+        if ($repo_id && $dst_repo_id) {
+            $path_src = explode('/', $src_name);
+            $path_dst = explode('/', $dst_name);
+            $f_src    = array_pop($path_src);
+            $f_dst    = array_pop($path_dst);
+            $src_dir  = '/' . ltrim(implode('/', $path_src), '/');
+            $dst_dir  = '/' . ltrim(implode('/', $path_dst), '/');
+
+            $success = $this->api->file_copy($repo_id, $f_old, $src_dir, $dst_dir, $dst_repo_id);
+
+            // now rename the file if needed
+            if ($success && $f_src != $f_dst) {
+                $success = $this->api->file_rename($dst_repo_id, rtrim($dst_dir, '/') . '/' . $f_src, $f_dst);
+            }
+        }
+
+        if (!$saved) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error copying file on SeaFile server"),
+                true, false);
+
+            throw new Exception("Storage error. File copying failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Move (or rename) a file.
+     *
+     * @param string $file_name Name of a file (with folder path)
+     * @param string $new_name  New name of a file (with folder path)
+     *
+     * @throws Exception
+     */
+    public function file_move($file_name, $new_name)
+    {
+        list($src_name, $repo_id)     = $this->find_library($file_name);
+        list($dst_name, $dst_repo_id) = $this->find_library($new_name);
+
+        if ($repo_id && $dst_repo_id) {
+            $path_src = explode('/', $src_name);
+            $path_dst = explode('/', $dst_name);
+            $f_src    = array_pop($path_src);
+            $f_dst    = array_pop($path_dst);
+            $src_dir  = '/' . ltrim(implode('/', $path_src), '/');
+            $dst_dir  = '/' . ltrim(implode('/', $path_dst), '/');
+
+            if ($src_dir == $dst_dir && $repo_id == $dst_repo_id) {
+                $success = true;
+            }
+            else {
+                $success = $this->api->file_move($repo_id, $src_name, $dst_dir, $dst_repo_id);
+            }
+
+            // now rename the file if needed
+            if ($success && $f_src != $f_dst) {
+                $success = $this->api->file_rename($dst_repo_id, rtrim($dst_dir, '/') . '/' . $f_src, $f_dst);
+            }
+        }
+
+        if (!$success) {
+            rcube::raise_error(array(
+                'code' => 600, 'type' => 'php',
+                'file' => __FILE__, 'line' => __LINE__,
+                'message' => "Error moving file on SeaFile server"),
+                true, false);
+
+            throw new Exception("Storage error. File rename failed.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Create a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception on error
+     */
+    public function folder_create($folder_name)
+    {
+        list($folder, $repo_id) = $this->find_library($folder_name, true);
+
+        if (empty($repo_id)) {
+            $success = $this->api->library_create($folder_name);
+        }
+        else if ($folder != '/') {
+            $success = $this->api->directory_create($repo_id, $folder);
+        }
+
+        if (!$success) {
+            throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Delete a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception on error
+     */
+    public function folder_delete($folder_name)
+    {
+        list($folder, $repo_id) = $this->find_library($folder_name, true);
+
+        if ($repo_id && $folder == '/') {
+            $success = $this->api->library_delete($repo_id);
+        }
+        else if ($repo_id) {
+            $success = $this->api->directory_delete($repo_id, $folder);
+        }
+
+        if (!$success) {
+            throw new Exception("Storage error. Unable to delete folder.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Move/Rename a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     * @param string $new_name    New name of a folder with full path
+     *
+     * @throws Exception on error
+     */
+    public function folder_move($folder_name, $new_name)
+    {
+        list($folder, $repo_id, $library) = $this->find_library($folder_name, true);
+        list($dest_folder, $dest_repo_id) = $this->find_library($new_name, true);
+
+        // folders rename/move is possible only in the same library and folder
+        // @TODO: support folder move between libraries and folders
+        // @TODO: support converting library into a folder and vice-versa
+
+        // library rename
+        if ($repo_id && !$dest_repo_id && $folder == '/' && strpos($new_name, '/') === false) {
+            $success = $this->api->library_rename($repo_id, $new_name, $library['desc']);
+        }
+        // folder rename
+        else if ($folder != '/' && $dest_folder != '/' && $repo_id && $repo_id == $dest_repo_id) {
+            $path_src = explode('/', $folder);
+            $path_dst = explode('/', $dest_folder);
+            $f_src    = array_pop($path_src);
+            $f_dst    = array_pop($path_dst);
+            $src_dir  = implode('/', $path_src);
+            $dst_dir  = implode('/', $path_dst);
+
+            if ($src_dir == $dst_dir) {
+                $success = $this->api->directory_rename($repo_id, $folder, $f_dst);
+            }
+        }
+
+        if (!$success) {
+            throw new Exception("Storage error. Unable to rename/move folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Returns list of folders.
+     *
+     * @return array List of folders
+     * @throws Exception
+     */
+    public function folder_list()
+    {
+        $libraries = $this->libraries();
+        $folders   = array();
+
+        foreach ($this->libraries as $library) {
+            if ($library['virtual'] || $library['encrypted']) {
+                continue;
+            }
+
+            $folders[] = $library['name'];
+
+            if ($folder_tree = $this->folders_tree($library, '')) {
+                $folders = array_merge($folders, $folder_tree);
+            }
+        }
+
+        if (empty($folders)) {
+            throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
+        }
+
+        // sort folders
+        usort($folders, array($this, 'sort_folder_comparator'));
+
+        return $folders;
+    }
+
+    /**
+     * Recursively builds folders list
+     */
+    protected function folders_tree($library, $folder)
+    {
+        $folders = array();
+        $length  = strlen($folder);
+
+        if ($content = $this->api->directory_entries($library['id'], '/' . $folder)) {
+            foreach ($content as $item) {
+                if ($item['type'] == 'dir' && strlen($item['name'])) {
+                    $f = ($length ? $folder . '/' : '') . $item['name'];
+                    $folders[] = $library['name'] . '/' . $f;
+
+                    $folders_tree = $this->folders_tree($library, $f);
+                    if (!empty($folders_tree)) {
+                        $folders = array_merge($folders, $folders_tree);
+                    }
+                }
+            }
+        }
+
+        return $folders;
+    }
+
+    /**
+     * Callback for uasort() that implements correct
+     * locale-aware case-sensitive sorting
+     */
+    protected function sort_folder_comparator($str1, $str2)
+    {
+        $path1 = explode('/', $str1);
+        $path2 = explode('/', $str2);
+
+        foreach ($path1 as $idx => $folder1) {
+            $folder2 = $path2[$idx];
+
+            if ($folder1 === $folder2) {
+                continue;
+            }
+
+            return strcoll($folder1, $folder2);
+        }
+    }
+
+    /**
+     * Get list of SeaFile libraries
+     */
+    protected function libraries()
+    {
+        // get from memory, @TODO: cache in rcube_cache?
+        if ($this->libraries !== null) {
+            return $this->libraries;
+        }
+
+        if (!$this->init()) {
+            throw new Exception("Storage error. Unable to get list of SeaFile libraries.", file_storage::ERROR);
+        }
+
+        if ($list = $this->api->library_list()) {
+            $this->libraries = $list;
+        }
+        else {
+            $this->libraries = array();
+        }
+
+        return $this->libraries;
+    }
+
+    /**
+     * Find library ID from folder name
+     */
+    protected function find_library($folder_name, $no_exception = false)
+    {
+        $libraries = $this->libraries();
+
+        foreach ($libraries as $lib) {
+            $path = $lib['name'] . '/';
+
+            if ($folder_name == $lib['name'] || strpos($folder_name, $path) === 0) {
+                if (empty($library) || strlen($library['name']) < strlen($lib['name'])) {
+                    $library = $lib;
+                }
+            }
+        }
+
+        if (empty($library)) {
+            if (!$no_exception) {
+                throw new Exception("Storage error. Library not found.", file_storage::ERROR);
+            }
+        }
+        else {
+            $folder = substr($folder_name, strlen($library['name']) + 1);
+        }
+
+        return array(
+            '/' . ($folder ? $folder : ''),
+            $library['id'],
+            $library
+        );
+    }
+
+    /**
+     * Returns a list of locks
+     *
+     * This method should return all the locks for a particular URI, including
+     * locks that might be set on a parent URI.
+     *
+     * If child_locks is set to true, this method should also look for
+     * any locks in the subtree of the URI for locks.
+     *
+     * @param string $uri         URI
+     * @param bool   $child_locks Enables subtree checks
+     *
+     * @return array List of locks
+     * @throws Exception
+     */
+    public function lock_list($uri, $child_locks = false)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        // get locks list
+        $list = $this->lock_db->lock_list($uri, $child_locks);
+
+        // convert back resource string into URIs
+        foreach ($list as $idx => $lock) {
+            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+        }
+
+        return $list;
+    }
+
+    /**
+     * Locks a URI
+     *
+     * @param string $uri  URI
+     * @param array  $lock Lock data
+     *                     - depth: 0/'infinite'
+     *                     - scope: 'shared'/'exclusive'
+     *                     - owner: string
+     *                     - token: string
+     *                     - timeout: int
+     *
+     * @throws Exception
+     */
+    public function lock($uri, $lock)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        if (!$this->lock_db->lock($uri, $lock)) {
+            throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Removes a lock from a URI
+     *
+     * @param string $path URI
+     * @param array  $lock Lock data
+     *
+     * @throws Exception
+     */
+    public function unlock($uri, $lock)
+    {
+        $this->init_lock_db();
+
+        // convert URI to global resource string
+        $uri = $this->uri2resource($uri);
+
+        if (!$this->lock_db->unlock($uri, $lock)) {
+            throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Return disk quota information for specified folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return array Quota
+     * @throws Exception
+     */
+    public function quota($folder)
+    {
+        if (!$this->init()) {
+            throw new Exception("Storage error. Unable to get SeaFile account info.", file_storage::ERROR);
+        }
+
+        $account_info = $this->api->account_info();
+
+        if (empty($account_info)) {
+            throw new Exception("Storage error. Unable to get SeaFile account info.", file_storage::ERROR);
+        }
+
+        $quota = array(
+            'total' => $account_info['total'],
+            'usage' => $account_info['usage'],
+        );
+
+        return $quota;
+    }
+
+    /**
+     * Get file object.
+     *
+     * @param string               $file_name Name of a file (with folder path)
+     * @param kolab_storage_folder $folder    Reference to folder object
+     *
+     * @return array File data
+     * @throws Exception
+     */
+    protected function get_file_object(&$file_name, &$folder = null)
+    {
+        // extract file path and file name
+        $path        = explode(file_storage::SEPARATOR, $file_name);
+        $file_name   = array_pop($path);
+        $folder_name = implode(file_storage::SEPARATOR, $path);
+
+        if ($folder_name === '') {
+            throw new Exception("Missing folder name", file_storage::ERROR);
+        }
+
+        // get folder object
+        $folder = $this->get_folder_object($folder_name);
+        $files  = $folder->select(array(
+            array('type', '=', 'file'),
+            array('filename', '=', $file_name)
+        ));
+
+        return $files[0];
+    }
+
+    /**
+     * Simplify internal structure of the file object
+     */
+    protected function from_file_object($file)
+    {
+        if ($file['type'] != 'file') {
+            return null;
+        }
+
+        // file modification time
+        if ($file['mtime']) {
+            try {
+                $file['changed'] = new DateTime('@' . $file['mtime']);
+            }
+            catch (Exception $e) { }
+        }
+
+        // find file mimetype from extension
+        $file['type'] = file_utils::ext_to_type($file['name']);
+
+        unset($file['id']);
+        unset($file['mtime']);
+
+        return $file;
+    }
+
+    /**
+     * Save remote file into file pointer
+     */
+    protected function save_file_content($location, $fp)
+    {
+        if (!$fp || !$location) {
+            return false;
+        }
+
+        $config  = array_merge($this->config, array('store_bodies' => true));
+        $request = seafile_api::http_request($config);
+
+        if (!$request) {
+            return false;
+        }
+
+        $observer = new seafile_request_observer();
+        $observer->set_fp($fp);
+
+        try {
+            $request->setUrl($location);
+            $request->attach($observer);
+
+            $response = $request->send();
+            $status   = $response->getStatus();
+
+            $response->getBody(); // returns nothing
+            $request->detach($observer);
+
+            if ($status != 200) {
+                throw new Exception("Unable to save file. Status $status.");
+            }
+        }
+        catch (Exception $e) {
+            rcube::raise_error($e, true, false);
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function uri2resource($uri)
+    {
+        list($file, $repo_id, $library) = $this->find_library($uri);
+
+        // convert to imap charset (to be safe to store in DB)
+        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
+
+        return 'seafile://' . urlencode($library['owner']) . '@' . $this->config['host'] . '/' . $uri;
+    }
+
+    protected function resource2uri($resource)
+    {
+        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+            throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
+        }
+
+        $user = urldecode($matches[1]);
+        $uri  = $matches[3];
+
+        // convert from imap charset (to be safe to store in DB)
+        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+
+        return $uri;
+    }
+
+    /**
+     * Initializes file_locks object
+     */
+    protected function init_lock_db()
+    {
+        if (!$this->lock_db) {
+            $this->lock_db = new file_locks;
+        }
+    }
+}
