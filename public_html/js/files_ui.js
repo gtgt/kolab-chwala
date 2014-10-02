@@ -1093,7 +1093,7 @@ function files_ui()
   // file row drag start event handler
   this.file_list_drag = function(e, row)
   {
-    if (e.shiftKey || e.ctrlKey)
+    if (e.shiftKey || e.ctrlKey || $(e.target).is('input'))
       return true;
 
     // selects currently unselected row
