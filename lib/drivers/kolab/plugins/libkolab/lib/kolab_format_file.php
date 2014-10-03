@@ -25,7 +25,7 @@
 
 class kolab_format_file extends kolab_format
 {
-    public $CTYPE = 'application/x-vnd.kolab.file';
+    public $CTYPE = 'application/vnd.kolab+xml';
 
     protected $objclass = 'File';
     protected $read_func = 'kolabformat::readKolabFile';

@@ -39,6 +39,11 @@ class kolab_file_storage implements file_storage
      */
     protected $config;
 
+    /**
+     * @var string
+     */
+    protected $title;
+
 
     /**
      * Class constructor
@@ -210,6 +215,7 @@ class kolab_file_storage implements file_storage
                 return false;
             }
         }
+
         // set session vars
         $_SESSION['user_id']      = $user->ID;
         $_SESSION['username']     = $user->data['username'];
@@ -243,11 +249,23 @@ class kolab_file_storage implements file_storage
     /**
      * Configures environment
      *
-     * @param array $config COnfiguration
+     * @param array  $config Configuration
+     * @param string $title  Source identifier
      */
-    public function configure($config)
+    public function configure($config, $title = null)
     {
         $this->config = $config;
+        // @TODO: this is currently not possible to have multiple sessions in Roundcube
+    }
+
+    /**
+     * Returns current instance title
+     *
+     * @return string Instance title (mount point)
+     */
+    public function title()
+    {
+        return '';
     }
 
     /**
@@ -272,6 +290,109 @@ class kolab_file_storage implements file_storage
             file_storage::CAPS_QUOTA      => $quota,
             file_storage::CAPS_LOCKS      => true,
         );
+    }
+
+    /**
+     * Save configuration of external driver (mount point)
+     *
+     * @param array $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_create($driver)
+    {
+        $drivers = $this->driver_list();
+
+        if ($drivers[$driver['title']]) {
+            throw new Exception("Driver exists", file_storage::ERROR);
+        }
+
+        $config = kolab_storage_config::get_instance();
+        $status = $config->save($driver, 'file_driver');
+
+        if (!$status) {
+            throw new Exception("Driver create failed", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Delete configuration of external driver (mount point)
+     *
+     * @param string $name Driver instance name
+     *
+     * @throws Exception
+     */
+    public function driver_delete($name)
+    {
+        $drivers = $this->driver_list();
+
+        if ($driver = $drivers[$name]) {
+            $config = kolab_storage_config::get_instance();
+            $status = $config->delete($driver['uid']);
+
+            if (!$status) {
+                throw new Exception("Driver delete failed", file_storage::ERROR);
+            }
+
+            return;
+        }
+
+        throw new Exception("Driver not found", file_storage::ERROR);
+    }
+
+    /**
+     * Return list of registered drivers (mount points)
+     *
+     * @return array List of drivers data
+     * @throws Exception
+     */
+    public function driver_list()
+    {
+        // get current relations state
+        $config  = kolab_storage_config::get_instance();
+        $default = true;
+        $filter  = array(
+            array('type', '=', 'file_driver'),
+        );
+
+        $drivers = $config->get_objects($filter, $default, 100);
+        $result  = array();
+
+        foreach ($drivers as $driver) {
+            $result[$driver['title']] = array(
+                'title'    => $driver['title'],
+                'driver'   => $driver['driver'],
+                'settings' => $driver['settings'],
+                // Kolab specific
+                'uid'      => $driver['uid'],
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Update configuration of external driver (mount point)
+     *
+     * @param string $name   Driver instance name
+     * @param array  $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_update($name, $driver)
+    {
+        $drivers = $this->driver_list();
+
+        if (!$drivers[$name]) {
+            throw new Exception("Driver not found", file_storage::ERROR);
+        }
+
+        $config = kolab_storage_config::get_instance();
+        $status = $config->save($driver, 'file_driver');
+
+        if (!$status) {
+            throw new Exception("Driver update failed", file_storage::ERROR);
+        }
     }
 
     /**
@@ -465,7 +586,7 @@ class kolab_file_storage implements file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse', 'search')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search', 'prefix')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception
@@ -503,7 +624,7 @@ class kolab_file_storage implements file_storage
                 continue;
             }
 
-            $filename = $folder_name . file_storage::SEPARATOR . $file['name'];
+            $filename = $params['prefix'] . $folder_name . file_storage::SEPARATOR . $file['name'];
 
             $result[$filename] = array(
                 'name'     => $file['name'],

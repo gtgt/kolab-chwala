@@ -104,7 +104,9 @@ class file_viewer_text extends file_viewer
         stream_filter_register('file_viewer_text', 'file_viewer_content_filter');
         stream_filter_append($stdout, 'file_viewer_text');
 
-        $this->api->api->file_get($file, array(), $stdout);
+        list($driver, $file) = $this->api->get_driver($file);
+
+        $driver->file_get($file, array(), $stdout);
     }
 
     /**

@@ -37,11 +37,12 @@ class libkolab extends rcube_plugin
         // load local config
         $this->load_config();
 
-        $this->add_hook('storage_init', array($this, 'storage_init'));
-
         // extend include path to load bundled lib classes
         $include_path = $this->home . '/lib' . PATH_SEPARATOR . ini_get('include_path');
         set_include_path($include_path);
+
+        $this->add_hook('storage_init', array($this, 'storage_init'));
+        $this->add_hook('user_delete', array('kolab_storage', 'delete_user_folders'));
 
         $rcmail = rcube::get_instance();
         try {
@@ -122,5 +123,16 @@ class libkolab extends rcube_plugin
         }
 
         return $request;
+    }
+
+    /**
+     * Wrapper function for generating a html diff using the FineDiff class by Raymond Hill
+     */
+    public static function html_diff($from, $to)
+    {
+      include_once __dir__ . '/vendor/finediff.php';
+
+      $diff = new FineDiff($from, $to, FineDiff::$wordGranularity);
+      return $diff->renderDiffToHTML();
     }
 }

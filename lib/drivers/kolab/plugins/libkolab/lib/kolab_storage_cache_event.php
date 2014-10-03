@@ -34,14 +34,14 @@ class kolab_storage_cache_event extends kolab_storage_cache
     {
         $sql_data = parent::_serialize($object);
 
-        // database runs in server's timezone so using date() is what we want
-        $sql_data['dtstart'] = date('Y-m-d H:i:s', is_object($object['start']) ? $object['start']->format('U') : $object['start']);
-        $sql_data['dtend']   = date('Y-m-d H:i:s', is_object($object['end'])   ? $object['end']->format('U')   : $object['end']);
+        $sql_data['dtstart'] = is_object($object['start']) ? $object['start']->format(self::DB_DATE_FORMAT) : date(self::DB_DATE_FORMAT, $object['start']);
+        $sql_data['dtend']   = is_object($object['end'])   ? $object['end']->format(self::DB_DATE_FORMAT)   : date(self::DB_DATE_FORMAT, $object['end']);
 
         // extend date range for recurring events
         if ($object['recurrence'] && $object['_formatobj']) {
             $recurrence = new kolab_date_recurrence($object['_formatobj']);
-            $sql_data['dtend'] = date('Y-m-d 23:59:59', $recurrence->end() ?: strtotime('now +10 years'));
+            $dtend = $recurrence->end() ?: new DateTime('now +10 years');
+            $sql_data['dtend'] = $dtend->format(self::DB_DATE_FORMAT);
         }
 
         return $sql_data;

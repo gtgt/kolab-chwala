@@ -45,7 +45,7 @@ abstract class kolab_format
     protected $version = '3.0';
 
     const KTYPE_PREFIX = 'application/x-vnd.kolab.';
-    const PRODUCT_ID = 'Roundcube-libkolab-0.9';
+    const PRODUCT_ID   = 'Roundcube-libkolab-1.1';
 
     /**
      * Factory method to instantiate a kolab_format object of the given type and version
@@ -123,7 +123,7 @@ abstract class kolab_format
             if (!$dateonly)
                 $result->setTime($datetime->format('G'), $datetime->format('i'), $datetime->format('s'));
 
-            if ($tz && $tz->getName() == 'UTC')
+            if ($tz && in_array($tz->getName(), array('UTC', 'GMT', '+00:00', 'Z')))
                 $result->setUTC(true);
             else if ($tz !== false)
                 $result->setTimezone($tz->getName());
@@ -174,7 +174,7 @@ abstract class kolab_format
      * Convert a libkolabxml vector to a PHP array
      *
      * @param object vector Object
-     * @return array Indexed array contaning vector elements
+     * @return array Indexed array containing vector elements
      */
     public static function vector2array($vec, $max = PHP_INT_MAX)
     {
@@ -208,7 +208,11 @@ abstract class kolab_format
      */
     public static function mime2object_type($x_kolab_type)
     {
-        return preg_replace('/dictionary.[a-z.]+$/', 'dictionary', substr($x_kolab_type, strlen(self::KTYPE_PREFIX)));
+        return preg_replace(
+            array('/dictionary.[a-z.]+$/', '/contact.distlist$/'),
+            array( 'dictionary',            'distribution-list'),
+            substr($x_kolab_type, strlen(self::KTYPE_PREFIX))
+        );
     }
 
 
@@ -242,7 +246,8 @@ abstract class kolab_format
                 break;
             case kolabformat::Warning:
                 $ret = false;
-                $log = "Warning";
+                $uid = is_object($this->obj) ? $this->obj->uid() : $this->data['uid'];
+                $log = "Warning @ $uid";
                 break;
             default:
                 $ret = true;
@@ -410,7 +415,7 @@ abstract class kolab_format
         $this->obj->setLastModified(self::get_datetime($object['changed']));
 
         // Save custom properties of the given object
-        if (isset($object['x-custom'])) {
+        if (isset($object['x-custom']) && method_exists($this->obj, 'setCustomProperties')) {
             $vcustom = new vectorcs;
             foreach ((array)$object['x-custom'] as $cp) {
                 if (is_array($cp))
@@ -418,7 +423,8 @@ abstract class kolab_format
             }
             $this->obj->setCustomProperties($vcustom);
         }
-        else {  // load custom properties from XML for caching (#2238)
+        // load custom properties from XML for caching (#2238) if method exists (#3125)
+        else if (method_exists($this->obj, 'customProperties')) {
             $object['x-custom'] = array();
             $vcustom = $this->obj->customProperties();
             for ($i=0; $i < $vcustom->size(); $i++) {
@@ -451,10 +457,12 @@ abstract class kolab_format
         }
 
         // read custom properties
-        $vcustom = $this->obj->customProperties();
-        for ($i=0; $i < $vcustom->size(); $i++) {
-            $cp = $vcustom->get($i);
-            $object['x-custom'][] = array($cp->identifier, $cp->value);
+        if (method_exists($this->obj, 'customProperties')) {
+            $vcustom = $this->obj->customProperties();
+            for ($i=0; $i < $vcustom->size(); $i++) {
+                $cp = $vcustom->get($i);
+                $object['x-custom'][] = array($cp->identifier, $cp->value);
+            }
         }
 
         // merge with additional data, e.g. attachments from the message
@@ -495,5 +503,81 @@ abstract class kolab_format
     public function get_words()
     {
         return array();
+    }
+
+    /**
+     * Utility function to extract object attachment data
+     *
+     * @param array Hash array reference to append attachment data into
+     */
+    public function get_attachments(&$object)
+    {
+        $this->init();
+
+        // handle attachments
+        $vattach = $this->obj->attachments();
+        for ($i=0; $i < $vattach->size(); $i++) {
+            $attach = $vattach->get($i);
+
+            // skip cid: attachments which are mime message parts handled by kolab_storage_folder
+            if (substr($attach->uri(), 0, 4) != 'cid:' && $attach->label()) {
+                $name    = $attach->label();
+                $key     = $name . (isset($object['_attachments'][$name]) ? '.'.$i : '');
+                $content = $attach->data();
+                $object['_attachments'][$key] = array(
+                    'id'       => 'i:'.$i,
+                    'name'     => $name,
+                    'mimetype' => $attach->mimetype(),
+                    'size'     => strlen($content),
+                    'content'  => $content,
+                );
+            }
+            else if (in_array(substr($attach->uri(), 0, 4), array('http','imap'))) {
+                $object['links'][] = $attach->uri();
+            }
+        }
+    }
+
+    /**
+     * Utility function to set attachment properties to the kolabformat object
+     *
+     * @param array  Object data as hash array
+     * @param boolean True to always overwrite attachment information
+     */
+    protected function set_attachments($object, $write = true)
+    {
+        // save attachments
+        $vattach = new vectorattachment;
+        foreach ((array) $object['_attachments'] as $cid => $attr) {
+            if (empty($attr))
+                continue;
+            $attach = new Attachment;
+            $attach->setLabel((string)$attr['name']);
+            $attach->setUri('cid:' . $cid, $attr['mimetype'] ?: 'application/octet-stream');
+            if ($attach->isValid()) {
+                $vattach->push($attach);
+                $write = true;
+            }
+            else {
+                rcube::raise_error(array(
+                    'code' => 660,
+                    'type' => 'php',
+                    'file' => __FILE__,
+                    'line' => __LINE__,
+                    'message' => "Invalid attributes for attachment $cid: " . var_export($attr, true),
+                ), true);
+            }
+        }
+
+        foreach ((array) $object['links'] as $link) {
+            $attach = new Attachment;
+            $attach->setUri($link, 'unknown');
+            $vattach->push($attach);
+            $write = true;
+        }
+
+        if ($write) {
+            $this->obj->setAttachments($vattach);
+        }
     }
 }

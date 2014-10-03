@@ -35,9 +35,9 @@ class kolab_storage_cache_task extends kolab_storage_cache
         $sql_data = parent::_serialize($object) + array('dtstart' => null, 'dtend' => null);
 
         if ($object['start'])
-            $sql_data['dtstart'] = date('Y-m-d H:i:s', is_object($object['start']) ? $object['start']->format('U') : $object['start']);
+            $sql_data['dtstart'] = is_object($object['start']) ? $object['start']->format(self::DB_DATE_FORMAT) : date(self::DB_DATE_FORMAT, $object['start']);
         if ($object['due'])
-            $sql_data['dtend']   = date('Y-m-d H:i:s', is_object($object['due'])   ? $object['due']->format('U')   : $object['due']);
+            $sql_data['dtend']   = is_object($object['due'])   ? $object['due']->format(self::DB_DATE_FORMAT)   : date(self::DB_DATE_FORMAT, $object['due']);
 
         return $sql_data;
     }

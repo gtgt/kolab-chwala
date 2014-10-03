@@ -107,8 +107,8 @@ class kolab_format_contact extends kolab_format
 
         if (isset($object['nickname']))
             $this->obj->setNickNames(self::array2vector($object['nickname']));
-        if (isset($object['profession']))
-            $this->obj->setTitles(self::array2vector($object['profession']));
+        if (isset($object['jobtitle']))
+            $this->obj->setTitles(self::array2vector($object['jobtitle']));
 
         // organisation related properties (affiliation)
         $org = new Affiliation;
@@ -117,17 +117,17 @@ class kolab_format_contact extends kolab_format
             $org->setOrganisation($object['organization']);
         if ($object['department'])
             $org->setOrganisationalUnits(self::array2vector($object['department']));
-        if ($object['jobtitle'])
-            $org->setRoles(self::array2vector($object['jobtitle']));
+        if ($object['profession'])
+            $org->setRoles(self::array2vector($object['profession']));
 
         $rels = new vectorrelated;
-        if ($object['manager']) {
-            foreach ((array)$object['manager'] as $manager)
-                $rels->push(new Related(Related::Text, $manager, Related::Manager));
-        }
-        if ($object['assistant']) {
-            foreach ((array)$object['assistant'] as $assistant)
-                $rels->push(new Related(Related::Text, $assistant, Related::Assistant));
+        foreach (array('manager','assistant') as $field) {
+            if (!empty($object[$field])) {
+                $reltype = $this->relatedmap[$field];
+                foreach ((array)$object[$field] as $value) {
+                    $rels->push(new Related(Related::Text, $value, $reltype));
+                }
+            }
         }
         $org->setRelateds($rels);
 
@@ -203,6 +203,8 @@ class kolab_format_contact extends kolab_format
             $this->obj->setNote($object['notes']);
         if (isset($object['freebusyurl']))
             $this->obj->setFreeBusyUrl($object['freebusyurl']);
+        if (isset($object['lang']))
+            $this->obj->setLanguages(self::array2vector($object['lang']));
         if (isset($object['birthday']))
             $this->obj->setBDay(self::get_datetime($object['birthday'], false, true));
         if (isset($object['anniversary']))
@@ -219,12 +221,19 @@ class kolab_format_contact extends kolab_format
 
         // spouse and children are relateds
         $rels = new vectorrelated;
-        if ($object['spouse']) {
-            $rels->push(new Related(Related::Text, $object['spouse'], Related::Spouse));
+        foreach (array('spouse','children') as $field) {
+            if (!empty($object[$field])) {
+                $reltype = $this->relatedmap[$field];
+                foreach ((array)$object[$field] as $value) {
+                    $rels->push(new Related(Related::Text, $value, $reltype));
+                }
+            }
         }
-        if ($object['children']) {
-            foreach ((array)$object['children'] as $child)
-                $rels->push(new Related(Related::Text, $child, Related::Child));
+        // add other relateds
+        if (is_array($object['related'])) {
+            foreach ($object['related'] as $value) {
+                $rels->push(new Related(Related::Text, $value));
+            }
         }
         $this->obj->setRelateds($rels);
 
@@ -296,7 +305,7 @@ class kolab_format_contact extends kolab_format
         $object['prefix']     = join(' ', self::vector2array($nc->prefixes()));
         $object['suffix']     = join(' ', self::vector2array($nc->suffixes()));
         $object['nickname']   = join(' ', self::vector2array($this->obj->nickNames()));
-        $object['profession'] = join(' ', self::vector2array($this->obj->titles()));
+        $object['jobtitle']   = join(' ', self::vector2array($this->obj->titles()));
         $object['categories'] = self::vector2array($this->obj->categories());
 
         // organisation related properties (affiliation)
@@ -304,7 +313,7 @@ class kolab_format_contact extends kolab_format
         if ($orgs->size()) {
             $org = $orgs->get(0);
             $object['organization']   = $org->organisation();
-            $object['jobtitle']       = join(' ', self::vector2array($org->roles()));
+            $object['profession']     = join(' ', self::vector2array($org->roles()));
             $object['department']     = join(' ', self::vector2array($org->organisationalUnits()));
             $this->read_relateds($org->relateds(), $object);
         }
@@ -345,12 +354,13 @@ class kolab_format_contact extends kolab_format
 
         $object['notes'] = $this->obj->note();
         $object['freebusyurl'] = $this->obj->freeBusyUrl();
+        $object['lang'] = self::vector2array($this->obj->languages());
 
         if ($bday = self::php_datetime($this->obj->bDay()))
-            $object['birthday'] = $bday->format('c');
+            $object['birthday'] = $bday;
 
         if ($anniversary = self::php_datetime($this->obj->anniversary()))
-            $object['anniversary'] = $anniversary->format('c');
+            $object['anniversary'] = $anniversary;
 
         $gendermap = array_flip($this->gendermap);
         if (($g = $this->obj->gender()) && $gendermap[$g])
@@ -362,7 +372,7 @@ class kolab_format_contact extends kolab_format
             $object['photo'] = $photo_name;
 
         // relateds -> spouse, children
-        $this->read_relateds($this->obj->relateds(), $object);
+        $this->read_relateds($this->obj->relateds(), $object, 'related');
 
         // crypto settings: currently only key values are supported
         $keys = $this->obj->keys();
@@ -407,6 +417,22 @@ class kolab_format_contact extends kolab_format
     }
 
     /**
+     * Callback for kolab_storage_cache to get object specific tags to cache
+     *
+     * @return array List of tags to save in cache
+     */
+    public function get_tags()
+    {
+        $tags = array();
+
+        if (!empty($this->data['birthday'])) {
+            $tags[] = 'x-has-birthday';
+        }
+
+        return $tags;
+    }
+
+    /**
      * Helper method to copy contents of an Address vector to the contact data object
      */
     private function read_addresses($addresses, &$object, $type = null)
@@ -429,7 +455,7 @@ class kolab_format_contact extends kolab_format
     /**
      * Helper method to map contents of a Related vector to the contact data object
      */
-    private function read_relateds($rels, &$object)
+    private function read_relateds($rels, &$object, $catchall = null)
     {
         $typemap = array_flip($this->relatedmap);
 
@@ -438,12 +464,18 @@ class kolab_format_contact extends kolab_format
             if ($rel->type() != Related::Text)  // we can't handle UID relations yet
                 continue;
 
+            $known = false;
             $types = $rel->relationTypes();
             foreach ($typemap as $t => $field) {
                 if ($types & $t) {
                     $object[$field][] = $rel->text();
+                    $known = true;
                     break;
                 }
+            }
+
+            if (!$known && $catchall) {
+                $object[$catchall][] = $rel->text();
             }
         }
     }

@@ -31,7 +31,7 @@ class seafile_request_observer implements SplObserver
                 }
             }
             else if (!$this->fp) {
-                throw new Exception("Cannot open target file '{$target}'");
+                throw new Exception("File destination not specified");
             }
 
             break;
@@ -42,7 +42,9 @@ class seafile_request_observer implements SplObserver
             break;
 
         case 'receivedBody':
-            fclose($this->fp);
+            if ($this->file) {
+                fclose($this->fp);
+            }
             break;
         }
     }

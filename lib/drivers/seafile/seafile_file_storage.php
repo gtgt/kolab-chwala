@@ -46,6 +46,13 @@ class seafile_file_storage implements file_storage
      */
     protected $libraries;
 
+    /**
+     * Instance title (mount point)
+     *
+     * @var string
+     */
+    protected $title;
+
 
     /**
      * Class constructor
@@ -70,9 +77,9 @@ class seafile_file_storage implements file_storage
         $token = $this->api->authenticate($username, $password);
 
         if ($token) {
-            $_SESSION['seafile_user']  = $username;
-            $_SESSION['seafile_token'] = $this->rc->encrypt($token);
-            $_SESSION['seafile_pass']  = $this->rc->encrypt($password);
+            $_SESSION[$this->title . 'seafile_user']  = $username;
+            $_SESSION[$this->title . 'seafile_token'] = $this->rc->encrypt($token);
+            $_SESSION[$this->title . 'seafile_pass']  = $this->rc->encrypt($password);
 
             return true;
         }
@@ -93,13 +100,13 @@ class seafile_file_storage implements file_storage
 
         // read configuration
         $config = array(
-            'host'            => $this->rc->config->get('seafile_host', 'localhost'),
-            'ssl_verify_peer' => $this->rc->config->get('seafile_ssl_verify_peer', true),
-            'ssl_verify_host' => $this->rc->config->get('seafile_ssl_verify_host', true),
-            'debug'           => $this->rc->config->get('seafile_debug', false),
+            'host'            => $this->rc->config->get('fileapi_seafile_host', 'localhost'),
+            'ssl_verify_peer' => $this->rc->config->get('fileapi_seafile_ssl_verify_peer', true),
+            'ssl_verify_host' => $this->rc->config->get('fileapi_seafile_ssl_verify_host', true),
+            'debug'           => $this->rc->config->get('fileapi_seafile_debug', false),
         );
 
-        $this->config = array_merge($this->config, $config);
+        $this->config = array_merge($config, $this->config);
 
         // initialize Web API
         $this->api = new seafile_api($this->config);
@@ -109,13 +116,32 @@ class seafile_file_storage implements file_storage
         }
 
         // try session token
-        if ($_SESSION['seafile_token'] && ($token = $this->rc->decrypt($_SESSION['seafile_token']))) {
+        if ($_SESSION[$this->title . 'seafile_token']
+            && ($token = $this->rc->decrypt($_SESSION[$this->title . 'seafile_token']))
+        ) {
             $valid = $this->api->ping($token);
         }
 
-        if (!$valid && $_SESSION['seafile_password'] && $_SESSION['seafile_user']) {
-            $pass  = $this->rc->decrypt($_SESSION['seafile_pass']);
-            $valid = $this->authenticate($_SESSION['seafile_user'], $pass);
+        if (!$valid) {
+            // already authenticated in session
+            if ($_SESSION[$this->title . 'seafile_user']) {
+                $user = $_SESSION[$this->title . 'seafile_user'];
+                $pass = $this->rc->decrypt($_SESSION[$this->title . 'seafile_pass']);
+            }
+            // try user/pass of the main driver
+            else {
+                $user = $this->config['username'];
+                $pass = $this->config['password'];
+            }
+
+            if ($user) {
+                $valid = $this->authenticate($user, $pass);
+            }
+        }
+
+        // throw special exception, so we can ask user for the credentials
+        if (!$valid && empty($_SESSION[$this->title . 'seafile_user'])) {
+            throw new Exception("User credentials not provided", file_storage::ERROR_NOAUTH);
         }
 
         return $valid;
@@ -124,11 +150,23 @@ class seafile_file_storage implements file_storage
     /**
      * Configures environment
      *
-     * @param array $config Configuration
+     * @param array  $config Configuration
+     * @param string $title  Source identifier
      */
-    public function configure($config)
+    public function configure($config, $title = null)
     {
         $this->config = array_merge($this->config, $config);
+        $this->title  = $title;
+    }
+
+    /**
+     * Returns current instance title
+     *
+     * @return string Instance title (mount point)
+     */
+    public function title()
+    {
+        return $this->title;
     }
 
     /**
@@ -153,6 +191,54 @@ class seafile_file_storage implements file_storage
     }
 
     /**
+     * Save configuration of external driver (mount point)
+     *
+     * @param array $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_create($driver)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Delete configuration of external driver (mount point)
+     *
+     * @param string $name Driver instance name
+     *
+     * @throws Exception
+     */
+    public function driver_delete($name)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Return list of registered drivers (mount points)
+     *
+     * @return array List of drivers data
+     * @throws Exception
+     */
+    public function driver_list()
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Update configuration of external driver (mount point)
+     *
+     * @param string $name   Driver instance name
+     * @param array  $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_update($name, $driver)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)
@@ -168,9 +254,24 @@ class seafile_file_storage implements file_storage
             throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
         }
 
-        $file['data'] = $file['path'];
+        if ($file['path']) {
+            $file['data'] = $file['path'];
+        }
+        else if (is_resource($file['content'])) {
+            $file['data'] = $file['content'];
+        }
+        else {
+            $fp = fopen('php://temp', 'wb');
+            fwrite($fp, $file['content'], strlen($file['content']));
+            $file['data'] = $fp;
+            unset($file['content']);
+        }
 
         $created = $this->api->file_upload($repo_id, $fn, $file);
+
+        if ($fp) {
+            fclose($fp);
+        }
 
         if (!$created) {
             rcube::raise_error(array(
@@ -201,6 +302,9 @@ class seafile_file_storage implements file_storage
 
         if ($file['path']) {
             $file['data'] = $file['path'];
+        }
+        else if (is_resource($file['content'])) {
+            $file['data'] = $file['content'];
         }
         else {
             $fp = fopen('php://temp', 'wb');
@@ -357,7 +461,7 @@ class seafile_file_storage implements file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse', 'search')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search', 'prefix')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception
@@ -409,7 +513,7 @@ class seafile_file_storage implements file_storage
                 }
             }
 
-            $filename = $folder_name . file_storage::SEPARATOR . $file['name'];
+            $filename = $params['prefix'] . $folder_name . file_storage::SEPARATOR . $file['name'];
 
             $result[$filename] = array(
                 'name'     => $file['name'],

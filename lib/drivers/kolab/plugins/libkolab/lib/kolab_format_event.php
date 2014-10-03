@@ -26,6 +26,8 @@ class kolab_format_event extends kolab_format_xcal
 {
     public $CTYPEv2 = 'application/x-vnd.kolab.event';
 
+    public $scheduling_properties = array('start', 'end', 'allday', 'location', 'status', 'cancelled');
+
     protected $objclass = 'Event';
     protected $read_func = 'readEvent';
     protected $write_func = 'writeEvent';
@@ -87,10 +89,12 @@ class kolab_format_event extends kolab_format_xcal
             $status = kolabformat::StatusTentative;
         if ($object['cancelled'])
             $status = kolabformat::StatusCancelled;
+        else if ($object['status'] && array_key_exists($object['status'], $this->status_map))
+            $status = $this->status_map[$object['status']];
         $this->obj->setStatus($status);
 
         // save recurrence exceptions
-        if ($object['recurrence']['EXCEPTIONS']) {
+        if (is_array($object['recurrence']) && $object['recurrence']['EXCEPTIONS']) {
             $vexceptions = new vectorevent;
             foreach((array)$object['recurrence']['EXCEPTIONS'] as $exception) {
                 $exevent = new kolab_format_event;
@@ -163,20 +167,22 @@ class kolab_format_event extends kolab_format_xcal
         else if ($status == kolabformat::StatusCancelled)
           $object['cancelled'] = true;
 
+        // this is an exception object
+        if ($this->obj->recurrenceID()->isValid()) {
+            $object['thisandfuture'] = $this->obj->thisAndFuture();
+        }
         // read exception event objects
-        if (($exceptions = $this->obj->exceptions()) && is_object($exceptions) && $exceptions->size()) {
+        else if (($exceptions = $this->obj->exceptions()) && is_object($exceptions) && $exceptions->size()) {
+            $recurrence_exceptions = array();
             for ($i=0; $i < $exceptions->size(); $i++) {
                 if (($exobj = $exceptions->get($i))) {
                     $exception = new kolab_format_event($exobj);
                     if ($exception->is_valid()) {
-                        $object['recurrence']['EXCEPTIONS'][] = $this->expand_exception($exception->to_array(), $object);
+                        $recurrence_exceptions[] = $this->expand_exception($exception->to_array(), $object);
                     }
                 }
             }
-        }
-        // this is an exception object
-        else if ($this->obj->recurrenceID()->isValid()) {
-          $object['thisandfuture'] = $this->obj->thisAndFuture();
+            $object['recurrence']['EXCEPTIONS'] = $recurrence_exceptions;
         }
 
         return $this->data = $object;
@@ -189,14 +195,10 @@ class kolab_format_event extends kolab_format_xcal
      */
     public function get_tags()
     {
-        $tags = array();
+        $tags = parent::get_tags();
 
         foreach ((array)$this->data['categories'] as $cat) {
             $tags[] = rcube_utils::normalize_string($cat);
-        }
-
-        if (!empty($this->data['alarms'])) {
-            $tags[] = 'x-has-alarms';
         }
 
         return $tags;

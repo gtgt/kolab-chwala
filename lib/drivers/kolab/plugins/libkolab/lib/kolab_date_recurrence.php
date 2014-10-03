@@ -101,7 +101,7 @@ class kolab_date_recurrence
     /**
      * Get the end date of the occurence of this recurrence cycle
      *
-     * @return mixed Timestamp with end date of the last event or False if recurrence exceeds limit
+     * @return DateTime|bool End datetime of the last event or False if recurrence exceeds limit
      */
     public function end()
     {
@@ -109,25 +109,25 @@ class kolab_date_recurrence
 
         // recurrence end date is given
         if ($event['recurrence']['UNTIL'] instanceof DateTime) {
-            return $event['recurrence']['UNTIL']->format('U');
+            return $event['recurrence']['UNTIL'];
         }
 
         // let libkolab do the work
         if ($this->engine && ($cend = $this->engine->getLastOccurrence()) && ($end_dt = kolab_format::php_datetime(new cDateTime($cend)))) {
-            return $end_dt->format('U');
+            return $end_dt;
         }
 
         // determine a reasonable end date if none given
-        if (!$event['recurrence']['COUNT']) {
+        if (!$event['recurrence']['COUNT'] && $event['end'] instanceof DateTime) {
           switch ($event['recurrence']['FREQ']) {
             case 'YEARLY':  $intvl = 'P100Y'; break;
             case 'MONTHLY': $intvl = 'P20Y';  break;
             default:        $intvl = 'P10Y';  break;
           }
 
-          $end_dt = clone $event['start'];
+          $end_dt = clone $event['end'];
           $end_dt->add(new DateInterval($intvl));
-          return $end_dt->format('U');
+          return $end_dt;
         }
 
         return false;

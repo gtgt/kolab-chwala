@@ -471,6 +471,8 @@ class seafile_api
         $filename = array_pop($path);
         $dir      = '/' . ltrim(implode('/', $path), '/');
 
+        $file['name'] = $filename;
+
         // then update file
         $result = $this->request('POST', $result, null, array(
                 'parent_dir' => $dir

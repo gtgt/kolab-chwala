@@ -30,6 +30,8 @@ abstract class kolab_format_xcal extends kolab_format
 
     public static $fulltext_cols = array('title', 'description', 'location', 'attendees:name', 'attendees:email', 'categories');
 
+    public $scheduling_properties = array('start', 'end', 'location');
+
     protected $sensitivity_map = array(
         'public'       => kolabformat::ClassPublic,
         'private'      => kolabformat::ClassPrivate,
@@ -76,11 +78,15 @@ abstract class kolab_format_xcal extends kolab_format
         'AUDIO' => Alarm::AudioAlarm,
     );
 
-    private $status_map = array(
+    protected $status_map = array(
         'NEEDS-ACTION' => kolabformat::StatusNeedsAction,
         'IN-PROCESS'   => kolabformat::StatusInProcess,
         'COMPLETED'    => kolabformat::StatusCompleted,
         'CANCELLED'    => kolabformat::StatusCancelled,
+        'TENTATIVE'    => kolabformat::StatusTentative,
+        'CONFIRMED'    => kolabformat::StatusConfirmed,
+        'DRAFT'        => kolabformat::StatusDraft,
+        'FINAL'        => kolabformat::StatusFinal,
     );
 
     protected $part_status_map = array(
@@ -121,6 +127,10 @@ abstract class kolab_format_xcal extends kolab_format
             'start'       => self::php_datetime($this->obj->start()),
         );
 
+        if (method_exists($this->obj, 'comment')) {
+            $object['comment'] = $this->obj->comment();
+        }
+
         // read organizer and attendees
         if (($organizer = $this->obj->organizer()) && ($organizer->email() || $organizer->name())) {
             $object['organizer'] = array(
@@ -137,6 +147,16 @@ abstract class kolab_format_xcal extends kolab_format
             $attendee = $attvec->get($i);
             $cr = $attendee->contact();
             if ($cr->email() != $object['organizer']['email']) {
+                $delegators = $delegatees = array();
+                $vdelegators = $attendee->delegatedFrom();
+                for ($j=0; $j < $vdelegators->size(); $j++) {
+                    $delegators[] = $vdelegators->get($j)->email();
+                }
+                $vdelegatees = $attendee->delegatedTo();
+                for ($j=0; $j < $vdelegatees->size(); $j++) {
+                    $delegatees[] = $vdelegatees->get($j)->email();
+                }
+
                 $object['attendees'][] = array(
                     'role' => $role_map[$attendee->role()],
                     'cutype' => $cutype_map[$attendee->cutype()],
@@ -144,6 +164,8 @@ abstract class kolab_format_xcal extends kolab_format
                     'rsvp' => $attendee->rsvp(),
                     'email' => $cr->email(),
                     'name' => $cr->name(),
+                    'delegated-from' => $delegators,
+                    'delegated-to' => $delegatees,
                 );
             }
         }
@@ -191,53 +213,82 @@ abstract class kolab_format_xcal extends kolab_format
             }
         }
 
+        if ($rdates = $this->obj->recurrenceDates()) {
+            for ($i=0; $i < $rdates->size(); $i++) {
+                if ($rdate = self::php_datetime($rdates->get($i)))
+                    $object['recurrence']['RDATE'][] = $rdate;
+            }
+        }
+
         // read alarm
         $valarms = $this->obj->alarms();
         $alarm_types = array_flip($this->alarm_type_map);
+        $object['valarms'] = array();
         for ($i=0; $i < $valarms->size(); $i++) {
             $alarm = $valarms->get($i);
             $type = $alarm_types[$alarm->type()];
 
-            if ($type == 'DISPLAY' || $type == 'EMAIL') {  // only DISPLAY and EMAIL alarms are supported
+            if ($type == 'DISPLAY' || $type == 'EMAIL' || $type == 'AUDIO') {  // only some alarms are supported
+                $valarm = array(
+                    'action' => $type,
+                    'summary' => $alarm->summary(),
+                    'description' => $alarm->description(),
+                );
+
+                if ($type == 'EMAIL') {
+                    $valarm['attendees'] = array();
+                    $attvec = $alarm->attendees();
+                    for ($j=0; $j < $attvec->size(); $j++) {
+                        $cr = $attvec->get($j);
+                        $valarm['attendees'][] = $cr->email();
+                    }
+                }
+                else if ($type == 'AUDIO') {
+                    $attach = $alarm->audioFile();
+                    $valarm['uri'] = $attach->uri();
+                }
+
                 if ($start = self::php_datetime($alarm->start())) {
                     $object['alarms'] = '@' . $start->format('U');
+                    $valarm['trigger'] = $start;
                 }
                 else if ($offset = $alarm->relativeStart()) {
-                    $value = $alarm->relativeTo() == kolabformat::End ? '+' : '-';
+                    $prefix = $alarm->relativeTo() == kolabformat::End ? '+' : '-';
+                    $value = $time = '';
                     if      ($w = $offset->weeks())     $value .= $w . 'W';
                     else if ($d = $offset->days())      $value .= $d . 'D';
-                    else if ($h = $offset->hours())     $value .= $h . 'H';
-                    else if ($m = $offset->minutes())   $value .= $m . 'M';
-                    else if ($s = $offset->seconds())   $value .= $s . 'S';
-                    else continue;
+                    else if ($h = $offset->hours())     $time  .= $h . 'H';
+                    else if ($m = $offset->minutes())   $time  .= $m . 'M';
+                    else if ($s = $offset->seconds())   $time  .= $s . 'S';
 
-                    $object['alarms'] = $value;
+                    // assume 'at event time'
+                    if (empty($value) && empty($time)) {
+                        $prefix = '';
+                        $time = '0S';
+                    }
+
+                    $object['alarms'] = $prefix . $value . $time;
+                    $valarm['trigger'] = $prefix . 'P' . $value . ($time ? 'T' . $time : '');
                 }
-                $object['alarms']  .= ':' . $type;
-                break;
+
+                // read alarm duration and repeat properties
+                if (($duration = $alarm->duration()) && $duration->isValid()) {
+                    $value = $time = '';
+                    if      ($w = $duration->weeks())     $value .= $w . 'W';
+                    else if ($d = $duration->days())      $value .= $d . 'D';
+                    else if ($h = $duration->hours())     $time  .= $h . 'H';
+                    else if ($m = $duration->minutes())   $time  .= $m . 'M';
+                    else if ($s = $duration->seconds())   $time  .= $s . 'S';
+                    $valarm['duration'] = 'P' . $value . ($time ? 'T' . $time : '');
+                    $valarm['repeat'] = $alarm->numrepeat();
+                }
+
+                $object['alarms']  .= ':' . $type;  // legacy property
+                $object['valarms'][] = array_filter($valarm);
             }
         }
 
-        // handle attachments
-        $vattach = $this->obj->attachments();
-        for ($i=0; $i < $vattach->size(); $i++) {
-            $attach = $vattach->get($i);
-
-            // skip cid: attachments which are mime message parts handled by kolab_storage_folder
-            if (substr($attach->uri(), 0, 4) != 'cid:' && $attach->label()) {
-                $name    = $attach->label();
-                $content = $attach->data();
-                $object['_attachments'][$name] = array(
-                    'name'     => $name,
-                    'mimetype' => $attach->mimetype(),
-                    'size'     => strlen($content),
-                    'content'  => $content,
-                );
-            }
-            else if (substr($attach->uri(), 0, 4) == 'http') {
-                $object['links'][] = $attach->uri();
-            }
-        }
+        $this->get_attachments($object);
 
         return $object;
     }
@@ -253,14 +304,43 @@ abstract class kolab_format_xcal extends kolab_format
         $this->init();
 
         $is_new = !$this->obj->uid();
+        $old_sequence = $this->obj->sequence();
+        $reschedule = $is_new;
 
         // set common object properties
         parent::set($object);
 
-        // increment sequence on updates
-        if (empty($object['sequence']))
-            $object['sequence'] = !$is_new ? $this->obj->sequence()+1 : 0;
-        $this->obj->setSequence($object['sequence']);
+        // set sequence value
+        if (!isset($object['sequence'])) {
+            if ($is_new) {
+                $object['sequence'] = 0;
+            }
+            else {
+                $object['sequence'] = $old_sequence;
+                $old = $this->data['uid'] ? $this->data : $this->to_array();
+
+                // increment sequence when updating properties relevant for scheduling.
+                // RFC 5545: "It is incremented [...] each time the Organizer makes a significant revision to the calendar component."
+                // TODO: make the list of properties considered 'significant' for scheduling configurable
+                foreach ($this->scheduling_properties as $prop) {
+                    $a = $old[$prop];
+                    $b = $object[$prop];
+                    if ($object['allday'] && ($prop == 'start' || $prop == 'end') && $a instanceof DateTime && $b instanceof DateTime) {
+                        $a = $a->format('Y-m-d');
+                        $b = $b->format('Y-m-d');
+                    }
+                    if ($a != $b) {
+                        $object['sequence']++;
+                        break;
+                    }
+                }
+            }
+        }
+        $this->obj->setSequence(intval($object['sequence']));
+
+        if ($object['sequence'] > $old_sequence) {
+            $reschedule = true;
+        }
 
         $this->obj->setSummary($object['title']);
         $this->obj->setLocation($object['location']);
@@ -270,9 +350,13 @@ abstract class kolab_format_xcal extends kolab_format
         $this->obj->setCategories(self::array2vector($object['categories']));
         $this->obj->setUrl(strval($object['url']));
 
+        if (method_exists($this->obj, 'setComment')) {
+            $this->obj->setComment($object['comment']);
+        }
+
         // process event attendees
         $attendees = new vectorattendee;
-        foreach ((array)$object['attendees'] as $attendee) {
+        foreach ((array)$object['attendees'] as $i => $attendee) {
             if ($attendee['role'] == 'ORGANIZER') {
                 $object['organizer'] = $attendee;
             }
@@ -285,7 +369,24 @@ abstract class kolab_format_xcal extends kolab_format
                 $att->setPartStat($this->part_status_map[$attendee['status']]);
                 $att->setRole($this->role_map[$attendee['role']] ? $this->role_map[$attendee['role']] : kolabformat::Required);
                 $att->setCutype($this->cutype_map[$attendee['cutype']] ? $this->cutype_map[$attendee['cutype']] : kolabformat::CutypeIndividual);
-                $att->setRSVP((bool)$attendee['rsvp']);
+                $att->setRSVP((bool)$attendee['rsvp'] || $reschedule);
+
+                $object['attendees'][$i]['rsvp'] = $attendee['rsvp'] || $reschedule;
+
+                if (!empty($attendee['delegated-from'])) {
+                    $vdelegators = new vectorcontactref;
+                    foreach ((array)$attendee['delegated-from'] as $delegator) {
+                        $vdelegators->push(new ContactReference(ContactReference::EmailReference, $delegator));
+                    }
+                    $att->setDelegatedFrom($vdelegators);
+                }
+                if (!empty($attendee['delegated-to'])) {
+                    $vdelegatees = new vectorcontactref;
+                    foreach ((array)$attendee['delegated-to'] as $delegatee) {
+                        $vdelegatees->push(new ContactReference(ContactReference::EmailReference, $delegatee));
+                    }
+                    $att->setDelegatedTo($vdelegatees);
+                }
 
                 if ($att->isValid()) {
                     $attendees->push($att);
@@ -311,7 +412,7 @@ abstract class kolab_format_xcal extends kolab_format
         $rr = new RecurrenceRule;
         $rr->setFrequency(RecurrenceRule::FreqNone);
 
-        if ($object['recurrence']) {
+        if ($object['recurrence'] && !empty($object['recurrence']['FREQ'])) {
             $rr->setFrequency($this->rrule_type_map[$object['recurrence']['FREQ']]);
 
             if ($object['recurrence']['INTERVAL'])
@@ -368,9 +469,77 @@ abstract class kolab_format_xcal extends kolab_format
 
         $this->obj->setRecurrenceRule($rr);
 
+        // save recurrence dates (aka RDATE)
+        if (!empty($object['recurrence']['RDATE'])) {
+            $rdates = new vectordatetime;
+            foreach ((array)$object['recurrence']['RDATE'] as $rdate)
+                $rdates->push(self::get_datetime($rdate, null, true));
+            $this->obj->setRecurrenceDates($rdates);
+        }
+
         // save alarm
         $valarms = new vectoralarm;
-        if ($object['alarms']) {
+        if ($object['valarms']) {
+            foreach ($object['valarms'] as $valarm) {
+                if (!array_key_exists($valarm['action'], $this->alarm_type_map)) {
+                    continue;  // skip unknown alarm types
+                }
+
+                if ($valarm['action'] == 'EMAIL') {
+                    $recipients = new vectorcontactref;
+                    foreach (($valarm['attendees'] ?: array($object['_owner'])) as $email) {
+                        $recipients->push(new ContactReference(ContactReference::EmailReference, $email));
+                    }
+                    $alarm = new Alarm(
+                        strval($valarm['summary'] ?: $object['title']),
+                        strval($valarm['description'] ?: $object['description']),
+                        $recipients
+                    );
+                }
+                else if ($valarm['action'] == 'AUDIO') {
+                    $attach = new Attachment;
+                    $attach->setUri($valarm['uri'] ?: 'null', 'unknown');
+                    $alarm = new Alarm($attach);
+                }
+                else {
+                    // action == DISPLAY
+                    $alarm = new Alarm(strval($valarm['summary'] ?: $object['title']));
+                }
+
+                if (is_object($valarm['trigger']) && $valarm['trigger'] instanceof DateTime) {
+                    $alarm->setStart(self::get_datetime($valarm['trigger'], new DateTimeZone('UTC')));
+                }
+                else {
+                    try {
+                        $prefix = $valarm['trigger'][0];
+                        $period = new DateInterval(preg_replace('/[^0-9PTWDHMS]/', '', $valarm['trigger']));
+                        $duration = new Duration($period->d, $period->h, $period->i, $period->s, $prefix == '-');
+                    }
+                    catch (Exception $e) {
+                        // skip alarm with invalid trigger values
+                        rcube::raise_error($e, true);
+                        continue;
+                    }
+
+                    $alarm->setRelativeStart($duration, $prefix == '-' ? kolabformat::Start : kolabformat::End);
+                }
+
+                if ($valarm['duration']) {
+                    try {
+                        $d = new DateInterval($valarm['duration']);
+                        $duration = new Duration($d->d, $d->h, $d->i, $d->s);
+                        $alarm->setDuration($duration, intval($valarm['repeat']));
+                    }
+                    catch (Exception $e) {
+                        // ignore
+                    }
+                }
+
+                $valarms->push($alarm);
+            }
+        }
+        // legacy support
+        else if ($object['alarms']) {
             list($offset, $type) = explode(":", $object['alarms']);
 
             if ($type == 'EMAIL' && !empty($object['_owner'])) {  // email alarms implicitly go to event owner
@@ -401,24 +570,7 @@ abstract class kolab_format_xcal extends kolab_format
         }
         $this->obj->setAlarms($valarms);
 
-        // save attachments
-        $vattach = new vectorattachment;
-        foreach ((array)$object['_attachments'] as $cid => $attr) {
-            if (empty($attr))
-                continue;
-            $attach = new Attachment;
-            $attach->setLabel((string)$attr['name']);
-            $attach->setUri('cid:' . $cid, $attr['mimetype']);
-            $vattach->push($attach);
-        }
-
-        foreach ((array)$object['links'] as $link) {
-            $attach = new Attachment;
-            $attach->setUri($link, 'unknown');
-            $vattach->push($attach);
-        }
-
-        $this->obj->setAttachments($vattach);
+        $this->set_attachments($object);
     }
 
     /**
@@ -449,4 +601,27 @@ abstract class kolab_format_xcal extends kolab_format
         return array_unique(rcube_utils::normalize_string($data, true));
     }
 
+    /**
+     * Callback for kolab_storage_cache to get object specific tags to cache
+     *
+     * @return array List of tags to save in cache
+     */
+    public function get_tags()
+    {
+        $tags = array();
+
+        if (!empty($this->data['valarms'])) {
+            $tags[] = 'x-has-alarms';
+        }
+
+        // create tags reflecting participant status
+        if (is_array($this->data['attendees'])) {
+            foreach ($this->data['attendees'] as $attendee) {
+                if (!empty($attendee['email']) && !empty($attendee['status']))
+                    $tags[] = 'x-partstat:' . $attendee['email'] . ':' . strtolower($attendee['status']);
+            }
+        }
+
+        return $tags;
+    }
 }

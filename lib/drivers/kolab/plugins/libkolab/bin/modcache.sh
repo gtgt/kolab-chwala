@@ -1,4 +1,4 @@
-#!/usr/bin/env php -d enable_dl=On
+#!/usr/bin/env php
 <?php
 
 /**
@@ -7,7 +7,7 @@
  * @version 3.1
  * @author Thomas Bruederli <bruederli@kolabsys.com>
  *
- * Copyright (C) 2012, Kolab Systems AG <contact@kolabsys.com>
+ * Copyright (C) 2012-2014, Kolab Systems AG <contact@kolabsys.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -65,6 +65,7 @@ $db->db_connect('w');
 if (!$db->is_connected() || $db->is_error())
     die("No DB connection\n");
 
+ini_set('display_errors', 1);
 
 /*
  * Script controller
@@ -109,7 +110,7 @@ case 'clear':
     }
 
     if ($sql_query) {
-        $db->query($sql_query . $sql_add, resource_prefix($opts).'%');
+        $db->query($sql_query, resource_prefix($opts).'%');
         echo $db->affected_rows() . " records deleted from 'kolab_folders'\n";
     }
     break;
@@ -140,6 +141,32 @@ case 'prewarm':
     }
     else
         die("Authentication failed for " . $opts['user']);
+    break;
+
+/**
+ * Update the cache meta columns from the serialized/xml data
+ * (might be run after a schema update)
+ */
+case 'update':
+    // make sure libkolab classes are loaded
+    $rcmail->plugins->load_plugin('libkolab');
+
+    $folder_types = $opts['type'] ? explode(',', $opts['type']) : array('contact','configuration','event','file','task');
+    foreach ($folder_types as $type) {
+        $class = 'kolab_storage_cache_' . $type;
+        $sql_result = $db->query("SELECT folder_id FROM kolab_folders WHERE type=? AND synclock = 0", $type);
+        while ($sql_result && ($sql_arr = $db->fetch_assoc($sql_result))) {
+            $folder = new $class;
+            $folder->select_by_id($sql_arr['folder_id']);
+            echo "Updating " . $sql_arr['folder_id'] . " ($type) ";
+            foreach ($folder->select() as $object) {
+                $object['_formatobj']->to_array();  // load data
+                $folder->save($object['_msguid'], $object, $object['_msguid']);
+                echo ".";
+            }
+            echo "done.\n";
+        }
+    }
     break;
 
 
@@ -194,7 +221,7 @@ function authenticate(&$opts)
             if ($opts['verbose'])
                 echo "IMAP login succeeded.\n";
             if (($user = rcube_user::query($opts['username'], $auth['host'])) && $user->ID)
-                $rcmail->set_user($user);
+                $rcmail->user = $user;
         }
         else
             die("Login to IMAP server failed!\n");
