@@ -103,6 +103,8 @@ class seafile_file_storage implements file_storage
             'host'            => $this->rc->config->get('fileapi_seafile_host', 'localhost'),
             'ssl_verify_peer' => $this->rc->config->get('fileapi_seafile_ssl_verify_peer', true),
             'ssl_verify_host' => $this->rc->config->get('fileapi_seafile_ssl_verify_host', true),
+            'cache'           => $this->rc->config->get('fileapi_seafile_cache'),
+            'cache_ttl'       => $this->rc->config->get('fileapi_seafile_cache', '14d'),
             'debug'           => $this->rc->config->get('fileapi_seafile_debug', false),
         );
 
@@ -734,14 +736,23 @@ class seafile_file_storage implements file_storage
         $libraries = $this->libraries();
         $folders   = array();
 
+        if ($this->config['cache']) {
+            $cache = $this->rc->get_cache('seafile_' . $this->title,
+                $this->config['cache'], $this->config['cache_ttl'], true);
+
+            if ($cache) {
+                $cached = $cache->get('folders');
+            }
+        }
+
         foreach ($this->libraries as $library) {
             if ($library['virtual'] || $library['encrypted']) {
                 continue;
             }
 
-            $folders[] = $library['name'];
+            $folders[$library['name']] = $library['mtime'];
 
-            if ($folder_tree = $this->folders_tree($library, '')) {
+            if ($folder_tree = $this->folders_tree($library, '', $library, $cached)) {
                 $folders = array_merge($folders, $folder_tree);
             }
         }
@@ -750,112 +761,15 @@ class seafile_file_storage implements file_storage
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
+        if ($cache) {
+            $cache->set('folders', $folders);
+        }
+
         // sort folders
+        $folders = array_keys($folders);
         usort($folders, array($this, 'sort_folder_comparator'));
 
         return $folders;
-    }
-
-    /**
-     * Recursively builds folders list
-     */
-    protected function folders_tree($library, $folder)
-    {
-        $folders = array();
-        $length  = strlen($folder);
-
-        if ($content = $this->api->directory_entries($library['id'], '/' . $folder)) {
-            foreach ($content as $item) {
-                if ($item['type'] == 'dir' && strlen($item['name'])) {
-                    $f = ($length ? $folder . '/' : '') . $item['name'];
-                    $folders[] = $library['name'] . '/' . $f;
-
-                    $folders_tree = $this->folders_tree($library, $f);
-                    if (!empty($folders_tree)) {
-                        $folders = array_merge($folders, $folders_tree);
-                    }
-                }
-            }
-        }
-
-        return $folders;
-    }
-
-    /**
-     * Callback for uasort() that implements correct
-     * locale-aware case-sensitive sorting
-     */
-    protected function sort_folder_comparator($str1, $str2)
-    {
-        $path1 = explode('/', $str1);
-        $path2 = explode('/', $str2);
-
-        foreach ($path1 as $idx => $folder1) {
-            $folder2 = $path2[$idx];
-
-            if ($folder1 === $folder2) {
-                continue;
-            }
-
-            return strcoll($folder1, $folder2);
-        }
-    }
-
-    /**
-     * Get list of SeaFile libraries
-     */
-    protected function libraries()
-    {
-        // get from memory, @TODO: cache in rcube_cache?
-        if ($this->libraries !== null) {
-            return $this->libraries;
-        }
-
-        if (!$this->init()) {
-            throw new Exception("Storage error. Unable to get list of SeaFile libraries.", file_storage::ERROR);
-        }
-
-        if ($list = $this->api->library_list()) {
-            $this->libraries = $list;
-        }
-        else {
-            $this->libraries = array();
-        }
-
-        return $this->libraries;
-    }
-
-    /**
-     * Find library ID from folder name
-     */
-    protected function find_library($folder_name, $no_exception = false)
-    {
-        $libraries = $this->libraries();
-
-        foreach ($libraries as $lib) {
-            $path = $lib['name'] . '/';
-
-            if ($folder_name == $lib['name'] || strpos($folder_name, $path) === 0) {
-                if (empty($library) || strlen($library['name']) < strlen($lib['name'])) {
-                    $library = $lib;
-                }
-            }
-        }
-
-        if (empty($library)) {
-            if (!$no_exception) {
-                throw new Exception("Storage error. Library not found.", file_storage::ERROR);
-            }
-        }
-        else {
-            $folder = substr($folder_name, strlen($library['name']) + 1);
-        }
-
-        return array(
-            '/' . ($folder ? $folder : ''),
-            $library['id'],
-            $library
-        );
     }
 
     /**
@@ -962,6 +876,123 @@ class seafile_file_storage implements file_storage
         );
 
         return $quota;
+    }
+
+    /**
+     * Recursively builds folders list
+     */
+    protected function folders_tree($library, $path, $folder, $cached)
+    {
+        $folders = array();
+        $fname  = strlen($path) ? $path . $folder['name'] : '/';
+        $root   = $library['name'] . ($fname != '/' ? $fname : '');
+
+        // nothing changed, use cached folders tree of this folder
+        if ($cached && $cached[$root] && $cached[$root] == $folder['mtime']) {
+            foreach ($cached as $folder_name => $mtime) {
+                if (strpos($folder_name, $root . '/') === 0) {
+                    $folders[$folder_name] = $mtime;
+                }
+            }
+        }
+        // get folder content (files and sub-folders)
+        // there's no API method to get only folders
+        else if ($content = $this->api->directory_entries($library['id'], $fname)) {
+            if ($fname != '/') {
+                $fname .= '/';
+            }
+
+            foreach ($content as $item) {
+                if ($item['type'] == 'dir' && strlen($item['name'])) {
+                    $folders[$root . '/' . $item['name']] = $item['mtime'];
+
+                    // get subfolders recursively
+                    $folders_tree = $this->folders_tree($library, $fname, $item, $cached);
+                    if (!empty($folders_tree)) {
+                        $folders = array_merge($folders, $folders_tree);
+                    }
+                }
+            }
+        }
+
+        return $folders;
+    }
+
+    /**
+     * Callback for uasort() that implements correct
+     * locale-aware case-sensitive sorting
+     */
+    protected function sort_folder_comparator($str1, $str2)
+    {
+        $path1 = explode('/', $str1);
+        $path2 = explode('/', $str2);
+
+        foreach ($path1 as $idx => $folder1) {
+            $folder2 = $path2[$idx];
+
+            if ($folder1 === $folder2) {
+                continue;
+            }
+
+            return strcoll($folder1, $folder2);
+        }
+    }
+
+    /**
+     * Get list of SeaFile libraries
+     */
+    protected function libraries()
+    {
+        // get from memory, @TODO: cache in rcube_cache?
+        if ($this->libraries !== null) {
+            return $this->libraries;
+        }
+
+        if (!$this->init()) {
+            throw new Exception("Storage error. Unable to get list of SeaFile libraries.", file_storage::ERROR);
+        }
+
+        if ($list = $this->api->library_list()) {
+            $this->libraries = $list;
+        }
+        else {
+            $this->libraries = array();
+        }
+
+        return $this->libraries;
+    }
+
+    /**
+     * Find library ID from folder name
+     */
+    protected function find_library($folder_name, $no_exception = false)
+    {
+        $libraries = $this->libraries();
+
+        foreach ($libraries as $lib) {
+            $path = $lib['name'] . '/';
+
+            if ($folder_name == $lib['name'] || strpos($folder_name, $path) === 0) {
+                if (empty($library) || strlen($library['name']) < strlen($lib['name'])) {
+                    $library = $lib;
+                }
+            }
+        }
+
+        if (empty($library)) {
+            if (!$no_exception) {
+                throw new Exception("Storage error. Library not found.", file_storage::ERROR);
+            }
+        }
+        else {
+            $folder = substr($folder_name, strlen($library['name']) + 1);
+        }
+
+        return array(
+            '/' . ($folder ? $folder : ''),
+            $library['id'],
+            $library
+        );
     }
 
     /**
