@@ -22,7 +22,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_api
+class file_api extends file_locale
 {
     const ERROR_CODE  = 500;
     const OUTPUT_JSON = 'application/json';
@@ -46,12 +46,15 @@ class file_api
     {
         $rcube = rcube::get_instance();
         $rcube->add_shutdown_function(array($this, 'shutdown'));
+
         $this->conf = $rcube->config;
         $this->session_init();
 
         if ($_SESSION['config']) {
             $this->config = $_SESSION['config'];
         }
+
+        $this->locale_init();
     }
 
     /**
@@ -385,15 +388,7 @@ class file_api
         $key = $config['title'];
 
         if (empty($this->drivers[$key])) {
-            $class  = $config['driver'] . '_file_storage';
-
-            if (!class_exists($class, false)) {
-                $include_path = RCUBE_INSTALL_PATH . "/lib/drivers/" . $config['driver'] . PATH_SEPARATOR;
-                $include_path .= ini_get('include_path');
-                set_include_path($include_path);
-            }
-
-            $this->drivers[$key] = $driver = new $class;
+            $this->drivers[$key] = $driver = $this->load_driver_object($config['driver']);
 
             if ($config['username'] == '%u') {
                 $rcube = rcube::get_instance();
@@ -406,6 +401,22 @@ class file_api
         }
 
         return $this->drivers[$key];
+    }
+
+    /**
+     * Loads a driver
+     */
+    public function load_driver_object($name)
+    {
+        $class = $name . '_file_storage';
+
+        if (!class_exists($class, false)) {
+            $include_path = RCUBE_INSTALL_PATH . "/lib/drivers/$name" . PATH_SEPARATOR;
+            $include_path .= ini_get('include_path');
+            set_include_path($include_path);
+        }
+
+        return new $class;
     }
 
     /**

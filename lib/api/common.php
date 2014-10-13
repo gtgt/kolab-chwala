@@ -118,4 +118,25 @@ class file_api_common
             closedir($handle);
         }
     }
+
+    /**
+     * Parse driver metadata information
+     */
+    protected function parse_metadata($metadata, $default = false)
+    {
+        if ($default) {
+            unset($metadata['form']);
+            $metadata['name'] .= ' (' . $this->api->translate('localstorage') . ')';
+        }
+
+        // localize form labels
+        foreach ($metadata['form'] as $key => $val) {
+            $label = $this->api->translate('form.' . $val);
+            if (strpos($label, 'form.') !== 0) {
+                $metadata['form'][$key] = $label;
+            }
+        }
+
+        return $metadata;
+    }
 }

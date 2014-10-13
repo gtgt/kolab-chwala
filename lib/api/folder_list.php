@@ -39,6 +39,7 @@ class file_api_folder_list extends file_api_common
         // get folders from main driver
         $folders  = $backend->folder_list();
         $has_more = false;
+        $errors   = array();
 
         // get folders from external sources
         foreach ($drivers as $driver) {
@@ -64,7 +65,8 @@ class file_api_folder_list extends file_api_common
                 }
                 catch (Exception $e) {
                     if ($e->getCode() == file_storage::ERROR_NOAUTH) {
-                        // inform UI about it to ask user for credentials
+                        // inform UI about to ask user for credentials
+                        $errors[$title] = $this->parse_metadata($driver->driver_metadata());
                     }
                 }
             }
@@ -75,7 +77,10 @@ class file_api_folder_list extends file_api_common
             usort($folders, array($this, 'sort_folder_comparator'));
         }
 
-        return $folders;
+        return array(
+            'list'        => $folders,
+            'auth_errors' => $errors,
+        );
     }
 
     /**

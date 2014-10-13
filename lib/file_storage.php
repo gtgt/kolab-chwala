@@ -107,6 +107,23 @@ interface file_storage
     public function driver_list();
 
     /**
+     * Returns metadata of the driver
+     *
+     * @return array Driver meta data (image, name, form)
+     */
+    public function driver_metadata();
+
+    /**
+     * Validate metadata (config) of the driver
+     *
+     * @param array $metadata Driver metadata
+     *
+     * @return array Driver meta data to be stored in configuration
+     * @throws Exception
+     */
+    public function driver_validate($metadata);
+
+    /**
      * Update configuration of external driver (mount point)
      *
      * @param string $name   Driver instance name

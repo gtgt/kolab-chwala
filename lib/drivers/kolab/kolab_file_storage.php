@@ -396,6 +396,43 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Returns metadata of the driver
+     *
+     * @return array Driver meta data (image, name, form)
+     */
+    public function driver_metadata()
+    {
+        $image_content = file_get_contents(__DIR__ . '/kolab.png');
+
+        $metadata = array(
+            'image' => 'data:image/png;base64,' . base64_encode($image_content),
+            'name'  => 'Kolab Groupware',
+            'ref'   => 'http://kolab.org',
+            'description' => 'Kolab Groupware server',
+            'form'  => array(
+                'host'     => 'hostname',
+                'username' => 'username',
+                'password' => 'password',
+            ),
+        );
+
+        return $metadata;
+    }
+
+    /**
+     * Validate metadata (config) of the driver
+     *
+     * @param array $metadata Driver metadata
+     *
+     * @return array Driver meta data to be stored in configuration
+     * @throws Exception
+     */
+    public function driver_validate($metadata)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)

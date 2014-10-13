@@ -35,10 +35,16 @@ $LANG['folder.createtitle'] = 'Create Folder';
 $LANG['folder.delete'] = 'Delete';
 $LANG['folder.edit'] = 'Edit';
 $LANG['folder.edittitle'] = 'Edit Folder';
-$LANG['folder.under'] = 'under current folder';
+$LANG['folder.under'] = 'inside the current folder';
+$LANG['folder.driverselect'] = 'bind with the external storage';
+$LANG['folder.name'] = 'Name:';
+$LANG['folder.authenticate'] = 'Logon to $title';
 
 $LANG['form.submit'] = 'Submit';
 $LANG['form.cancel'] = 'Cancel';
+$LANG['form.hostname'] = 'Hostname:';
+$LANG['form.username'] = 'Username:';
+$LANG['form.password'] = 'Password:';
 
 $LANG['login.username'] = 'Username';
 $LANG['login.password'] = 'Password';
@@ -48,6 +54,7 @@ $LANG['reqtime'] = 'Request time: $1 sec.';
 $LANG['maxupload'] = 'Maximum file size: $1';
 $LANG['internalerror'] = 'Internal system error!';
 $LANG['loginerror'] = 'Incorrect username or password!';
+$LANG['authenticating'] = 'Authenticating...';
 $LANG['loading'] = 'Loading...';
 $LANG['saving'] = 'Saving...';
 $LANG['deleting'] = 'Deleting...';
@@ -57,6 +64,7 @@ $LANG['logout'] = 'Logout';
 $LANG['close'] = 'Close';
 $LANG['servererror'] = 'Server Error!';
 $LANG['session.expired'] = 'Session has expired. Login again, please';
+$LANG['localstorage'] = 'local storage';
 
 $LANG['search'] = 'Search';
 $LANG['search.loading'] = 'Searching...';

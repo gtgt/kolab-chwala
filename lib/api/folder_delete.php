@@ -39,10 +39,14 @@ class file_api_folder_delete extends file_api_common
 
         list($driver, $path) = $this->api->get_driver($this->args['folder']);
 
-        if (!strlen($path)) {
-            // @TODO: delete mount point
+        // delete mount point...
+        if ($driver->title() === $this->args['folder']) {
+            $backend = $this->api->get_backend();
+            $backend->driver_delete($this->args['folder']);
+            return;
         }
 
-        return $driver->folder_delete($path);
+        // delete folder...
+        $driver->folder_delete($path);
     }
 }

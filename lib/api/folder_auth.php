@@ -24,7 +24,7 @@
 
 require_once __DIR__ . "/common.php";
 
-class file_api_folder_create extends file_api_common
+class file_api_folder_auth extends file_api_common
 {
     /**
      * Request handler
@@ -37,55 +37,45 @@ class file_api_folder_create extends file_api_common
             throw new Exception("Missing folder name", file_api::ERROR_CODE);
         }
 
-        // normal folder
-        if (empty($this->args['driver']) || $this->args['driver'] == 'default') {
-            list($driver, $path) = $this->api->get_driver($this->args['folder']);
-
-            return $driver->folder_create($path);
-        }
-
-        // external storage (mount point)
-        if (strpos($this->args['folder'], file_storage::SEPARATOR) !== false) {
-            throw new Exception("Unable to mount external storage into a sub-folder", file_api::ERROR_CODE);
-        }
-
-        // check if driver is enabled
-        $enabled = $this->rc->config->get('fileapi_drivers');
-
-        if (!in_array($this->args['driver'], $enabled)) {
-            throw new Exception("Unsupported storage driver", file_storage::ERROR_UNSUPPORTED);
-        }
-
-        // check if folder/mount point already exists
         $drivers = $this->api->get_drivers();
-        foreach ($drivers as $driver) {
-            if ($driver['title'] === $this->args['folder']) {
-                throw new Exception("Specified folder already exists", file_storage::ERROR_FILE_EXISTS);
+
+        foreach ($drivers as $driver_config) {
+            if ($driver_config['title'] === $this->args['folder']) {
+                $driver = $this->api->get_driver_object($driver_config);
+                $meta   = $driver->driver_metadata();
             }
         }
 
-        $backend = $this->api->get_backend();
-        $folders = $backend->folder_list();
-
-        if (in_array($this->args['folder'], $folders)) {
-            throw new Exception("Specified folder already exists", file_storage::ERROR_FILE_EXISTS);
+        if (empty($driver)) {
+            throw new Exception("Unknown folder", file_api::ERROR_CODE);
         }
 
-        // load driver
-        $driver = $this->api->load_driver_object($this->args['driver']);
-        $driver->configure($this->api->config, $this->args['folder']);
-
         // check if authentication works
-        $data = $driver->driver_validate($this->args);
+        $data = array_fill_keys(array_keys($meta['form']), '');
+        $data = array_merge($data, $this->args);
+        $data = $driver->driver_validate($data);
 
-        $data['title']  = $this->args['folder'];
-        $data['driver'] = $this->args['driver'];
-
-        // don't store password
-        // @TODO: store passwords encrypted?
+        // save changed data (except password)
         unset($data['password']);
+        foreach (array_keys($meta['form']) as $key) {
+            if ($meta['form_values'][$key] != $data[$key]) {
+                // @TODO: save current driver config
+                break;
+            }
+        }
 
-        // save the mount point info in config
-        $backend->driver_create($data);
+        $result = array('folder' => $this->args['folder']);
+
+        // get list if folders if requested
+        if (rcube_utils::get_boolean((string) $this->args['list'])) {
+            $prefix         = $this->args['folder'] . file_storage::SEPARATOR;
+            $result['list'] = array();
+
+            foreach ($driver->folder_list() as $folder) {
+                $result['list'][] = $prefix . $folder;
+            }
+        }
+
+        return $result;
     }
 }

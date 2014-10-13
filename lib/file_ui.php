@@ -23,7 +23,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_ui
+class file_ui extends file_locale
 {
     /**
      * @var kolab_client_output
@@ -46,8 +46,6 @@ class file_ui
     protected $cache = array();
     protected $devel_mode = false;
     protected $object_types = array();
-
-    protected static $translation = array();
 
 
     /**
@@ -74,29 +72,6 @@ class file_ui
         $this->locale_init();
 
         $this->auth();
-    }
-
-    /**
-     * Localization initialization.
-     */
-    protected function locale_init()
-    {
-        $language = $this->get_language();
-        $LANG     = array();
-
-        if (!$language) {
-            $language = 'en_US';
-        }
-
-        @include RCUBE_INSTALL_PATH . '/lib/locale/en_US.php';
-
-        if ($language != 'en_US') {
-            @include RCUBE_INSTALL_PATH . "/lib/locale/$language.php";
-        }
-
-        setlocale(LC_ALL, $language . '.utf8', $language . 'UTF-8', 'en_US.utf8', 'en_US.UTF-8');
-
-        self::$translation = $LANG;
     }
 
     /**
@@ -166,46 +141,6 @@ class file_ui
         if ($_SESSION['caps']['MAX_UPLOAD']) {
             $this->output->assign('max_upload', $this->show_bytes($_SESSION['caps']['MAX_UPLOAD']));
         }
-    }
-
-    /**
-     * Returns system language (locale) setting.
-     *
-     * @return string Language code
-     */
-    private function get_language()
-    {
-        $aliases = array(
-            'de' => 'de_DE',
-            'en' => 'en_US',
-            'pl' => 'pl_PL',
-        );
-
-        // UI language
-        $langs = !empty($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? $_SERVER['HTTP_ACCEPT_LANGUAGE'] : '';
-        $langs = explode(',', $langs);
-
-        if (!empty($_SESSION['user']) && !empty($_SESSION['user']['language'])) {
-            array_unshift($langs, $_SESSION['user']['language']);
-        }
-
-        while ($lang = array_shift($langs)) {
-            $lang = explode(';', $lang);
-            $lang = $lang[0];
-            $lang = str_replace('-', '_', $lang);
-
-            if (file_exists(RCUBE_INSTALL_PATH . "/lib/locale/$lang.php")) {
-                return $lang;
-            }
-
-            if (isset($aliases[$lang]) && ($alias = $aliases[$lang])
-                && file_exists(RCUBE_INSTALL_PATH . "/lib/locale/$alias.php")
-            ) {
-                return $alias;
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -462,35 +397,6 @@ class file_ui
         if (preg_match('/^file_ui_client_([a-z]+)$/', $class_name, $m)) {
             return $m[1];
         }
-    }
-
-    /**
-     * Returns translation of defined label/message.
-     *
-     * @return string Translated string.
-     */
-    public static function translate()
-    {
-        $args = func_get_args();
-
-        if (is_array($args[0])) {
-            $args = $args[0];
-        }
-
-        $label = $args[0];
-
-        if (isset(self::$translation[$label])) {
-            $content = trim(self::$translation[$label]);
-        }
-        else {
-            $content = $label;
-        }
-
-        for ($i = 1, $len = count($args); $i < $len; $i++) {
-            $content = str_replace('$'.$i, $args[$i], $content);
-        }
-
-        return $content;
     }
 
     /**

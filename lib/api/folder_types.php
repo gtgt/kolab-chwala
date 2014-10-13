@@ -24,7 +24,7 @@
 
 require_once __DIR__ . "/common.php";
 
-class file_api_folder_move extends file_api_common
+class file_api_folder_types extends file_api_common
 {
     /**
      * Request handler
@@ -33,44 +33,28 @@ class file_api_folder_move extends file_api_common
     {
         parent::handle();
 
-        if (!isset($this->args['folder']) || $this->args['folder'] === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
-        }
+        $drivers = $this->rc->config->get('fileapi_drivers');
+        $result  = array();
 
-        if (!isset($this->args['new']) || $this->args['new'] === '') {
-            throw new Exception("Missing destination folder name", file_api::ERROR_CODE);
-        }
+        if (!empty($drivers)) {
+            foreach ((array) $drivers as $driver_name) {
+                if ($driver_name != 'kolab' && !isset($result[$driver_name])) {
+                    $driver = $this->api->load_driver_object($driver_name);
+                    $meta   = $driver->driver_metadata();
 
-        if ($this->args['new'] === $this->args['folder']) {
-            return;
-        }
-
-        list($driver, $path) = $this->api->get_driver($this->args['folder']);
-        list($new_driver, $new_path) = $this->api->get_driver($this->args['new']);
-
-        // mount point (driver title) rename
-        if ($driver->title() === $this->args['folder'] && strpos($this->args['new'], file_storage::SEPARATOR) === false) {
-            // @TODO
-            throw new Exception("Unsupported operation", file_api::ERROR_CODE);
-        }
-
-        // cross-driver move
-        if ($driver != $new_driver) {
-            // @TODO
-            throw new Exception("Unsupported operation", file_api::ERROR_CODE);
-        }
-
-        // make sure destination folder is not an existing mount point
-        if (strpos($this->args['new'], file_storage::SEPARATOR) === false) {
-            $drivers = $this->api->get_drivers();
-
-            foreach ($drivers as $driver) {
-                if ($driver['title'] === $this->args['new']) {
-                    throw new Exception("Destination folder exists", file_api::ERROR_CODE);
+                    $result[$driver_name] = $this->parse_metadata($meta);
                 }
             }
         }
+/*
+        // add local storage to the list
+        if (!empty($result)) {
+            $backend = $this->api->get_backend();
+            $meta = $backend->driver_metadata();
 
-        return $driver->folder_move($path, $new_path);
+            $result = array_merge(array('default' => $this->parse_metadata($meta, true)), $result);
+        }
+*/
+        return $result;
     }
 }

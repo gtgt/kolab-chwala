@@ -31,7 +31,7 @@ class file_ui_client_main extends file_ui
             'collection.audio', 'collection.video', 'collection.image', 'collection.document',
             'moving', 'copying', 'file.skip', 'file.skipall', 'file.overwrite', 'file.overwriteall',
             'file.moveconfirm', 'file.progress', 'upload.size', 'upload.size.error', 'upload.progress',
-            'upload.eta', 'upload.rate'
+            'upload.eta', 'upload.rate', 'folder.authenticate', 'form.submit', 'form.cancel'
         );
 
         $result = $this->api_get('mimetypes');
@@ -48,6 +48,7 @@ class file_ui_client_main extends file_ui
             'type'  => 'text',
             'name'  => 'name',
             'value' => '',
+            'id'    => 'folder-name-input',
         ));
         $input_parent = new html_checkbox(array(
             'name'  => 'parent',
@@ -65,15 +66,29 @@ class file_ui_client_main extends file_ui
             'value'   => $this->translate('form.cancel'),
         ));
 
+        $drivers_input = new html_checkbox(array(
+            'name'  => 'external',
+            'value' => '1',
+            'id'    => 'folder-driver-checkbox',
+        ));
+        $drivers = html::div('drivers',
+            html::span('drivers-header', $drivers_input->show()
+                . html::label('folder-driver-checkbox', $this->translate('folder.driverselect')))
+            . html::div('drivers-list', '')
+        );
+
         $table = new html_table;
 
-        $table->add(null, $input_name->show() . $input_parent->show()
-            . html::label('folder-parent-checkbox', $this->translate('folder.under')));
+        $table->add(null, html::label('folder-name-input', $this->translate('folder.name')) . $input_name->show());
         $table->add('buttons', $submit->show() . $cancel->show());
 
         $content = html::tag('fieldset', null,
-            html::tag('legend', null,
-                $this->translate('folder.createtitle')) . $table->show());
+            html::tag('legend', null, $this->translate('folder.createtitle'))
+            . $table->show()
+            . $input_parent->show()
+            . html::label('folder-parent-checkbox', $this->translate('folder.under'))
+            . $drivers
+        );
 
         $form = html::tag('form', array(
             'id'       => 'folder-create-form',

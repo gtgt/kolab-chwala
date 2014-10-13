@@ -187,9 +187,9 @@ class seafile_api
         $this->request->setMethod($method ?: HTTP_Request2::METHOD_GET);
 
         if (!empty($get)) {
-            $url = $this->request->getUrl();
-            $url->setQueryVariables($get);
-            $this->request->setUrl($url);
+            $_url = $this->request->getUrl();
+            $_url->setQueryVariables($get);
+            $this->request->setUrl($_url);
         }
 
         if (!empty($post)) {
@@ -227,11 +227,11 @@ class seafile_api
             rcube::write_log('console', "SeaFile Response [$this->status]: " . trim($body));
         }
 
-        // request throttled, try again?
+        // request throttled, try again
         if ($this->status == self::TOO_MANY_REQUESTS) {
-            if (preg_match('/([0-9]+) second/', $body['detail'], $m) && ($seconds = $m[1]) < self::WAIT_LIMIT) {
-                sleep($seconds/2); // try to be smart and wait only a half of it
-                return $this->request($url, $method, $get, $post, $upload);
+            if (preg_match('/([0-9]+) second/', $body, $m) && ($seconds = $m[1]) < self::WAIT_LIMIT) {
+                sleep($seconds);
+                return $this->request($method, $url, $get, $post, $upload);
             }
         }
 

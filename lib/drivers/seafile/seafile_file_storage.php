@@ -145,6 +145,9 @@ class seafile_file_storage implements file_storage
         if (!$valid && empty($_SESSION[$this->title . 'seafile_user'])) {
             throw new Exception("User credentials not provided", file_storage::ERROR_NOAUTH);
         }
+        else if (!$valid && $this->api->is_error() == seafile_api::TOO_MANY_REQUESTS) {
+            throw new Exception("SeaFile storage temporarily unavailable (too many requests)", file_storage::ERROR);
+        }
 
         return $valid;
     }
@@ -238,6 +241,73 @@ class seafile_file_storage implements file_storage
     public function driver_update($name, $driver)
     {
         throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Returns metadata of the driver
+     *
+     * @return array Driver meta data (image, name, form)
+     */
+    public function driver_metadata()
+    {
+        $image_content = file_get_contents(__DIR__ . '/seafile.png');
+
+        $metadata = array(
+            'image' => 'data:image/png;base64,' . base64_encode($image_content),
+            'name'  => 'SeaFile',
+            'ref'   => 'http://seafile.com',
+            'description' => 'Storage implementing SeaFile API access',
+            'form'  => array(
+                'host'     => 'hostname',
+                'username' => 'username',
+                'password' => 'password',
+            ),
+        );
+
+        // these are returned when authentication on folders list fails
+        if ($this->config['username']) {
+            $metadata['form_values'] = array(
+                'host'     => $this->config['host'],
+                'username' => $this->config['username'],
+            );
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Validate metadata (config) of the driver
+     *
+     * @param array $metadata Driver metadata
+     *
+     * @return array Driver meta data to be stored in configuration
+     * @throws Exception
+     */
+    public function driver_validate($metadata)
+    {
+        if (!is_string($metadata['username']) || !strlen($metadata['username'])) {
+            throw new Exception("Missing user name.", file_storage::ERROR);
+        }
+
+        if (!is_string($metadata['password']) || !strlen($metadata['password'])) {
+            throw new Exception("Missing user password.", file_storage::ERROR);
+        }
+
+        if (!is_string($metadata['host']) || !strlen($metadata['host'])) {
+            throw new Exception("Missing host name.", file_storage::ERROR);
+        }
+
+        $this->config['host'] = $metadata['host'];
+
+        if (!$this->authenticate($metadata['username'], $metadata['password'])) {
+            throw new Exception("Unable to authenticate user", file_storage::ERROR_NOAUTH);
+        }
+
+        return array(
+            'host'     => $metadata['host'],
+            'username' => $metadata['username'],
+            'password' => $metadata['password'],
+        );
     }
 
     /**
