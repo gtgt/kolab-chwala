@@ -1427,6 +1427,8 @@ function files_ui()
     var ts = new Date().getTime(),
       frame_name = 'fileupload' + ts;
 
+    this.uploads[ts] = this.env.folder;
+
     // upload progress supported (and handler exists)
     if (this.env.capabilities.PROGRESS_NAME && window.progress_update) {
       var fname = this.env.capabilities.PROGRESS_NAME,
@@ -1438,7 +1440,6 @@ function files_ui()
       }
 
       field.val(ts);
-      this.uploads[ts] = this.env.folder;
       this.file_upload_progress(ts);
     }
 
