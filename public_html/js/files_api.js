@@ -211,10 +211,12 @@ function files_api()
   };
 
   // Folder list parser, converts it into structure
-  this.folder_list_parse = function(list)
+  this.folder_list_parse = function(list, num)
   {
-    var i, n, items, items_len, f, tmp, folder, num = 1,
+    var i, n, items, items_len, f, tmp, folder,
       len = list.length, folders = {};
+
+    if (!num) num = 1;
 
     for (i=0; i<len; i++) {
       folder = list[i];
@@ -508,6 +510,14 @@ function files_api()
 RegExp.escape = function(str)
 {
   return String(str).replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1');
+};
+
+// define String's startsWith() method for old browsers
+if (!String.prototype.startsWith) {
+  String.prototype.startsWith = function(search, position) {
+    position = position || 0;
+    return this.slice(position, search.length) === search;
+  };
 };
 
 // make a string URL safe (and compatible with PHP's rawurlencode())

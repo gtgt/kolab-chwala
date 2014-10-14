@@ -1356,6 +1356,75 @@ td span.branch span.l3
   background: url(images/document.png) 0 0 no-repeat;
 }
 
+#folder-create-form input {
+  vertical-align: middle;
+}
+
+#folder-create-form table td.buttons {
+  vertical-align: top;
+}
+
+.drivers-list {
+  max-height: 160px;
+  overflow: auto;
+}
+
+.drivers-list > div {
+  border: 1px solid white;
+  border-radius: 3px;
+  margin-top: 3px;
+  padding: 2px 0;
+}
+
+.drivers-list > div.selected {
+  background-color: #e8e8e8;
+}
+
+.drivers-list div.content {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+
+.drivers-list .name {
+  font-weight: bold;
+}
+
+.drivers-list .description {
+  font-size: 9px;
+  color: #666;
+}
+
+.drivers-list img {
+  vertical-align: middle;
+  background-color: #e0e0e0;
+  border-radius: 3px;
+  margin: 3px;
+  background-image: -moz-linear-gradient(center top, #888, #333);
+  background-image: -webkit-linear-gradient(top, #888, #333);
+  background-image: -ms-linear-gradient(top, #888, #333);
+}
+
+.drivers-list input {
+  vertical-align: middle;
+}
+
+.drivers-list div.content div.form {
+  padding-top: 4px;
+  width: 400px;
+}
+
+div.form .formrow {
+  display: block;
+  padding: 1px;
+}
+
+div.form label {
+  width: 80px;
+  display: inline-block;
+}
+
+
 /****** File open interface elements ******/
 
 #actionbar #file-edit-button {
