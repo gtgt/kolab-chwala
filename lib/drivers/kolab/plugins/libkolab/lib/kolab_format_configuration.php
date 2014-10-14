@@ -32,12 +32,14 @@ class kolab_format_configuration extends kolab_format
     protected $write_func = 'writeConfiguration';
 
     private $type_map = array(
-        'category'   => Configuration::TypeCategoryColor,
-        'dictionary' => Configuration::TypeDictionary,
-        'relation'   => Configuration::TypeRelation,
-        'snippet'    => Configuration::TypeSnippet,
+        'category'    => Configuration::TypeCategoryColor,
+        'dictionary'  => Configuration::TypeDictionary,
+        'file_driver' => Configuration::TypeFileDriver,
+        'relation'    => Configuration::TypeRelation,
+        'snippet'     => Configuration::TypeSnippet,
     );
 
+    private $driver_settings_fields = array('host', 'port', 'username', 'password');
 
     /**
      * Set properties to the kolabformat object
@@ -61,6 +63,21 @@ class kolab_format_configuration extends kolab_format
             // TODO: implement this
             $categories = new vectorcategorycolor;
             $this->obj = new Configuration($categories);
+            break;
+
+        case 'file_driver':
+            $driver = new FileDriver($object['driver'], $object['title']);
+
+            $driver->setEnabled((bool) $object['enabled']);
+
+            foreach ($this->driver_settings_fields as $field) {
+                $value = $object[$field];
+                if ($value !== null) {
+                    $driver->{'set' . ucfirst($field)}($value);
+                }
+            }
+
+            $this->obj = new Configuration($driver);
             break;
 
         case 'relation':
@@ -157,6 +174,19 @@ class kolab_format_configuration extends kolab_format
             // TODO: implement this
             break;
 
+        case 'file_driver':
+            $driver = $this->obj->file_driver();
+
+            $object['driver']  = $driver->driver();
+            $object['title']   = $driver->title();
+            $object['enabled'] = $driver->enabled();
+
+            foreach ($this->driver_settings_fields as $field) {
+                $object[$field] = $driver->{$field}();
+            }
+
+            break;
+
         case 'relation':
             $relation = $this->obj->relation();
 
@@ -240,6 +270,10 @@ class kolab_format_configuration extends kolab_format
             }
             else if (!empty($member['params']['message-id'])) {
                 $words[] = $member['params']['message-id'];
+            }
+            else {
+                // derive message identifier from URI
+                $words[] = md5($url);
             }
         }
 

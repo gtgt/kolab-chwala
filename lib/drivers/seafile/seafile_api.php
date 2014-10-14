@@ -257,6 +257,12 @@ class seafile_api
      */
     public function authenticate($username, $password)
     {
+        // sanity checks
+        if ($username === '' || !is_string($username) || $password === '' || !is_string($password)) {
+            $this->status = self::BAD_REQUEST;
+            return false;
+        }
+
         $result = $this->request('POST', 'auth-token', null, array(
                 'username' => $username,
                 'password' => $password,

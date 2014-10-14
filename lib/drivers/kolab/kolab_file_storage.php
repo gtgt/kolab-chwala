@@ -359,13 +359,7 @@ class kolab_file_storage implements file_storage
         $result  = array();
 
         foreach ($drivers as $driver) {
-            $result[$driver['title']] = array(
-                'title'    => $driver['title'],
-                'driver'   => $driver['driver'],
-                'settings' => $driver['settings'],
-                // Kolab specific
-                'uid'      => $driver['uid'],
-            );
+            $result[$driver['title']] = $driver;
         }
 
         return $result;

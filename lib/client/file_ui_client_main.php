@@ -72,7 +72,7 @@ class file_ui_client_main extends file_ui
             'id'    => 'folder-driver-checkbox',
         ));
         $drivers = html::div('drivers',
-            html::span('drivers-header', $drivers_input->show()
+            html::span('drivers-header', $drivers_input->show() . '&nbsp;'
                 . html::label('folder-driver-checkbox', $this->translate('folder.driverselect')))
             . html::div('drivers-list', '')
         );
@@ -85,7 +85,7 @@ class file_ui_client_main extends file_ui
         $content = html::tag('fieldset', null,
             html::tag('legend', null, $this->translate('folder.createtitle'))
             . $table->show()
-            . $input_parent->show()
+            . $input_parent->show() . '&nbsp;'
             . html::label('folder-parent-checkbox', $this->translate('folder.under'))
             . $drivers
         );

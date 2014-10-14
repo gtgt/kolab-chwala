@@ -351,6 +351,8 @@ class kolab_storage_config
                 'params' => $params,
             );
         }
+
+        return false;
     }
 
     /**
@@ -654,6 +656,100 @@ class kolab_storage_config
     }
 
     /**
+     * Find objects linked with the given groupware object through a relation
+     *
+     * @param string Object UUID
+     * @param array List of related URIs
+     */
+    public function get_object_links($uid)
+    {
+        $links = array();
+        $object_uri = self::build_member_url($uid);
+
+        foreach ($this->get_relations_for_member($uid) as $relation) {
+            if (in_array($object_uri, (array) $relation['members'])) {
+                // make relation members up-to-date
+                kolab_storage_config::resolve_members($relation);
+
+                foreach ($relation['members'] as $member) {
+                    if ($member != $object_uri) {
+                        $links[] = $member;
+                    }
+                }
+            }
+        }
+
+        return array_unique($links);
+    }
+
+    /**
+     *
+     */
+    public function save_object_links($uid, $links, $remove = array())
+    {
+        $object_uri = self::build_member_url($uid);
+        $relations = $this->get_relations_for_member($uid);
+        $done = false;
+
+        foreach ($relations as $relation) {
+            // make relation members up-to-date
+            kolab_storage_config::resolve_members($relation);
+
+            // remove and add links
+            $members = array_diff($relation['members'], (array)$remove);
+            $members = array_unique(array_merge($members, $links));
+
+            // make sure the object_uri is still a member
+            if (!in_array($object_uri, $members)) {
+                $members[$object_uri];
+            }
+
+            // remove relation if no other members remain
+            if (count($members) <= 1) {
+                $done = $this->delete($relation['uid']);
+            }
+            // update relation object if members changed
+            else if (count(array_diff($members, $relation['members'])) || count(array_diff($relation['members'], $members))) {
+                $relation['members'] = $members;
+                $done = $this->save($relation, 'relation');
+                $links = array();
+            }
+            // no changes, we're happy
+            else {
+                $done = true;
+                $links = array();
+            }
+        }
+
+        // create a new relation
+        if (!$done && !empty($links)) {
+            $relation = array(
+                'members'  => array_merge($links, array($object_uri)),
+                'category' => 'generic',
+            );
+
+            $ret = $this->save($relation, 'relation');
+        }
+
+        return $ret;
+    }
+
+    /**
+     * Find relation objects referring to specified note
+     */
+    public function get_relations_for_member($uid, $reltype = 'generic')
+    {
+        $default = true;
+        $filter  = array(
+            array('type', '=', 'relation'),
+            array('category', '=', $reltype),
+            array('member', '=', $uid),
+        );
+
+        return $this->get_objects($filter, $default, 100);
+    }
+
+    /**
      * Find kolab objects assigned to specified e-mail message
      *
      * @param rcube_message $message E-mail message
@@ -664,6 +760,8 @@ class kolab_storage_config
      */
     public function get_message_relations($message, $folder, $type)
     {
+        static $_cache = array();
+
         $result  = array();
         $uids    = array();
         $default = true;
@@ -671,28 +769,42 @@ class kolab_storage_config
         $filter  = array(
             array('type', '=', 'relation'),
             array('category', '=', 'generic'),
-            // @TODO: what if Message-Id (and Date) does not exist?
-            array('member', '=', $message->get('message-id', false)),
         );
 
-        // get UIDs of assigned notes
-        foreach ($this->get_objects($filter, $default) as $relation) {
-            // we don't need to update members if the URI is found
-            if (in_array($uri, $relation['members'])) {
-                // update members...
-                $messages = kolab_storage_config::resolve_members($relation);
-                // ...and check again
-                if (empty($messages[$folder]) || !in_array($message->uid, $messages[$folder])) {
-                    continue;
+        // query by message-id
+        $member_id = $message->get('message-id', false);
+        if (empty($member_id)) {
+            // derive message identifier from URI
+            $member_id = md5($uri);
+        }
+        $filter[] = array('member', '=', $member_id);
+
+        if (!isset($_cache[$uri])) {
+            // get UIDs of related groupware objects
+            foreach ($this->get_objects($filter, $default) as $relation) {
+                // we don't need to update members if the URI is found
+                if (!in_array($uri, $relation['members'])) {
+                    // update members...
+                    $messages = kolab_storage_config::resolve_members($relation);
+                    // ...and check again
+                    if (empty($messages[$folder]) || !in_array($message->uid, $messages[$folder])) {
+                        continue;
+                    }
+                }
+
+                // find groupware object UID(s)
+                foreach ($relation['members'] as $member) {
+                    if (strpos($member, 'urn:uuid:') === 0) {
+                        $uids[] = substr($member, 9);
+                    }
                 }
             }
 
-            // find note UID(s)
-            foreach ($relation['members'] as $member) {
-                if (strpos($member, 'urn:uuid:') === 0) {
-                    $uids[] = substr($member, 9);
-                }
-            }
+            // remember this lookup
+            $_cache[$uri] = $uids;
+        }
+        else {
+            $uids = $_cache[$uri];
         }
 
         // get kolab objects of specified type

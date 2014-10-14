@@ -376,12 +376,13 @@ class kolab_storage_cache
      *
      * @param string Entry's IMAP message UID
      * @param string Entry's Object UID
-     * @param string Target IMAP folder to move it to
+     * @param object kolab_storage_folder Target storage folder instance
      */
-    public function move($msguid, $uid, $target_folder)
+    public function move($msguid, $uid, $target)
     {
         if ($this->ready) {
-            $target = kolab_storage::get_folder($target_folder);
+            // clear cached uid mapping and force new lookup
+            unset($target->cache->uid2msg[$uid]);
 
             // resolve new message UID in target folder
             if ($new_msguid = $target->cache->uid2msguid($uid)) {

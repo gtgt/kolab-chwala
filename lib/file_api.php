@@ -329,7 +329,7 @@ class file_api extends file_locale
             foreach ($drivers as $item) {
                 $all[] = $item['title'];
 
-                if ($item['enabled'] && !in_array($item['driver'], (array) $enabled)) {
+                if ($item['enabled'] && in_array($item['driver'], (array) $enabled)) {
                     $result[] = $as_objects ? $this->get_driver_object($item) : $item;
                 }
             }

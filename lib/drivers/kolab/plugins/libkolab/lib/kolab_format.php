@@ -47,6 +47,117 @@ abstract class kolab_format
     const KTYPE_PREFIX = 'application/x-vnd.kolab.';
     const PRODUCT_ID   = 'Roundcube-libkolab-1.1';
 
+    // mapping table for valid PHP timezones not supported by libkolabxml
+    // basically the entire list of ftp://ftp.iana.org/tz/data/backward
+    protected static $timezone_map = array(
+        'Africa/Asmera' => 'Africa/Asmara',
+        'Africa/Timbuktu' => 'Africa/Abidjan',
+        'America/Argentina/ComodRivadavia' => 'America/Argentina/Catamarca',
+        'America/Atka' => 'America/Adak',
+        'America/Buenos_Aires' => 'America/Argentina/Buenos_Aires',
+        'America/Catamarca' => 'America/Argentina/Catamarca',
+        'America/Coral_Harbour' => 'America/Atikokan',
+        'America/Cordoba' => 'America/Argentina/Cordoba',
+        'America/Ensenada' => 'America/Tijuana',
+        'America/Fort_Wayne' => 'America/Indiana/Indianapolis',
+        'America/Indianapolis' => 'America/Indiana/Indianapolis',
+        'America/Jujuy' => 'America/Argentina/Jujuy',
+        'America/Knox_IN' => 'America/Indiana/Knox',
+        'America/Louisville' => 'America/Kentucky/Louisville',
+        'America/Mendoza' => 'America/Argentina/Mendoza',
+        'America/Porto_Acre' => 'America/Rio_Branco',
+        'America/Rosario' => 'America/Argentina/Cordoba',
+        'America/Virgin' => 'America/Port_of_Spain',
+        'Asia/Ashkhabad' => 'Asia/Ashgabat',
+        'Asia/Calcutta' => 'Asia/Kolkata',
+        'Asia/Chungking' => 'Asia/Shanghai',
+        'Asia/Dacca' => 'Asia/Dhaka',
+        'Asia/Katmandu' => 'Asia/Kathmandu',
+        'Asia/Macao' => 'Asia/Macau',
+        'Asia/Saigon' => 'Asia/Ho_Chi_Minh',
+        'Asia/Tel_Aviv' => 'Asia/Jerusalem',
+        'Asia/Thimbu' => 'Asia/Thimphu',
+        'Asia/Ujung_Pandang' => 'Asia/Makassar',
+        'Asia/Ulan_Bator' => 'Asia/Ulaanbaatar',
+        'Atlantic/Faeroe' => 'Atlantic/Faroe',
+        'Atlantic/Jan_Mayen' => 'Europe/Oslo',
+        'Australia/ACT' => 'Australia/Sydney',
+        'Australia/Canberra' => 'Australia/Sydney',
+        'Australia/LHI' => 'Australia/Lord_Howe',
+        'Australia/NSW' => 'Australia/Sydney',
+        'Australia/North' => 'Australia/Darwin',
+        'Australia/Queensland' => 'Australia/Brisbane',
+        'Australia/South' => 'Australia/Adelaide',
+        'Australia/Tasmania' => 'Australia/Hobart',
+        'Australia/Victoria' => 'Australia/Melbourne',
+        'Australia/West' => 'Australia/Perth',
+        'Australia/Yancowinna' => 'Australia/Broken_Hill',
+        'Brazil/Acre' => 'America/Rio_Branco',
+        'Brazil/DeNoronha' => 'America/Noronha',
+        'Brazil/East' => 'America/Sao_Paulo',
+        'Brazil/West' => 'America/Manaus',
+        'Canada/Atlantic' => 'America/Halifax',
+        'Canada/Central' => 'America/Winnipeg',
+        'Canada/East-Saskatchewan' => 'America/Regina',
+        'Canada/Eastern' => 'America/Toronto',
+        'Canada/Mountain' => 'America/Edmonton',
+        'Canada/Newfoundland' => 'America/St_Johns',
+        'Canada/Pacific' => 'America/Vancouver',
+        'Canada/Saskatchewan' => 'America/Regina',
+        'Canada/Yukon' => 'America/Whitehorse',
+        'Chile/Continental' => 'America/Santiago',
+        'Chile/EasterIsland' => 'Pacific/Easter',
+        'Cuba' => 'America/Havana',
+        'Egypt' => 'Africa/Cairo',
+        'Eire' => 'Europe/Dublin',
+        'Europe/Belfast' => 'Europe/London',
+        'Europe/Tiraspol' => 'Europe/Chisinau',
+        'GB' => 'Europe/London',
+        'GB-Eire' => 'Europe/London',
+        'Greenwich' => 'Etc/GMT',
+        'Hongkong' => 'Asia/Hong_Kong',
+        'Iceland' => 'Atlantic/Reykjavik',
+        'Iran' => 'Asia/Tehran',
+        'Israel' => 'Asia/Jerusalem',
+        'Jamaica' => 'America/Jamaica',
+        'Japan' => 'Asia/Tokyo',
+        'Kwajalein' => 'Pacific/Kwajalein',
+        'Libya' => 'Africa/Tripoli',
+        'Mexico/BajaNorte' => 'America/Tijuana',
+        'Mexico/BajaSur' => 'America/Mazatlan',
+        'Mexico/General' => 'America/Mexico_City',
+        'NZ' => 'Pacific/Auckland',
+        'NZ-CHAT' => 'Pacific/Chatham',
+        'Navajo' => 'America/Denver',
+        'PRC' => 'Asia/Shanghai',
+        'Pacific/Ponape' => 'Pacific/Pohnpei',
+        'Pacific/Samoa' => 'Pacific/Pago_Pago',
+        'Pacific/Truk' => 'Pacific/Chuuk',
+        'Pacific/Yap' => 'Pacific/Chuuk',
+        'Poland' => 'Europe/Warsaw',
+        'Portugal' => 'Europe/Lisbon',
+        'ROC' => 'Asia/Taipei',
+        'ROK' => 'Asia/Seoul',
+        'Singapore' => 'Asia/Singapore',
+        'Turkey' => 'Europe/Istanbul',
+        'UCT' => 'Etc/UCT',
+        'US/Alaska' => 'America/Anchorage',
+        'US/Aleutian' => 'America/Adak',
+        'US/Arizona' => 'America/Phoenix',
+        'US/Central' => 'America/Chicago',
+        'US/East-Indiana' => 'America/Indiana/Indianapolis',
+        'US/Eastern' => 'America/New_York',
+        'US/Hawaii' => 'Pacific/Honolulu',
+        'US/Indiana-Starke' => 'America/Indiana/Knox',
+        'US/Michigan' => 'America/Detroit',
+        'US/Mountain' => 'America/Denver',
+        'US/Pacific' => 'America/Los_Angeles',
+        'US/Samoa' => 'Pacific/Pago_Pago',
+        'Universal' => 'Etc/UTC',
+        'W-SU' => 'Europe/Moscow',
+        'Zulu' => 'Etc/UTC',
+    );
+
     /**
      * Factory method to instantiate a kolab_format object of the given type and version
      *
@@ -63,7 +174,7 @@ abstract class kolab_format
         if (!self::supports($version))
             return PEAR::raiseError("No support for Kolab format version " . $version);
 
-        $type = preg_replace('/configuration\.[a-z.]+$/', 'configuration', $type);
+        $type = preg_replace('/configuration\.[a-z._]+$/', 'configuration', $type);
         $suffix = preg_replace('/[^a-z]+/', '', $type);
         $classname = 'kolab_format_' . $suffix;
         if (class_exists($classname))
@@ -123,10 +234,15 @@ abstract class kolab_format
             if (!$dateonly)
                 $result->setTime($datetime->format('G'), $datetime->format('i'), $datetime->format('s'));
 
-            if ($tz && in_array($tz->getName(), array('UTC', 'GMT', '+00:00', 'Z')))
+            if ($tz && in_array($tz->getName(), array('UTC', 'GMT', '+00:00', 'Z'))) {
                 $result->setUTC(true);
-            else if ($tz !== false)
-                $result->setTimezone($tz->getName());
+            }
+            else if ($tz !== false) {
+                $tzid = $tz->getName();
+                if (array_key_exists($tzid, self::$timezone_map))
+                    $tzid = self::$timezone_map[$tzid];
+                $result->setTimezone($tzid);
+            }
         }
 
         return $result;

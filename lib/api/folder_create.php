@@ -78,8 +78,9 @@ class file_api_folder_create extends file_api_common
         // check if authentication works
         $data = $driver->driver_validate($this->args);
 
-        $data['title']  = $this->args['folder'];
-        $data['driver'] = $this->args['driver'];
+        $data['title']   = $this->args['folder'];
+        $data['driver']  = $this->args['driver'];
+        $data['enabled'] = 1;
 
         // don't store password
         // @TODO: store passwords encrypted?
