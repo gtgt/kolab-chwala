@@ -941,8 +941,9 @@ class seafile_file_storage implements file_storage
         }
 
         $quota = array(
-            'total' => $account_info['total'],
-            'usage' => $account_info['usage'],
+            // expected values in kB
+            'total' => intval($account_info['total'] / 1024),
+            'used'  => intval($account_info['usage'] / 1024),
         );
 
         return $quota;
