@@ -1640,7 +1640,7 @@ function files_ui()
 
         $.each(list, function() {
           this.click(function() {
-            $('.selected', drivers_list).removeClass('selected')
+            $('.selected', drivers_list).removeClass('selected');
             drivers_list.find('.form').hide();
             $(this).addClass('selected').find('.form').show();
             $('input[type="radio"]', this).prop('checked', true);
