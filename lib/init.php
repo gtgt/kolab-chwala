@@ -25,7 +25,7 @@
 
 // Roundcube Framework constants
 define('FILE_API_START', microtime(true));
-define('RCUBE_INSTALL_PATH', realpath(dirname(__FILE__)) . '/../');
+define('RCUBE_INSTALL_PATH', realpath(__DIR__) . '/../');
 define('RCUBE_CONFIG_DIR', RCUBE_INSTALL_PATH . 'config/');
 define('RCUBE_PLUGINS_DIR', RCUBE_INSTALL_PATH . 'lib/drivers/kolab/plugins');
 
