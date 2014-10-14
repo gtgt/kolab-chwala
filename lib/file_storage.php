@@ -40,11 +40,13 @@ interface file_storage
     const ERROR_LOCKED      = 423;
     const ERROR_FILE_EXISTS = 550;
     const ERROR_UNSUPPORTED = 570;
+    const ERROR_NOAUTH      = 580;
 
     // locks
     const LOCK_SHARED    = 'shared';
     const LOCK_EXCLUSIVE = 'exclusive';
     const LOCK_INFINITE  = 'infinite';
+
 
     /**
      * Authenticates a user
@@ -59,9 +61,17 @@ interface file_storage
     /**
      * Configures environment
      *
-     * @param array $config COnfiguration
+     * @param array  $config Configuration
+     * @param string $title  Driver instance identifier
      */
-    public function configure($config);
+    public function configure($config, $title = null);
+
+    /**
+     * Returns current instance title
+     *
+     * @return string Instance title (mount point)
+     */
+    public function title();
 
     /**
      * Storage driver capabilities
@@ -71,10 +81,64 @@ interface file_storage
     public function capabilities();
 
     /**
+     * Save configuration of external driver (mount point)
+     *
+     * @param array $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_create($driver);
+
+    /**
+     * Delete configuration of external driver (mount point)
+     *
+     * @param string $name Driver instance name
+     *
+     * @throws Exception
+     */
+    public function driver_delete($name);
+
+    /**
+     * Return list of registered drivers (mount points)
+     *
+     * @return array List of drivers data
+     * @throws Exception
+     */
+    public function driver_list();
+
+    /**
+     * Returns metadata of the driver
+     *
+     * @return array Driver meta data (image, name, form)
+     */
+    public function driver_metadata();
+
+    /**
+     * Validate metadata (config) of the driver
+     *
+     * @param array $metadata Driver metadata
+     *
+     * @return array Driver meta data to be stored in configuration
+     * @throws Exception
+     */
+    public function driver_validate($metadata);
+
+    /**
+     * Update configuration of external driver (mount point)
+     *
+     * @param string $name   Driver instance name
+     * @param array  $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_update($name, $driver);
+
+    /**
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)
-     * @param array  $file      File data (path/content, type)
+     * @param array  $file      File data (path/content, type), where
+     *                          content might be a string or resource
      *
      * @throws Exception
      */
@@ -143,7 +207,7 @@ interface file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse', 'search')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search', 'prefix')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception

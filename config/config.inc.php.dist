@@ -1,0 +1,51 @@
+<?php
+
+// This file contains Chwala configuration options.
+// Real config file must contain or include Roundcube Framework config.
+
+// ------------------------------------------------
+// Global settings
+// ------------------------------------------------
+
+// Main files source, backend driver which handles
+// authentication and configuration of Chwala
+// Note: Currently only 'kolab' is supported
+$config['fileapi_backend'] = 'kolab';
+
+// Enabled external storage drivers
+// Note: Currenty only 'seafile' is available
+$config['fileapi_drivers'] = array('seafile');
+
+// Pre-defined list of external storage sources.
+// Here admins can define sources which will be "mounted" into users folder tree
+/*
+$config['fileapi_sources'] = array(
+    'Seafile' => array(
+        'driver' => 'seafile',
+        'host'   => 'seacloud.cc',
+        // when username is set to '%u' current user name and password
+        // will be used to authenticate to this storage source
+        'username' => '%u',
+    ),
+);
+*/
+
+// ------------------------------------------------
+// SeaFile driver settings
+// ------------------------------------------------
+
+// Enables SeaFile Web API conversation log
+$config['fileapi_seafile_debug'] = true;
+
+// Enables caching of some SeaFile information e.g. folders list
+// Note: 'db', 'apc' and 'memcache' are supported
+$config['fileapi_seafile_cache'] = 'db';
+
+// Expiration time of SeaFile cache entries
+$config['fileapi_seafile_cache_ttl'] = '7d';
+
+// Enables SSL certificates validation when connecting
+// with any SeaFile server
+$config['fileapi_seafile_ssl_verify_host'] = false;
+$config['fileapi_seafile_ssl_verify_peer'] = false;
+

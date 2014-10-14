@@ -483,7 +483,7 @@ function files_ui()
 
     var elem = $('#folderlist'), table = $('table', elem);
 
-    this.env.folders = this.folder_list_parse(response.result);
+    this.env.folders = this.folder_list_parse(response.result ? response.result.list : []);
 
     table.empty();
 
@@ -509,6 +509,9 @@ function files_ui()
 
     // add tree icons
     this.folder_list_tree(this.env.folders);
+
+    // handle authentication errors on external sources
+    this.folder_list_auth_errors(response.result);
   };
 
   this.folder_select = function(folder, is_collection)
@@ -557,8 +560,12 @@ function files_ui()
       return;
     }
 
+    if (typeof folder != 'object') {
+      folder = {folder: folder};
+    }
+
     this.set_busy(true, 'saving');
-    this.request('folder_create', {folder: folder}, 'folder_create_response');
+    this.request('folder_create', folder, 'folder_create_response');
   };
 
   // folder create response handler
@@ -567,6 +574,7 @@ function files_ui()
     if (!this.response(response))
       return;
 
+    this.folder_create_stop();
     this.folder_list();
   };
 
@@ -995,6 +1003,118 @@ function files_ui()
   /*********          Command helpers              *********/
   /*********************************************************/
 
+  // handle auth errors on folder list
+  this.folder_list_auth_errors = function(result)
+  {
+    if (result && result.auth_errors) {
+      if (!this.auth_errors)
+        this.auth_errors = {};
+
+      $.extend(this.auth_errors, result.auth_errors);
+    }
+
+    // ask for password to the first storage on the list
+    $.each(this.auth_errors || [], function(i, v) {
+      ui.folder_list_auth_dialog(i, v);
+      return false;
+    });
+  };
+
+  // create dialog for user credentials of external storage
+  this.folder_list_auth_dialog = function(label, driver)
+  {
+    var buttons = {},
+      content = this.folder_list_auth_form(driver),
+      title = this.t('folder.authenticate').replace('$title', label);
+
+    buttons['form.submit'] = function() {
+      var data = {folder: label, list: 1};
+
+      $('input', this.modal).each(function() {
+        data[this.name] = this.value;
+      });
+
+      ui.open_dialog = this;
+      ui.set_busy(true, 'authenticating');
+      ui.request('folder_auth', data, 'folder_auth_response');
+    };
+
+    buttons['form.cancel'] = function() {
+      delete ui.auth_errors[label];
+      this.hide();
+      // go to the next one
+      ui.folder_list_auth_errors();
+    };
+
+    this.modal_dialog(content, buttons, {
+      title: title,
+      fxOpen: function(win) {
+        // focus first empty input
+        $('input', win.modal).each(function() {
+          if (!this.value) {
+            this.focus();
+            return false;
+          }
+        });
+      }
+    });
+  };
+
+  // folder_auth handler
+  this.folder_auth_response = function(response)
+  {
+    if (!this.response(response))
+      return;
+
+    var cnt = 0, folders,
+      folder = response.result.folder,
+      parent = $('#' + this.env.folders[folder].id);
+
+    delete this.auth_errors[folder];
+    this.open_dialog.hide();
+
+    // go to the next one
+    this.folder_list_auth_errors();
+
+    // count folders on the list
+    $.each(this.env.folders, function() { cnt++; });
+
+    // parse result
+    folders = this.folder_list_parse(response.result.list, cnt);
+    delete folders[folder]; // remove root added in folder_list_parse()
+
+    // add folders from the external source to the list
+    $.each(folders, function(i, f) {
+      var row = ui.folder_list_row(i, f);
+      parent.after(row);
+      parent = row;
+    });
+
+    // add tree icons
+    this.folder_list_tree(folders);
+
+    $.extend(this.env.folders, folders);
+  };
+
+  // returns content of the external storage authentication form
+  this.folder_list_auth_form = function(driver)
+  {
+    var elements = [];
+
+    $.each(driver.form, function(fi, fv) {
+      var id = 'authinput' + fi,
+        attrs = {type: fi.match(/pass/) ? 'password' : 'text', size: 25, name: fi, id: id},
+        input = $('<input>').attr(attrs);
+
+      if (driver.form_values && driver.form_values[fi])
+        input.attr({value: driver.form_values[fi]});
+
+      elements.push($('<span class="formrow">').append($('<label>').attr('for', id).text(fv)).append(input));
+    });
+
+    return $('<div class="form">').append(elements);
+  };
+
   // create folders table row
   this.folder_list_row = function(folder, data)
   {
@@ -1422,10 +1542,20 @@ function files_ui()
   // Display folder creation form
   this.folder_create_start = function()
   {
-    var form = this.form_show('folder-create');
+    var form = $('#folder-create-form');
+
+    $('.drivers', form).hide();
     $('input[name="name"]', form).val('').focus();
     $('input[name="parent"]', form).prop('checked', this.env.folder)
       .prop('disabled', !this.env.folder);
+    $('#folder-driver-checkbox').prop('checked', false);
+
+    this.form_show('folder-create');
+
+    if (!this.folder_types)
+      this.request('folder_types', {}, 'folder_types_response');
+    else
+      this.folder_types_init();
   };
 
   // Hide folder creation form
@@ -1437,18 +1567,117 @@ function files_ui()
   // Submit folder creation form
   this.folder_create_submit = function()
   {
-    var folder = '', data = this.serialize_form('#folder-create-form');
+    var args = {}, folder = '', data = this.serialize_form('#folder-create-form');
 
     if (!data.name)
       return;
 
-    if (data.parent && this.env.folder)
+    if (data.parent && this.env.folder) {
       folder = this.env.folder + this.env.directory_separator;
+    }
+    else if (data.external && data.driver) {
+      args.driver = data.driver;
+      $.each(data, function(i, v) {
+        if (i.startsWith(data.driver + '[')) {
+          args[i.substring(data.driver.length + 1, i.length - 1)] = v;
+        }
+      });
+    }
 
     folder += data.name;
+    args.folder = folder;
 
-    this.folder_create_stop();
-    this.command('folder.create', folder);
+    this.command('folder.create', args);
+  };
+
+  // folder_types response handler
+  this.folder_types_response = function(response)
+  {
+    if (!this.response(response))
+      return;
+
+    if (response.result) {
+      this.folder_types = response.result;
+
+      var list = [];
+
+      $.each(this.folder_types, function(i, v) {
+        var form = [], item = $('<div>').data('id', i),
+          content = $('<div class="content">')
+          label = $('<span class="name">').text(v.name),
+          desc = $('<span class="description">').text(v.description),
+          img = $('<img>').attr({alt: i, title: i, src: v.image}),
+          input = $('<input>').attr({type: 'radio', name: 'driver'}).val(i);
+
+        item.append(input)
+          .append(img)
+          .append(content);
+
+        content.append(label).append($('<br>')).append(desc);
+
+        $.each(v.form || [], function(fi, fv) {
+          var id = 'input' +i + fi,
+            attrs = {type: fi.match(/pass/) ? 'password' : 'text', size: 25, name: i + '[' + fi + ']', id: id};
+
+          form.push($('<span class="formrow">')
+            .append($('<label>').attr('for', id).text(fv))
+            .append($('<input>').attr(attrs))
+          );
+        });
+
+        if (form.length) {
+          $('<div class="form">').append(form).appendTo(content);
+        }
+
+        list.push(item);
+      });
+
+      if (list.length) {
+        var drivers_list = $('.drivers-list');
+
+        drivers_list.append(list);
+        this.form_show('folder-create');
+
+        $.each(list, function() {
+          this.click(function() {
+            $('.selected', drivers_list).removeClass('selected');
+            drivers_list.find('.form').hide();
+            $(this).addClass('selected').find('.form').show();
+            $('input[type="radio"]', this).prop('checked', true);
+            ref.form_show('folder-create');
+          });
+        });
+
+        $('#folder-parent-checkbox').change(function() {
+          if (this.checked)
+            $('#folder-create-form div.drivers').hide();
+          ref.folder_types_init();
+        });
+
+        $('#folder-driver-checkbox').change(function() {
+          drivers_list[this.checked ? 'show' : 'hide']();
+          ref.folder_types_init();
+        });
+
+        this.folder_types_init();
+      }
+    }
+  };
+
+  // initialize folder types list on folder create form display
+  this.folder_types_init = function()
+  {
+    var form = $('#folder-create-form'),
+      list = $('.drivers-list > div', form);
+
+    if (list.length && !$('input[name="parent"]', form).is(':checked')) {
+      $('#folder-create-form div.drivers').show();
+      list[0].click();
+    }
+
+    $('.drivers-list')[list.length && $('#folder-driver-checkbox:checked').length ? 'show' : 'hide']();
+
+    ref.form_show('folder-create');
   };
 
   // Display folder edit form
@@ -1621,6 +1850,9 @@ function files_ui()
       footer.push({name: n, label: ui.t(i)});
     });
 
+    // open function
+    settings.fxOpen = opts.fxOpen;
+
 //    if (!settings.btns.cancel && (!opts || !opts.no_cancel))
 //      settings.btns.cancel = function() { this.hide(); };
 
@@ -1641,8 +1873,12 @@ function files_ui()
   this.form_show = function(name)
   {
     var form = $('#' + name + '-form');
-    $('#forms > form').hide();
-    form.show();
+
+    if (form.is(':hidden')) {
+      $('#forms > form').hide();
+      form.show();
+    }
+
     $('#taskcontent').css('top', form.height() + 20);
 
     return form;
