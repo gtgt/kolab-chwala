@@ -90,6 +90,19 @@ class seafile_file_storage implements file_storage
     }
 
     /**
+     * Get password and name of authenticated user
+     *
+     * @return array Authenticated user data
+     */
+    public function auth_info()
+    {
+        return array(
+            'username' => $_SESSION[$this->title . 'seafile_user'],
+            'password' => $this->rc->decrypt($_SESSION[$this->title . 'seafile_pass']),
+        );
+    }
+
+    /**
      * Initialize SeaFile Web API connection
      */
     protected function init($skip_auth = false)
@@ -210,11 +223,11 @@ class seafile_file_storage implements file_storage
     /**
      * Delete configuration of external driver (mount point)
      *
-     * @param string $name Driver instance name
+     * @param string $title Driver instance name
      *
      * @throws Exception
      */
-    public function driver_delete($name)
+    public function driver_delete($title)
     {
         throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
     }
@@ -233,12 +246,12 @@ class seafile_file_storage implements file_storage
     /**
      * Update configuration of external driver (mount point)
      *
-     * @param string $name   Driver instance name
+     * @param string $title  Driver instance name
      * @param array  $driver Driver data
      *
      * @throws Exception
      */
-    public function driver_update($name, $driver)
+    public function driver_update($title, $driver)
     {
         throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
     }

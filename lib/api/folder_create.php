@@ -82,9 +82,13 @@ class file_api_folder_create extends file_api_common
         $data['driver']  = $this->args['driver'];
         $data['enabled'] = 1;
 
-        // don't store password
-        // @TODO: store passwords encrypted?
-        unset($data['password']);
+        // optionally store (encrypted) passwords
+        if (!empty($data['password']) && rcube_utils::get_boolean((string) $this->args['store_passwords'])) {
+            $data['password'] = $this->api->encrypt($data['password']);
+        }
+        else {
+            unset($data['password']);
+        }
 
         // save the mount point info in config
         $backend->driver_create($data);

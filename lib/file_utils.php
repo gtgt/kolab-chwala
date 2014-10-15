@@ -71,6 +71,7 @@ class file_utils
     // list of known file extensions, more in Roundcube config
     static $ext_map = array(
         'doc'  => 'application/msword',
+        'eml'  => 'message/rfc822',
         'gz'   => 'application/gzip',
         'htm'  => 'text/html',
         'html' => 'text/html',

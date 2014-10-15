@@ -55,11 +55,24 @@ class file_api_folder_auth extends file_api_common
         $data = array_merge($data, $this->args);
         $data = $driver->driver_validate($data);
 
-        // save changed data (except password)
-        unset($data['password']);
+        // optionally store (encrypted) passwords
+        if (!empty($data['password']) && rcube_utils::get_boolean((string) $this->args['store_passwords'])) {
+            $data['password'] = $this->api->encrypt($data['password']);
+        }
+        else {
+            unset($data['password']);
+        }
+
+        // save changed data
         foreach (array_keys($meta['form']) as $key) {
             if ($meta['form_values'][$key] != $data[$key]) {
-                // @TODO: save current driver config
+                // update driver config
+                $data['title']   = $driver_config['title'];
+                $data['driver']  = $driver_config['driver'];
+                $data['enabled'] = 1;
+
+                $backend = $this->api->get_backend();
+                $backend->driver_update($this->args['folder'], $data);
                 break;
             }
         }

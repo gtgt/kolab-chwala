@@ -59,6 +59,13 @@ interface file_storage
     public function authenticate($username, $password);
 
     /**
+     * Get password and name of authenticated user
+     *
+     * @return array Authenticated user data
+     */
+    public function auth_info();
+
+    /**
      * Configures environment
      *
      * @param array  $config Configuration
@@ -92,11 +99,11 @@ interface file_storage
     /**
      * Delete configuration of external driver (mount point)
      *
-     * @param string $name Driver instance name
+     * @param string $title Driver instance title
      *
      * @throws Exception
      */
-    public function driver_delete($name);
+    public function driver_delete($title);
 
     /**
      * Return list of registered drivers (mount points)
@@ -126,12 +133,12 @@ interface file_storage
     /**
      * Update configuration of external driver (mount point)
      *
-     * @param string $name   Driver instance name
+     * @param string $title  Driver instance title
      * @param array  $driver Driver data
      *
      * @throws Exception
      */
-    public function driver_update($name, $driver);
+    public function driver_update($title, $driver);
 
     /**
      * Create a file.

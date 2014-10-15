@@ -29,6 +29,11 @@ textarea {
   color: black;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  vertical-align: middle;
+}
+
 select[multiple="multiple"] {
   padding-left: 0;
 }
@@ -1390,11 +1395,6 @@ td span.branch span.l3
   font-weight: bold;
 }
 
-.drivers-list .description {
-  font-size: 9px;
-  color: #666;
-}
-
 .drivers-list img {
   vertical-align: middle;
   background-color: #e0e0e0;
@@ -1414,14 +1414,29 @@ td span.branch span.l3
   width: 400px;
 }
 
+.drivers-footer .description,
+.drivers-list .description {
+  font-size: 10px;
+  color: #666;
+  display: block;
+}
+
+.drivers-footer .description {
+  margin-left: 25px;
+}
+
 div.form .formrow {
   display: block;
   padding: 1px;
 }
 
-div.form label {
+div.form .formrow label {
   width: 80px;
   display: inline-block;
+}
+
+div.form .drivers-footer {
+  margin-top: 10px;
 }
 
 

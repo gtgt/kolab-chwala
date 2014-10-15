@@ -101,6 +101,19 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Get password and name of authenticated user
+     *
+     * @return array Authenticated user data
+     */
+    public function auth_info()
+    {
+        return array(
+            'username' => $_SESSION['username'],
+            'password' => $this->rc->decrypt($_SESSION['password']),
+        );
+    }
+
+    /**
      * Storage host selection
      */
     private function select_host($username)
@@ -368,16 +381,16 @@ class kolab_file_storage implements file_storage
     /**
      * Update configuration of external driver (mount point)
      *
-     * @param string $name   Driver instance name
+     * @param string $title  Driver instance title
      * @param array  $driver Driver data
      *
      * @throws Exception
      */
-    public function driver_update($name, $driver)
+    public function driver_update($title, $driver)
     {
         $drivers = $this->driver_list();
 
-        if (!$drivers[$name]) {
+        if (!$drivers[$title]) {
             throw new Exception("Driver not found", file_storage::ERROR);
         }
 

@@ -24,7 +24,9 @@
 
 class file_api extends file_locale
 {
-    const ERROR_CODE  = 500;
+    const ERROR_CODE    = 500;
+    const ERROR_INVALID = 501;
+
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
 
@@ -284,7 +286,7 @@ class file_api extends file_locale
             }
         }
 
-        throw new Exception("Unknown method", 501);
+        throw new Exception("Unknown method", self::ERROR_INVALID);
     }
 
     /**
@@ -344,6 +346,8 @@ class file_api extends file_locale
             foreach ((array) $preconf as $title => $item) {
                 if (!in_array($title, $all)) {
                     $item['title'] = $title;
+                    $item['admin'] = true;
+
                     $result[] = $as_objects ? $this->get_driver_object($item) : $item;
                 }
             }
@@ -396,9 +400,13 @@ class file_api extends file_locale
             $this->drivers[$key] = $driver = $this->load_driver_object($config['driver']);
 
             if ($config['username'] == '%u') {
-                $rcube = rcube::get_instance();
-                $config['username'] = $_SESSION['user'];
-                $config['password'] = $rcube->decrypt($_SESSION['password']);
+                $backend            = $this->get_backend();
+                $auth_info          = $backend->auth_info();
+                $config['username'] = $auth_info['username'];
+                $config['password'] = $auth_info['password'];
+            }
+            else if (!empty($config['password']) && empty($config['admin'])) {
+                $config['password'] = $this->decrypt($config['password']);
             }
 
             // configure api
@@ -646,5 +654,58 @@ class file_api extends file_locale
         }
 
         return $str;
+    }
+
+    /**
+     * Encrypts data with current user password
+     *
+     * @param string $str A string to encrypt
+     *
+     * @return string Encrypted string (and base64-encoded)
+     */
+    public function encrypt($str)
+    {
+        $rcube = rcube::get_instance();
+        $key   = $this->get_crypto_key();
+
+        return $rcube->encrypt($str, $key, true);
+    }
+
+    /**
+     * Decrypts data encrypted with encrypt() method
+     *
+     * @param string $str Encrypted string (base64-encoded)
+     *
+     * @return string Decrypted string
+     */
+    public function decrypt($str)
+    {
+        $rcube = rcube::get_instance();
+        $key   = $this->get_crypto_key();
+
+        return $rcube->decrypt($str, $key, true);
+    }
+
+    /**
+     * Set encryption password
+     */
+    protected function get_crypto_key()
+    {
+        $key      = 'chwala_crypto_key';
+        $backend  = $this->get_backend();
+        $user     = $backend->auth_info();
+        $password = $user['password'] . $user['username'];
+
+        // encryption password must be 24 characters, no less, no more
+        if (($len = strlen($password)) > 24) {
+            $password = substr($password, 0, 24);
+        }
+        else {
+            $password = $password . substr($this->conf->get('des_key'), 0, 24 - $len);
+        }
+
+        $this->conf->set($key, $password);
+
+        return $key;
     }
 }

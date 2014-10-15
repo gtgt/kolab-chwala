@@ -1024,7 +1024,7 @@ function files_ui()
   // create dialog for user credentials of external storage
   this.folder_list_auth_dialog = function(label, driver)
   {
-    var buttons = {},
+    var div, buttons = {},
       content = this.folder_list_auth_form(driver),
       title = this.t('folder.authenticate').replace('$title', label);
 
@@ -1032,7 +1032,7 @@ function files_ui()
       var data = {folder: label, list: 1};
 
       $('input', this.modal).each(function() {
-        data[this.name] = this.value;
+        data[this.name] = this.type == 'checkbox' && !this.checked ? '' : this.value;
       });
 
       ui.open_dialog = this;
@@ -1046,6 +1046,14 @@ function files_ui()
       // go to the next one
       ui.folder_list_auth_errors();
     };
+
+    // copy "remember password" checkbox into the dialog
+    div = $('.drivers-footer').clone();
+    if (div.length) {
+        div.find('input').each(function() { this.id += '-dialog'; });
+        div.find('label').each(function() { $(this).prop('for', $(this).prop('for') + '-dialog'); });
+        content.append(div.show());
+    }
 
     this.modal_dialog(content, buttons, {
       title: title,
@@ -1578,7 +1586,9 @@ function files_ui()
       folder = this.env.folder + this.env.directory_separator;
     }
     else if (data.external && data.driver) {
+      args.store_passwords = data.store_passwords;
       args.driver = data.driver;
+
       $.each(data, function(i, v) {
         if (i.startsWith(data.driver + '[')) {
           args[i.substring(data.driver.length + 1, i.length - 1)] = v;
@@ -1658,6 +1668,7 @@ function files_ui()
 
         $('#folder-driver-checkbox').change(function() {
           drivers_list[this.checked ? 'show' : 'hide']();
+          $('.drivers-footer')[this.checked ? 'show' : 'hide']();
           ref.folder_types_init();
         });
 
@@ -1677,7 +1688,7 @@ function files_ui()
       list[0].click();
     }
 
-    $('.drivers-list')[list.length && $('#folder-driver-checkbox:checked').length ? 'show' : 'hide']();
+    $('.drivers-list,.drivers-footer')[list.length && $('#folder-driver-checkbox:checked').length ? 'show' : 'hide']();
 
     ref.form_show('folder-create');
   };

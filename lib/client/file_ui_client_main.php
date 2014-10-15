@@ -71,10 +71,19 @@ class file_ui_client_main extends file_ui
             'value' => '1',
             'id'    => 'folder-driver-checkbox',
         ));
+        $drivers_pass_input = new html_checkbox(array(
+            'name'  => 'store_passwords',
+            'value' => '1',
+            'id'    => 'folder-driver-pass-checkbox',
+        ));
         $drivers = html::div('drivers',
             html::span('drivers-header', $drivers_input->show() . '&nbsp;'
                 . html::label('folder-driver-checkbox', $this->translate('folder.driverselect')))
             . html::div('drivers-list', '')
+            . html::div('drivers-footer', $drivers_pass_input->show() . '&nbsp;'
+                . html::label('folder-driver-pass-checkbox', $this->translate('folder.driverwithpass'))
+                . html::span('description', $this->translate('folder.driverwithpassdesc'))
+            )
         );
 
         $table = new html_table;
