@@ -47,6 +47,8 @@ class file_ui extends file_locale
     protected $devel_mode = false;
     protected $object_types = array();
 
+    const API_VERSION = 2;
+
 
     /**
      * Class constructor.
@@ -152,7 +154,8 @@ class file_ui extends file_locale
             $login = $this->get_input('login', 'POST');
 
             if ($login['username']) {
-                $result = $this->api->login($login['username'], $login['password']);
+                $result = $this->api->login($login['username'], $login['password'],
+                    array('version' => self::API_VERSION));
 
                 if ($token = $result->get('token')) {
                     $user = array(

@@ -33,11 +33,16 @@ class file_api_folder_list extends file_api_common
     {
         parent::handle();
 
-        $backend = $this->api->get_backend();
-        $drivers = $this->api->get_drivers(true);
-
         // get folders from main driver
-        $folders  = $backend->folder_list();
+        $backend = $this->api->get_backend();
+        $folders = $backend->folder_list();
+
+        // old result format
+        if ($this->api->client_version() < 2) {
+            return $folders;
+        }
+
+        $drivers  = $this->api->get_drivers(true);
         $has_more = false;
         $errors   = array();
 

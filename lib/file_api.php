@@ -76,6 +76,11 @@ class file_api extends file_locale
                     $_SESSION['time']   = time();
                     $_SESSION['config'] = $this->config;
 
+                    // remember client API version
+                    if (is_numeric($_GET['version'])) {
+                        $_SESSION['version'] = $_GET['version'];
+                    }
+
                     $this->output_success(array(
                         'token'        => session_id(),
                         'capabilities' => $this->capabilities(),
@@ -606,6 +611,14 @@ class file_api extends file_locale
         header("Content-Type: {$this->output_type}; charset=utf-8");
         echo json_encode($data);
         exit;
+    }
+
+    /**
+     * Returns API version supported by the client
+     */
+    public function client_version()
+    {
+        return $_SESSION['version'];
     }
 
     /**

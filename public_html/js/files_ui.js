@@ -483,7 +483,7 @@ function files_ui()
 
     var elem = $('#folderlist'), table = $('table', elem);
 
-    this.env.folders = this.folder_list_parse(response.result ? response.result.list : []);
+    this.env.folders = this.folder_list_parse(response.result && response.result.list ? response.result.list : response.result);
 
     table.empty();
 

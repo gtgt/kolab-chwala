@@ -214,7 +214,7 @@ function files_api()
   this.folder_list_parse = function(list, num)
   {
     var i, n, items, items_len, f, tmp, folder,
-      len = list.length, folders = {};
+      len = list ? list.length : 0, folders = {};
 
     if (!num) num = 1;
 

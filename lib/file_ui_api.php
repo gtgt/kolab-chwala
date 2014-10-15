@@ -136,17 +136,18 @@ class file_ui_api
      *
      * @param string $username User name
      * @param string $password User password
+     * @param array  $get      Additional GET parameters (e.g. 'version')
      *
      * @return file_ui_api_result Request response
      */
-    public function login($username, $password)
+    public function login($username, $password, $get = null)
     {
         $query = array(
             'username' => $username,
             'password' => $password,
         );
 
-        $response = $this->post('authenticate', null, $query);
+        $response = $this->post('authenticate', $get, $query);
 
         return $response;
     }
