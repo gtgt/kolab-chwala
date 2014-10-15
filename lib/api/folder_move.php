@@ -45,32 +45,104 @@ class file_api_folder_move extends file_api_common
             return;
         }
 
-        list($driver, $path) = $this->api->get_driver($this->args['folder']);
-        list($new_driver, $new_path) = $this->api->get_driver($this->args['new']);
+        list($src_driver, $src_path) = $this->api->get_driver($this->args['folder']);
+        list($dst_driver, $dst_path) = $this->api->get_driver($this->args['new']);
 
-        // mount point (driver title) rename
-        if ($driver->title() === $this->args['folder'] && strpos($this->args['new'], file_storage::SEPARATOR) === false) {
-            // @TODO
+        // source folder is a mount point (driver title)...
+        if ($src_driver->title() === $this->args['folder']) {
+            // ... rename
+            if (strpos($this->args['new'], file_storage::SEPARATOR) === false) {
+                // @TODO
+            }
+
             throw new Exception("Unsupported operation", file_api::ERROR_CODE);
         }
 
         // cross-driver move
-        if ($driver != $new_driver) {
-            // @TODO
-            throw new Exception("Unsupported operation", file_api::ERROR_CODE);
+        if ($src_driver != $dst_driver) {
+            // destination folder is an existing mount point
+            if (!strlen($dst_path)) {
+                throw new Exception("Destination folder already exists", file_api::ERROR_CODE);
+            }
+
+            return $this->folder_move_to_other_driver($src_driver, $src_path, $dst_driver, $dst_path);
         }
 
-        // make sure destination folder is not an existing mount point
-        if (strpos($this->args['new'], file_storage::SEPARATOR) === false) {
-            $drivers = $this->api->get_drivers();
+        return $src_driver->folder_move($src_path, $dst_path);
+    }
 
-            foreach ($drivers as $driver) {
-                if ($driver['title'] === $this->args['new']) {
-                    throw new Exception("Destination folder exists", file_api::ERROR_CODE);
-                }
+    /**
+     * Move folder between two external storage locations
+     */
+    protected function folder_move_to_other_driver($src_driver, $src_path, $dst_driver, $dst_path)
+    {
+        $src_folders = $src_driver->folder_list();
+        $dst_folders = $dst_driver->folder_list();
+
+        // first check if destination folder not exists
+        if (in_array($dst_path, $dst_folders)) {
+            throw new Exception("Destination folder already exists", file_api::ERROR_CODE);
+        }
+
+        // now recursively create/delete folders and copy their content
+        $this->move_folder_with_content($src_driver, $src_path, $dst_driver, $dst_path, $src_folders);
+
+        // now we can delete the folder
+        $src_driver->folder_delete($src_path);
+    }
+
+    /**
+     * Recursively moves folder and it's content to another location
+     */
+    protected function move_folder_with_content($src_driver, $src_path, $dst_driver, $dst_path, $src_folders)
+    {
+        // create folder
+        $dst_driver->folder_create($dst_path);
+
+        foreach ($src_driver->file_list($src_path) as $filename => $file) {
+            $this->file_copy($src_driver, $dst_driver, $filename, $dst_path . file_storage::SEPARATOR . $file['name']);
+        }
+
+        // sub-folders...
+        foreach ($src_folders as $folder) {
+            if (strpos($folder, $src_path . file_storage::SEPARATOR) === 0
+                && strpos($folder, file_storage::SEPARATOR, strlen($src_path) + 2) === false
+            ) {
+                $destination = $dst_path . file_storage::SEPARATOR . substr($folder, strlen($src_path) + 1);
+                $this->move_folder_with_content($src_driver, $folder, $dst_driver, $destination, $src_folders);
             }
         }
+    }
 
-        return $driver->folder_move($path, $new_path);
+    /**
+     * File move between storage backends
+     */
+    protected function file_copy($src_driver, $dst_driver, $src_path, $dst_path)
+    {
+        // unable to put file on mount point
+        if (strpos($dst_path, file_storage::SEPARATOR) === false) {
+            throw new Exception("Unable to move file into specified location", file_api::ERROR_CODE);
+        }
+
+        // get the file from source location
+        $fp = fopen('php://temp', 'w+');
+
+        if (!$fp) {
+            throw new Exception("Internal server error", file_api::ERROR_CODE);
+        }
+
+        $src_driver->file_get($src_path, null, $fp);
+
+        rewind($fp);
+
+        $chunk = stream_get_contents($fp, 102400);
+        $type  = rcube_mime::file_content_type($chunk, $dst_path, 'application/octet-stream', true);
+
+        rewind($fp);
+
+        // upload the file to new location
+        $dst_driver->file_create($dst_path, array('content' => $fp, 'type' => $type));
+
+        fclose($fp);
     }
 }

@@ -730,6 +730,11 @@ class seafile_file_storage implements file_storage
         if (!$success) {
             throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
         }
+
+        // clear the cache
+        if (empty($repo_id)) {
+            $this->libraries = null;
+        }
     }
 
     /**

@@ -598,6 +598,7 @@ function files_ui()
 
     this.env.folder = this.env.folder_rename;
     this.folder_list();
+    this.file_list();
   };
 
   // folder delete request
