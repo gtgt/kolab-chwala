@@ -1048,7 +1048,7 @@ function files_ui()
     };
 
     // copy "remember password" checkbox into the dialog
-    div = $('.drivers-footer').clone();
+    div = $('.drivers-footer').first().clone();
     if (div.length) {
         div.find('input').each(function() { this.id += '-dialog'; });
         div.find('label').each(function() { $(this).prop('for', $(this).prop('for') + '-dialog'); });
