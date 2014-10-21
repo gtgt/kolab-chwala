@@ -59,6 +59,7 @@ class file_api_folder_list extends file_api_common
             }
 
             $folders[] = $title;
+            $has_more  = true;
 
             if ($driver != $backend) {
                 try {
