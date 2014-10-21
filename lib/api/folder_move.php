@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_folder_move extends file_api_common
 {
     /**
@@ -34,11 +32,11 @@ class file_api_folder_move extends file_api_common
         parent::handle();
 
         if (!isset($this->args['folder']) || $this->args['folder'] === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
         if (!isset($this->args['new']) || $this->args['new'] === '') {
-            throw new Exception("Missing destination folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing destination folder name", file_api_core::ERROR_CODE);
         }
 
         if ($this->args['new'] === $this->args['folder']) {
@@ -55,14 +53,14 @@ class file_api_folder_move extends file_api_common
                 // @TODO
             }
 
-            throw new Exception("Unsupported operation", file_api::ERROR_CODE);
+            throw new Exception("Unsupported operation", file_api_core::ERROR_CODE);
         }
 
         // cross-driver move
         if ($src_driver != $dst_driver) {
             // destination folder is an existing mount point
             if (!strlen($dst_path)) {
-                throw new Exception("Destination folder already exists", file_api::ERROR_CODE);
+                throw new Exception("Destination folder already exists", file_api_core::ERROR_CODE);
             }
 
             return $this->folder_move_to_other_driver($src_driver, $src_path, $dst_driver, $dst_path);
@@ -81,7 +79,7 @@ class file_api_folder_move extends file_api_common
 
         // first check if destination folder not exists
         if (in_array($dst_path, $dst_folders)) {
-            throw new Exception("Destination folder already exists", file_api::ERROR_CODE);
+            throw new Exception("Destination folder already exists", file_api_core::ERROR_CODE);
         }
 
         // now recursively create/delete folders and copy their content
@@ -121,14 +119,14 @@ class file_api_folder_move extends file_api_common
     {
         // unable to put file on mount point
         if (strpos($dst_path, file_storage::SEPARATOR) === false) {
-            throw new Exception("Unable to move file into specified location", file_api::ERROR_CODE);
+            throw new Exception("Unable to move file into specified location", file_api_core::ERROR_CODE);
         }
 
         // get the file from source location
         $fp = fopen('php://temp', 'w+');
 
         if (!$fp) {
-            throw new Exception("Internal server error", file_api::ERROR_CODE);
+            throw new Exception("Internal server error", file_api_core::ERROR_CODE);
         }
 
         $src_driver->file_get($src_path, null, $fp);

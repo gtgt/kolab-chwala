@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_file_upload extends file_api_common
 {
     /**
@@ -34,10 +32,10 @@ class file_api_file_upload extends file_api_common
         parent::handle();
 
         // for Opera upload frame response cannot be application/json
-        $this->api->output_type = file_api::OUTPUT_HTML;
+        $this->api->output_type = file_api_core::OUTPUT_HTML;
 
         if (!isset($this->args['folder']) || $this->args['folder'] === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
         $uploads = $this->upload();

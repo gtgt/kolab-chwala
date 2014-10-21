@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_folder_list extends file_api_common
 {
     /**
@@ -94,8 +92,8 @@ class file_api_folder_list extends file_api_common
      */
     protected function sort_folder_comparator($str1, $str2)
     {
-        $path1 = explode(file_api::SEPARATOR, $str1);
-        $path2 = explode(file_api::SEPARATOR, $str2);
+        $path1 = explode(file_storage::SEPARATOR, $str1);
+        $path2 = explode(file_storage::SEPARATOR, $str2);
 
         foreach ($path1 as $idx => $folder1) {
             $folder2 = $path2[$idx];

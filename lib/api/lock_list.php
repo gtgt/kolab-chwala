@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_lock_list extends file_api_common
 {
     /**

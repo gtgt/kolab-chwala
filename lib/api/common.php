@@ -25,6 +25,7 @@
 class file_api_common
 {
     protected $api;
+    protected $rc;
     protected $args = array();
 
 
@@ -67,10 +68,10 @@ class file_api_common
                         $maxsize = ini_get('upload_max_filesize');
                         $maxsize = $this->show_bytes(parse_bytes($maxsize));
 
-                        throw new Exception("Maximum file size ($maxsize) exceeded", file_api::ERROR_CODE);
+                        throw new Exception("Maximum file size ($maxsize) exceeded", file_api_core::ERROR_CODE);
                     }
 
-                    throw new Exception("File upload failed", file_api::ERROR_CODE);
+                    throw new Exception("File upload failed", file_api_core::ERROR_CODE);
                 }
 
                 $files[] = array(
@@ -85,10 +86,10 @@ class file_api_common
             // if filesize exceeds post_max_size then $_FILES array is empty,
             if ($maxsize = ini_get('post_max_size')) {
                 $maxsize = $this->show_bytes(parse_bytes($maxsize));
-                throw new Exception("Maximum file size ($maxsize) exceeded", file_api::ERROR_CODE);
+                throw new Exception("Maximum file size ($maxsize) exceeded", file_api_core::ERROR_CODE);
             }
 
-            throw new Exception("File upload failed", file_api::ERROR_CODE);
+            throw new Exception("File upload failed", file_api_core::ERROR_CODE);
         }
 
         return $files;

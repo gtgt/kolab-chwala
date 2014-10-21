@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_file_move extends file_api_common
 {
     /**
@@ -34,17 +32,17 @@ class file_api_file_move extends file_api_common
         parent::handle();
 
         if (!isset($this->args['file']) || $this->args['file'] === '') {
-            throw new Exception("Missing file name", file_api::ERROR_CODE);
+            throw new Exception("Missing file name", file_api_core::ERROR_CODE);
         }
 
         if (is_array($this->args['file'])) {
             if (empty($this->args['file'])) {
-                throw new Exception("Missing file name", file_api::ERROR_CODE);
+                throw new Exception("Missing file name", file_api_core::ERROR_CODE);
             }
         }
         else {
             if (!isset($this->args['new']) || $this->args['new'] === '') {
-                throw new Exception("Missing new file name", file_api::ERROR_CODE);
+                throw new Exception("Missing new file name", file_api_core::ERROR_CODE);
             }
 
             $this->args['file'] = array($this->args['file'] => $this->args['new']);
@@ -56,11 +54,11 @@ class file_api_file_move extends file_api_common
 
         foreach ((array) $this->args['file'] as $file => $new_file) {
             if ($new_file === '') {
-                throw new Exception("Missing new file name", file_api::ERROR_CODE);
+                throw new Exception("Missing new file name", file_api_core::ERROR_CODE);
             }
 
             if ($new_file === $file) {
-                throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
+                throw new Exception("Old and new file name is the same", file_api_core::ERROR_CODE);
             }
 
             list($driver, $path) = $this->api->get_driver($file);
@@ -128,14 +126,14 @@ class file_api_file_move extends file_api_common
     {
         // unable to put file on mount point
         if (strpos($new_path, file_storage::SEPARATOR) === false) {
-            throw new Exception("Unable to copy/move file into specified location", file_api::ERROR_CODE);
+            throw new Exception("Unable to copy/move file into specified location", file_api_core::ERROR_CODE);
         }
 
         // get the file from source location
         $fp = fopen('php://temp', 'w+');
 
         if (!$fp) {
-            throw new Exception("Internal server error", file_api::ERROR_CODE);
+            throw new Exception("Internal server error", file_api_core::ERROR_CODE);
         }
 
         $driver->file_get($path, null, $fp);

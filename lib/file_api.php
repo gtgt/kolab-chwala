@@ -22,26 +22,13 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_api extends file_locale
+class file_api extends file_api_core
 {
-    const ERROR_CODE    = 500;
-    const ERROR_INVALID = 501;
-
-    const OUTPUT_JSON = 'application/json';
-    const OUTPUT_HTML = 'text/html';
-
     public $session;
-    public $output_type = self::OUTPUT_JSON;
-    public $config = array(
-        'date_format' => 'Y-m-d H:i',
-        'language'    => 'en_US',
-    );
+    public $output_type = file_api_core::OUTPUT_JSON;
 
-    private $app_name = 'Kolab File API';
-    private $drivers  = array();
     private $conf;
     private $browser;
-    private $backend;
 
 
     public function __construct()
@@ -226,7 +213,7 @@ class file_api extends file_locale
             header('HTTP/1.1 401 Unauthorized');
             exit;
 */
-            throw new Exception("Invalid password or username", file_api::ERROR_CODE);
+            throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
         }
 
         return $username;
@@ -277,6 +264,7 @@ class file_api extends file_locale
 
             $request = $aliases[$request] ?: $request;
 
+            require_once __DIR__ . "/api/common.php";
             include_once __DIR__ . "/api/$request.php";
 
             $class_name = "file_api_$request";
@@ -286,194 +274,7 @@ class file_api extends file_locale
             }
         }
 
-        throw new Exception("Unknown method", self::ERROR_INVALID);
-    }
-
-    /**
-     * Initialise authentication/configuration backend class
-     *
-     * @return file_storage Main storage driver
-     */
-    public function get_backend()
-    {
-        if ($this->backend) {
-            return $this->backend;
-        }
-
-        $driver = $this->conf->get('fileapi_backend', 'kolab');
-        $class  = $driver . '_file_storage';
-
-        $include_path = RCUBE_INSTALL_PATH . "/lib/drivers/$driver" . PATH_SEPARATOR;
-        $include_path .= ini_get('include_path');
-        set_include_path($include_path);
-
-        $this->backend = new $class;
-
-        // configure api
-        $this->backend->configure($this->config);
-
-        return $this->backend;
-    }
-
-    /**
-     * Return supported/enabled external storage instances
-     *
-     * @param bool $as_objects Return drivers as objects not config data
-     *
-     * @return array List of storage drivers
-     */
-    public function get_drivers($as_objects = false)
-    {
-        $enabled = $this->conf->get('fileapi_drivers');
-        $preconf = $this->conf->get('fileapi_sources');
-        $result  = array();
-        $all     = array();
-
-        if (!empty($enabled)) {
-            $backend = $this->get_backend();
-            $drivers = $backend->driver_list();
-
-            foreach ($drivers as $item) {
-                $all[] = $item['title'];
-
-                if ($item['enabled'] && in_array($item['driver'], (array) $enabled)) {
-                    $result[] = $as_objects ? $this->get_driver_object($item) : $item;
-                }
-            }
-        }
-
-        if (empty($result) && !empty($preconf)) {
-            foreach ((array) $preconf as $title => $item) {
-                if (!in_array($title, $all)) {
-                    $item['title'] = $title;
-                    $item['admin'] = true;
-
-                    $result[] = $as_objects ? $this->get_driver_object($item) : $item;
-                }
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Return driver for specified file/folder path
-     *
-     * @param string $path Folder/file path
-     *
-     * @return array Storage driver object and modified path
-     */
-    public function get_driver($path)
-    {
-        $drivers = $this->get_drivers();
-
-        foreach ($drivers as $item) {
-            $prefix = $item['title'] . file_storage::SEPARATOR;
-
-            if ($path == $item['title'] || strpos($path, $prefix) === 0) {
-                $selected = $item;
-                break;
-            }
-        }
-
-        if (empty($selected)) {
-            return array($this->get_backend(), $path);
-        }
-
-        $path = substr($path, strlen($selected['title']) + 1);
-
-        return array($this->get_driver_object($selected), $path);
-    }
-
-    /**
-     * Initialize driver instance
-     *
-     * @param array $config Driver config
-     *
-     * @return file_storage Storage driver instance
-     */
-    public function get_driver_object($config)
-    {
-        $key = $config['title'];
-
-        if (empty($this->drivers[$key])) {
-            $this->drivers[$key] = $driver = $this->load_driver_object($config['driver']);
-
-            if ($config['username'] == '%u') {
-                $backend            = $this->get_backend();
-                $auth_info          = $backend->auth_info();
-                $config['username'] = $auth_info['username'];
-                $config['password'] = $auth_info['password'];
-            }
-            else if (!empty($config['password']) && empty($config['admin'])) {
-                $config['password'] = $this->decrypt($config['password']);
-            }
-
-            // configure api
-            $driver->configure(array_merge($config, $this->config), $key);
-        }
-
-        return $this->drivers[$key];
-    }
-
-    /**
-     * Loads a driver
-     */
-    public function load_driver_object($name)
-    {
-        $class = $name . '_file_storage';
-
-        if (!class_exists($class, false)) {
-            $include_path = RCUBE_INSTALL_PATH . "/lib/drivers/$name" . PATH_SEPARATOR;
-            $include_path .= ini_get('include_path');
-            set_include_path($include_path);
-        }
-
-        return new $class;
-    }
-
-    /**
-     * Returns storage(s) capabilities
-     *
-     * @return array Capabilities
-     */
-    public function capabilities()
-    {
-        $caps    = array();
-        $backend = $this->get_backend();
-
-        // check support for upload progress
-        if (($progress_sec = $this->conf->get('upload_progress'))
-            && ini_get('apc.rfc1867') && function_exists('apc_fetch')
-        ) {
-            $caps[file_storage::CAPS_PROGRESS_NAME] = ini_get('apc.rfc1867_name');
-            $caps[file_storage::CAPS_PROGRESS_TIME] = $progress_sec;
-        }
-
-        // get capabilities of main storage module
-        foreach ($backend->capabilities() as $name => $value) {
-            // skip disabled capabilities
-            if ($value !== false) {
-                $caps[$name] = $value;
-            }
-        }
-
-        // get capabilities of other drivers
-        $drivers = $this->get_drivers(true);
-
-        foreach ($drivers as $driver) {
-            if ($driver != $backend) {
-                $title = $driver->title();
-                foreach ($driver->capabilities() as $name => $value) {
-                    // skip disabled capabilities
-                    if ($value !== false) {
-                        $caps['roots'][$title][$name] = $value;
-                    }
-                }
-            }
-        }
-
-        return $caps;
+        throw new Exception("Unknown method", file_api_core::ERROR_INVALID);
     }
 
     /**
@@ -502,33 +303,7 @@ class file_api extends file_locale
             return $status; // id, done, total, current, percent, start_time, eta, rate
         }
 
-        throw new Exception("Not supported", file_api::ERROR_CODE);
-    }
-
-    /**
-     * Return mimetypes list supported by built-in viewers
-     *
-     * @return array List of mimetypes
-     */
-    protected function supported_mimetypes()
-    {
-        $mimetypes = array();
-        $dir       = RCUBE_INSTALL_PATH . 'lib/viewers';
-
-        if ($handle = opendir($dir)) {
-            while (false !== ($file = readdir($handle))) {
-                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class($this);
-
-                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
-                }
-            }
-            closedir($handle);
-        }
-
-        return $mimetypes;
+        throw new Exception("Not supported", file_api_core::ERROR_CODE);
     }
 
     /**
@@ -602,7 +377,7 @@ class file_api extends file_locale
         }
 
         if (empty($response['code'])) {
-            $response['code'] = file_api::ERROR_CODE;
+            $response['code'] = file_api_core::ERROR_CODE;
         }
 
         $this->output_send($response);
@@ -654,58 +429,5 @@ class file_api extends file_locale
         }
 
         return $str;
-    }
-
-    /**
-     * Encrypts data with current user password
-     *
-     * @param string $str A string to encrypt
-     *
-     * @return string Encrypted string (and base64-encoded)
-     */
-    public function encrypt($str)
-    {
-        $rcube = rcube::get_instance();
-        $key   = $this->get_crypto_key();
-
-        return $rcube->encrypt($str, $key, true);
-    }
-
-    /**
-     * Decrypts data encrypted with encrypt() method
-     *
-     * @param string $str Encrypted string (base64-encoded)
-     *
-     * @return string Decrypted string
-     */
-    public function decrypt($str)
-    {
-        $rcube = rcube::get_instance();
-        $key   = $this->get_crypto_key();
-
-        return $rcube->decrypt($str, $key, true);
-    }
-
-    /**
-     * Set encryption password
-     */
-    protected function get_crypto_key()
-    {
-        $key      = 'chwala_crypto_key';
-        $backend  = $this->get_backend();
-        $user     = $backend->auth_info();
-        $password = $user['password'] . $user['username'];
-
-        // encryption password must be 24 characters, no less, no more
-        if (($len = strlen($password)) > 24) {
-            $password = substr($password, 0, 24);
-        }
-        else {
-            $password = $password . substr($this->conf->get('des_key'), 0, 24 - $len);
-        }
-
-        $this->conf->set($key, $password);
-
-        return $key;
     }
 }

@@ -37,7 +37,7 @@ class kolab_file_storage implements file_storage
     /**
      * @var array
      */
-    protected $config;
+    protected $config = array();
 
     /**
      * @var string
@@ -108,8 +108,8 @@ class kolab_file_storage implements file_storage
     public function auth_info()
     {
         return array(
-            'username' => $_SESSION['username'],
-            'password' => $this->rc->decrypt($_SESSION['password']),
+            'username' => $this->config['username'] ?: $_SESSION['username'],
+            'password' => $this->config['password'] ?: $this->rc->decrypt($_SESSION['password']),
         );
     }
 
@@ -267,7 +267,7 @@ class kolab_file_storage implements file_storage
      */
     public function configure($config, $title = null)
     {
-        $this->config = $config;
+        $this->config = array_merge($this->config, $config);
         // @TODO: this is currently not possible to have multiple sessions in Roundcube
     }
 
@@ -326,6 +326,8 @@ class kolab_file_storage implements file_storage
         if (!$status) {
             throw new Exception("Driver create failed", file_storage::ERROR);
         }
+
+        $this->driver_list = null;
     }
 
     /**
@@ -347,6 +349,7 @@ class kolab_file_storage implements file_storage
                 throw new Exception("Driver delete failed", file_storage::ERROR);
             }
 
+            $this->driver_list = null;
             return;
         }
 
@@ -361,6 +364,12 @@ class kolab_file_storage implements file_storage
      */
     public function driver_list()
     {
+        // use internal cache, this is specifically for iRony
+        // which may call this code path many times in one request
+        if ($this->driver_list !== null) {
+            return $this->driver_list;
+        }
+
         // get current relations state
         $config  = kolab_storage_config::get_instance();
         $default = true;
@@ -375,7 +384,7 @@ class kolab_file_storage implements file_storage
             $result[$driver['title']] = $driver;
         }
 
-        return $result;
+        return $this->driver_list = $result;
     }
 
     /**
@@ -400,6 +409,8 @@ class kolab_file_storage implements file_storage
         if (!$status) {
             throw new Exception("Driver update failed", file_storage::ERROR);
         }
+
+        $this->driver_list = null;
     }
 
     /**

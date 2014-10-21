@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_file_create extends file_api_common
 {
     /**
@@ -34,11 +32,11 @@ class file_api_file_create extends file_api_common
         parent::handle();
 
         if (!isset($this->args['file']) || $this->args['file'] === '') {
-            throw new Exception("Missing file name", file_api::ERROR_CODE);
+            throw new Exception("Missing file name", file_api_core::ERROR_CODE);
         }
 
         if (!isset($this->args['content'])) {
-            throw new Exception("Missing file content", file_api::ERROR_CODE);
+            throw new Exception("Missing file content", file_api_core::ERROR_CODE);
         }
 
         $request = $this instanceof file_api_file_update ? 'file_update' : 'file_create';

@@ -40,10 +40,10 @@ class file_locale
             $language = 'en_US';
         }
 
-        @include RCUBE_INSTALL_PATH . "/lib/locale/en_US.php";
+        @include __DIR__ . "/locale/en_US.php";
 
         if ($language != 'en_US') {
-            @include RCUBE_INSTALL_PATH . "/lib/locale/$language.php";
+            @include __DIR__ . "/locale/$language.php";
         }
 
         setlocale(LC_ALL, $language . '.utf8', $language . 'UTF-8', 'en_US.utf8', 'en_US.UTF-8');
@@ -77,12 +77,12 @@ class file_locale
             $lang = $lang[0];
             $lang = str_replace('-', '_', $lang);
 
-            if (file_exists(RCUBE_INSTALL_PATH . "/lib/locale/$lang.php")) {
+            if (file_exists(__DIR__ . "/locale/$lang.php")) {
                 return $lang;
             }
 
             if (isset($aliases[$lang]) && ($alias = $aliases[$lang])
-                && file_exists(RCUBE_INSTALL_PATH . "/lib/locale/$alias.php")
+                && file_exists(__DIR__ . "/locale/$alias.php")
             ) {
                 return $alias;
             }

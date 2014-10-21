@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_lock_create extends file_api_common
 {
     /**
@@ -36,7 +34,7 @@ class file_api_lock_create extends file_api_common
         // arguments: uri, owner, timeout, scope, depth, token
         foreach (array('uri', 'token') as $arg) {
             if (!isset($this->args[$arg]) || $this->args[$arg] === '') {
-                throw new Exception("Missing lock $arg", file_api::ERROR_CODE);
+                throw new Exception("Missing lock $arg", file_api_core::ERROR_CODE);
             }
         }
 

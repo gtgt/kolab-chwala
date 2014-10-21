@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_file_get extends file_api_common
 {
     /**
@@ -33,10 +31,10 @@ class file_api_file_get extends file_api_common
     {
         parent::handle();
 
-        $this->api->output_type = file_api::OUTPUT_HTML;
+        $this->api->output_type = file_api_core::OUTPUT_HTML;
 
         if (!isset($this->args['file']) || $this->args['file'] === '') {
-            header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
+            header("HTTP/1.0 ".file_api_core::ERROR_CODE." Missing file name");
         }
 
         $params = array(
@@ -54,7 +52,7 @@ class file_api_file_get extends file_api_common
             $this->driver->file_get($path, $params);
         }
         catch (Exception $e) {
-            header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
+            header("HTTP/1.0 " . file_api_core::ERROR_CODE . " " . $e->getMessage());
         }
 
         exit;
@@ -66,7 +64,7 @@ class file_api_file_get extends file_api_common
     protected function file_view($file, $args, $params)
     {
         $viewer = $args['viewer'];
-        $path   = RCUBE_INSTALL_PATH . "lib/viewers/$viewer.php";
+        $path   = __DIR__ . "/../viewers/$viewer.php";
         $class  = "file_viewer_$viewer";
 
         if (!file_exists($path)) {
@@ -78,7 +76,7 @@ class file_api_file_get extends file_api_common
             $info = $this->driver->file_info($file);
         }
         catch (Exception $e) {
-            header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
+            header("HTTP/1.0 " . file_api_core::ERROR_CODE . " " . $e->getMessage());
             exit;
         }
 

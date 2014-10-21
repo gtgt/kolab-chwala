@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_folder_create extends file_api_common
 {
     /**
@@ -34,7 +32,7 @@ class file_api_folder_create extends file_api_common
         parent::handle();
 
         if (!isset($this->args['folder']) || $this->args['folder'] === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
         // normal folder
@@ -46,7 +44,7 @@ class file_api_folder_create extends file_api_common
 
         // external storage (mount point)
         if (strpos($this->args['folder'], file_storage::SEPARATOR) !== false) {
-            throw new Exception("Unable to mount external storage into a sub-folder", file_api::ERROR_CODE);
+            throw new Exception("Unable to mount external storage into a sub-folder", file_api_core::ERROR_CODE);
         }
 
         // check if driver is enabled

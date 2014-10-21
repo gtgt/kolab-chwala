@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_file_delete extends file_api_common
 {
     /**
@@ -34,7 +32,7 @@ class file_api_file_delete extends file_api_common
         parent::handle();
 
         if (empty($this->args['file'])) {
-            throw new Exception("Missing file name", file_api::ERROR_CODE);
+            throw new Exception("Missing file name", file_api_core::ERROR_CODE);
         }
 
         foreach ((array) $this->args['file'] as $file) {

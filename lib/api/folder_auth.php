@@ -22,8 +22,6 @@
  +--------------------------------------------------------------------------+
 */
 
-require_once __DIR__ . "/common.php";
-
 class file_api_folder_auth extends file_api_common
 {
     /**
@@ -34,7 +32,7 @@ class file_api_folder_auth extends file_api_common
         parent::handle();
 
         if (!isset($this->args['folder']) || $this->args['folder'] === '') {
-            throw new Exception("Missing folder name", file_api::ERROR_CODE);
+            throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
         $drivers = $this->api->get_drivers();
@@ -47,7 +45,7 @@ class file_api_folder_auth extends file_api_common
         }
 
         if (empty($driver)) {
-            throw new Exception("Unknown folder", file_api::ERROR_CODE);
+            throw new Exception("Unknown folder", file_api_core::ERROR_CODE);
         }
 
         // check if authentication works
