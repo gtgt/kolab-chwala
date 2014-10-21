@@ -118,7 +118,7 @@ class file_api_core extends file_locale
      *
      * @param string $path Folder/file path
      *
-     * @return array Storage driver object and modified path
+     * @return array Storage driver object, modified path, driver config
      */
     public function get_driver($path)
     {
@@ -139,7 +139,7 @@ class file_api_core extends file_locale
 
         $path = substr($path, strlen($selected['title']) + 1);
 
-        return array($this->get_driver_object($selected), $path);
+        return array($this->get_driver_object($selected), $path, $selected);
     }
 
     /**
@@ -242,7 +242,7 @@ class file_api_core extends file_locale
     protected function supported_mimetypes()
     {
         $mimetypes = array();
-        $dir       = __DIR__ . '/lib/viewers';
+        $dir       = __DIR__ . '/viewers';
 
         if ($handle = opendir($dir)) {
             while (false !== ($file = readdir($handle))) {

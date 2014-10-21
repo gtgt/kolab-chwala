@@ -35,20 +35,14 @@ class file_api_folder_auth extends file_api_common
             throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
-        $drivers = $this->api->get_drivers();
+        list($driver, $path, $driver_config) = $this->api->get_driver($this->args['folder']);
 
-        foreach ($drivers as $driver_config) {
-            if ($driver_config['title'] === $this->args['folder']) {
-                $driver = $this->api->get_driver_object($driver_config);
-                $meta   = $driver->driver_metadata();
-            }
-        }
-
-        if (empty($driver)) {
+        if (empty($driver) || $driver->title() === '') {
             throw new Exception("Unknown folder", file_api_core::ERROR_CODE);
         }
 
         // check if authentication works
+        $meta = $driver->driver_metadata();
         $data = array_fill_keys(array_keys($meta['form']), '');
         $data = array_merge($data, $this->args);
         $data = $driver->driver_validate($data);
@@ -59,18 +53,17 @@ class file_api_folder_auth extends file_api_common
         }
         else {
             unset($data['password']);
+            unset($driver_config['password']);
         }
 
         // save changed data
         foreach (array_keys($meta['form']) as $key) {
             if ($meta['form_values'][$key] != $data[$key]) {
                 // update driver config
-                $data['title']   = $driver_config['title'];
-                $data['driver']  = $driver_config['driver'];
-                $data['enabled'] = 1;
+                $driver_config = array_merge($driver_config, $data);
 
                 $backend = $this->api->get_backend();
-                $backend->driver_update($this->args['folder'], $data);
+                $backend->driver_update($this->args['folder'], $driver_config);
                 break;
             }
         }

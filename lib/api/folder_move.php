@@ -43,14 +43,19 @@ class file_api_folder_move extends file_api_common
             return;
         }
 
-        list($src_driver, $src_path) = $this->api->get_driver($this->args['folder']);
-        list($dst_driver, $dst_path) = $this->api->get_driver($this->args['new']);
+        list($src_driver, $src_path, $cfg) = $this->api->get_driver($this->args['folder']);
+        list($dst_driver, $dst_path)       = $this->api->get_driver($this->args['new']);
 
         // source folder is a mount point (driver title)...
         if ($src_driver->title() === $this->args['folder']) {
-            // ... rename
+            // ...rename
             if (strpos($this->args['new'], file_storage::SEPARATOR) === false) {
-                // @TODO
+                // destination folder is an existing mount point
+                if (!strlen($dst_path)) {
+                    throw new Exception("Destination folder already exists", file_api_core::ERROR_CODE);
+                }
+
+                return $this->driver_rename($src_driver, $this->args['new'], $cfg);
             }
 
             throw new Exception("Unsupported operation", file_api_core::ERROR_CODE);
@@ -142,5 +147,37 @@ class file_api_folder_move extends file_api_common
         $dst_driver->file_create($dst_path, array('content' => $fp, 'type' => $type));
 
         fclose($fp);
+    }
+
+    /**
+     * External storage (mount point) rename
+     */
+    protected function driver_rename($driver, $new_name, $config)
+    {
+        $backend = $this->api->get_backend();
+        $folders = $backend->folder_list();
+
+        // first check if destination folder not exists
+        if (in_array($new_name, $folders)) {
+            throw new Exception("Destination folder already exists", file_api_core::ERROR_CODE);
+        }
+
+        $title           = $driver->title();
+        $config['title'] = $new_name;
+
+        // store passwords if it was already stored
+        if (empty($config['password']) || $config['password'] != '%u') {
+            unset($config['password']);
+        }
+
+        $backend->driver_update($title, $config);
+
+        // authenticate again to set session password
+        if (empty($config['password']) || $config['password'] != '%u') {
+            $auth         = $driver->auth_info();
+            list($driver) = $this->api->get_driver($new_name);
+
+            $driver->authenticate($auth['username'], $auth['password']);
+        }
     }
 }
