@@ -587,6 +587,7 @@ function files_ui()
     }
 
     this.set_busy(true, 'saving');
+    this.env.folder_rename = folder['new'];
     this.request('folder_move', {folder: folder.folder, 'new': folder['new']}, 'folder_rename_response');
   };
 
@@ -1696,13 +1697,27 @@ function files_ui()
   // Display folder edit form
   this.folder_edit_start = function()
   {
-    var form = this.form_show('folder-edit'),
-      arr = this.env.folder.split(this.env.directory_separator),
+    var opts = [], separator = this.env.directory_separator,
+      form = this.form_show('folder-edit'),
+      select = $('#folder-edit-parent-select'),
+      arr = this.env.folder.split(separator),
       name = arr.pop();
 
-    this.env.folder_edit_path = arr.join(this.env.directory_separator);
-
     $('input[name="name"]', form).val(name).focus();
+
+    $('option[value!=""]', select).remove();
+
+    $.each(this.env.folders, function(i, v) {
+      var n, arr = i.split(separator),
+        name = arr.pop(), prefix = '', level = '&nbsp;&nbsp;&nbsp;';
+
+      for (n=arr.length; n>0; n--)
+        prefix += level;
+
+      opts.push($('<option>').attr('value', i).html(prefix).append($('<span>').text(name)));
+    });
+
+    select.append(opts).val(arr.join(separator));
   };
 
   // Hide folder edit form
@@ -1719,11 +1734,10 @@ function files_ui()
     if (!data.name)
       return;
 
-    if (this.env.folder_edit_path)
-      folder = this.env.folder_edit_path + this.env.directory_separator;
+    if (data.parent)
+      folder = data.parent + this.env.directory_separator;
 
     folder += data.name;
-    this.env.folder_rename = folder;
 
     this.folder_edit_stop();
     this.command('folder.edit', {folder: this.env.folder, 'new': folder});

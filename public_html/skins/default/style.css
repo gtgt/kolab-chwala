@@ -145,6 +145,7 @@ table tbody tr.selected {
   background-color: #d6efff;
 }
 
+
 /**** Common UI elements ****/
 
 #topmenu {
@@ -875,7 +876,6 @@ table.progressinfo td.value {
 }
 
 
-
 /*****   autocomplete list   *****/
 
 #autocompletepane
@@ -909,6 +909,7 @@ table.progressinfo td.value {
 {
   background-color: #d6efff;
 }
+
 
 /***** tabbed interface elements *****/
 
@@ -973,6 +974,7 @@ fieldset.tabbed
   padding-top: 12px;
   border-top: none;
 }
+
 
 /*****  Dialog windows  *****/
 #_wModal_bg {
@@ -1065,6 +1067,7 @@ fieldset.tabbed
   background-color: #0044CC
 }
 
+
 /**** Login form elements ****/
 
 #login_form {
@@ -1105,6 +1108,7 @@ fieldset.tabbed
   margin-top: 5px;
 }
 
+
 /**** Main screen elements ****/
 
 #main {
@@ -1116,6 +1120,12 @@ fieldset.tabbed
   vertical-align: top;
   text-align: right;
 }
+
+#folder-edit-form label {
+  display: inline-block;
+  width: 100px;
+}
+
 
 /***** tree indicators *****/
 

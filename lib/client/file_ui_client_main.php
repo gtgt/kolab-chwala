@@ -112,7 +112,11 @@ class file_ui_client_main extends file_ui
         $input_name = new html_inputfield(array(
             'type'  => 'text',
             'name'  => 'name',
-            'value' => '',
+            'id'    => 'folder-edit-name-input',
+        ));
+        $parent_select = new html_select(array(
+            'name' => 'parent',
+            'id'   => 'folder-edit-parent-select',
         ));
         $submit = new html_inputfield(array(
             'type'    => 'button',
@@ -125,14 +129,18 @@ class file_ui_client_main extends file_ui
             'value'   => $this->translate('form.cancel'),
         ));
 
+        $parent_select->add('---', '');
+
         $table = new html_table;
 
-        $table->add(null, $input_name->show());
+        $table->add(null, html::label('folder-edit-name-input', $this->translate('folder.name')) . $input_name->show());
         $table->add('buttons', $submit->show() . $cancel->show());
 
         $content = html::tag('fieldset', null,
-            html::tag('legend', null,
-                $this->translate('folder.edittitle')) . $table->show());
+            html::tag('legend', null, $this->translate('folder.edittitle'))
+            . $table->show()
+            . html::div('', html::label('folder-edit-parent-select', $this->translate('folder.parent')) . $parent_select->show())
+        );
 
         $form = html::tag('form', array(
             'id'       => 'folder-edit-form',
