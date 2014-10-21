@@ -54,11 +54,18 @@ class file_api_lib extends file_api_core
 
             case 'file_create':
             case 'file_update':
+                $args = array(
+                    'file'         => $arguments[0],
+                    'path'         => $arguments[1]['path'],
+                    'content'      => $arguments[1]['content'],
+                    'content-type' => $arguments[1]['type'],
+                );
+                break;
+
             case 'file_delete':
             case 'file_info':
                 $args = array(
-                    'file'    => $arguments[0],
-                    'content' => $arguments[1]['content'],
+                    'file' => $arguments[0],
                 );
                 break;
 

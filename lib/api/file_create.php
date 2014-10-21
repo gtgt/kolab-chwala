@@ -36,14 +36,28 @@ class file_api_file_create extends file_api_common
         }
 
         if (!isset($this->args['content'])) {
-            throw new Exception("Missing file content", file_api_core::ERROR_CODE);
+            if (!($this->api instanceof file_api_lib) || empty($this->args['path'])) {
+                throw new Exception("Missing file content", file_api_core::ERROR_CODE);
+            }
+        }
+
+        if (is_resource($this->args['content'])) {
+            $chunk = stream_get_contents($this->args['content'], 1024000, 0);
+        }
+        else if ($this->args['path']) {
+            $chunk   = $this->args['path'];
+            $is_file = true;
+        }
+        else {
+            $chunk = $this->args['content'];
         }
 
         $request = $this instanceof file_api_file_update ? 'file_update' : 'file_create';
         $file    = array(
             'content' => $this->args['content'],
-            'type'    => rcube_mime::file_content_type($this->args['content'],
-                $this->args['file'], $this->args['content-type'], true),
+            'path'    => $this->args['path'],
+            'type'    => rcube_mime::file_content_type($chunk,
+                $this->args['file'], $this->args['content-type'], !$is_file),
         );
 
         list($driver, $path) = $this->api->get_driver($this->args['file']);
