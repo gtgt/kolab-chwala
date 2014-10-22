@@ -1886,10 +1886,17 @@ function files_ui()
     if (footer.length) {
       foot = $('<div class="_wModal_btns"></div>');
       $.each(footer, function() {
-        $('<div></div>').addClass('_wModal_btn_' + this.name).text(this.label).appendTo(foot);
+        $('<div tabindex="0"></div>').addClass('_wModal_btn_' + this.name).text(this.label).appendTo(foot)
       });
 
       body.append(foot);
+
+      // make buttons focusable and key-pressable
+      $(document).keydown(function(e) {
+        if (e.which == 13 && $(e.target).parent().is('._wModal_btns')) {
+          $(e.target).click();
+        }
+      });
     }
 
     // configure and display dialog
