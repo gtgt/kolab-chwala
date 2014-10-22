@@ -1892,7 +1892,7 @@ function files_ui()
       body.append(foot);
 
       // make buttons focusable and key-pressable
-      $(document).keydown(function(e) {
+      $(document).off('keydown.dialog').on('keydown.dialog', function(e) {
         if (e.which == 13 && $(e.target).parent().is('._wModal_btns')) {
           $(e.target).click();
         }
