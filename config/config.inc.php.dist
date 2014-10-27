@@ -30,6 +30,15 @@ $config['fileapi_sources'] = array(
 );
 */
 
+// Name of the user interface skin.
+$config['file_api_skin'] = 'default';
+
+// Chwala UI communicates with Chwala API via HTTP protocol
+// The URL here is a location of Chwala API service. By default
+// the UI location is used with addition of /api/ suffix.
+$config['file_api_url'] = '';
+
+
 // ------------------------------------------------
 // SeaFile driver settings
 // ------------------------------------------------
