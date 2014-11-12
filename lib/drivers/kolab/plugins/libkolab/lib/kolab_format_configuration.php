@@ -175,7 +175,7 @@ class kolab_format_configuration extends kolab_format
             break;
 
         case 'file_driver':
-            $driver = $this->obj->file_driver();
+            $driver = $this->obj->fileDriver();
 
             $object['driver']  = $driver->driver();
             $object['title']   = $driver->title();
