@@ -275,76 +275,6 @@ function files_ui()
 
 
   /********************************************************/
-  /*********        Remote request methods        *********/
-  /********************************************************/
-/*
-  // send a http POST request to the server
-  this.http_post = function(action, postdata)
-  {
-    var url = this.url(action);
-
-    if (postdata && typeof postdata === 'object')
-      postdata.remote = 1;
-    else {
-      if (!postdata)
-        postdata = '';
-      postdata += '&remote=1';
-    }
-
-    this.set_request_time();
-
-    return $.ajax({
-      type: 'POST', url: url, data: postdata, dataType: 'json',
-      success: function(response) { ui.http_response(response); },
-      error: function(o, status, err) { ui.http_error(o, status, err); }
-    });
-  };
-
-  // handle HTTP response
-  this.http_response = function(response)
-  {
-    var i;
-
-    if (!response)
-      return;
-
-    // set env vars
-    if (response.env)
-      this.set_env(response.env);
-
-    // we have translation labels to add
-    if (typeof response.labels === 'object')
-      this.tdef(response.labels);
-
-    // HTML page elements
-    if (response.objects)
-      for (i in response.objects)
-        $('#'+i).html(response.objects[i]);
-
-    this.update_request_time();
-    this.set_busy(false);
-
-    // if we get javascript code from server -> execute it
-    if (response.exec)
-      eval(response.exec);
-
-    this.trigger_event('http-response', response);
-  };
-
-  // handle HTTP request errors
-  this.http_error = function(request, status, err)
-  {
-    var errmsg = request.statusText;
-
-    this.set_busy(false);
-    request.abort();
-
-    if (request.status && errmsg)
-      this.display_message(this.t('servererror') + ' (' + errmsg + ')', 'error');
-  };
-*/
-
-  /********************************************************/
   /*********            Helper methods            *********/
   /********************************************************/
 
@@ -954,49 +884,147 @@ function files_ui()
   // file upload request
   this.file_upload = function()
   {
-    var i, size = 0, maxsize = this.env.capabilities.MAX_UPLOAD,
-      form = $('#uploadform'),
+    var form = $('#uploadform'),
       field = $('input[type=file]', form).get(0),
       files = field.files ? field.files.length : field.value ? 1 : 0;
 
-    if (files) {
-      // check upload max size
-      if (field.files && maxsize) {
-        for (i=0; i < files; i++)
-          size += field.files[i].size;
+    if (!files || !this.file_upload_size_check(field.files))
+      return;
 
-        if (size > maxsize) {
-          alert(this.t('upload.size.error').replace('$size', this.file_size(maxsize)));
+    // submit form and read server response
+    this.file_upload_form(form, 'file_upload', function(e, frame, folder) {
+      var doc, response, res;
+
+      try {
+        doc = frame.contentDocument ? frame.contentDocument : frame.contentWindow.document;
+        response = doc.body.innerHTML;
+
+        // in Opera onload is called twice, once with empty body
+        if (!response)
           return;
-        }
+        // response may be wrapped in <pre> tag
+        if (response.match(/^<pre[^>]*>(.*)<\/pre>$/i))
+          response = RegExp.$1;
+
+        response = eval('(' + response + ')');
+      }
+      catch (err) {
+        response = {status: 'ERROR'};
       }
 
-      // submit form and read server response
-      this.file_upload_form(form, 'file_upload', function(e, frame, folder) {
-        var doc, response, res;
+      if ((res = ui.response_parse(response)) && folder == ui.env.folder)
+        ui.file_list();
 
-        try {
-          doc = frame.contentDocument ? frame.contentDocument : frame.contentWindow.document;
-          response = doc.body.innerHTML;
+      return res;
+    });
+  };
 
-          // in Opera onload is called twice, once with empty body
-          if (!response)
-            return;
-          // response may be wrapped in <pre> tag
-          if (response.match(/^<pre[^>]*>(.*)<\/pre>$/i))
-            response = RegExp.$1;
+  // handler when files are dropped to a designated area.
+  // compose a multipart form data and submit it to the server
+  this.file_drop = function(e)
+  {
+    var files = e.target.files || e.dataTransfer.files;
 
-          response = eval('(' + response + ')');
+    if (!files || !files.length || !this.file_upload_size_check(files))
+      return;
+
+    // prepare multipart form data composition
+    var ts = new Date().getTime(),
+      progress = this.env.capabilities.PROGRESS_NAME && window.progress_update,
+      formdata = window.FormData ? new FormData() : null,
+      fieldname = 'file[]',
+      boundary = '------multipartformboundary' + (new Date).getTime(),
+      dashdash = '--', crlf = '\r\n',
+      multipart = dashdash + boundary + crlf;
+
+    // inline function to submit the files to the server
+    var submit_data = function() {
+      var multiple = files.length > 1;
+
+      ui.uploads[ts] = ui.env.folder;
+
+      // start progress meter
+      if (progress)
+        ui.file_upload_progress(ts);
+
+      // complete multipart content and post request
+      multipart += dashdash + boundary + dashdash + crlf;
+
+      $.ajax({
+        type: 'POST',
+        dataType: 'json',
+        url: ui.env.url + ui.url('file_upload', {folder: ui.env.folder}),
+        contentType: formdata ? false : 'multipart/form-data; boundary=' + boundary,
+        processData: false,
+        timeout: 0, // disable default timeout set in ajaxSetup()
+        data: formdata || multipart,
+        success: function(response) {
+          if (ui.response_parse(response) && ui.uploads[ts] == ui.env.folder)
+            ui.file_list();
+          ui.file_upload_progress_stop(ts);
+        },
+        error: function(o, status, err) {
+          ui.http_error(o, status, err);
+          ui.file_upload_progress_stop(ts);
+        },
+        xhr: function() {
+          var xhr = jQuery.ajaxSettings.xhr();
+          if (!formdata && xhr.sendAsBinary)
+            xhr.send = xhr.sendAsBinary;
+          return xhr;
         }
-        catch (err) {
-          response = {status: 'ERROR'};
-        }
-
-        if ((res = ui.response_parse(response)) && folder == ui.env.folder)
-          ui.file_list();
-
-        return res;
       });
+    };
+
+    // upload progress supported (and handler exists)
+    // add progress ID to the request - need to be added before files
+    if (progress) {
+      if (formdata)
+        formdata.append(this.env.capabilities.PROGRESS_NAME, ts);
+      else
+        multipart += 'Content-Disposition: form-data; name="' + ts.env.capabilities.PROGRESS_NAME + '"'
+          + crlf + crlf + ts + crlf + dashdash + boundary + crlf;
+    }
+
+    // get contents of all dropped files
+    var f, j, i = 0, last = files.length - 1;
+    for (j = 0; j <= last && (f = files[i]); i++) {
+      if (!f.name) f.name = f.fileName;
+      if (!f.size) f.size = f.fileSize;
+      if (!f.type) f.type = 'application/octet-stream';
+
+      // file name contains non-ASCII characters, do UTF8-binary string conversion.
+      if (!formdata && /[^\x20-\x7E]/.test(f.name))
+        f.name_bin = unescape(encodeURIComponent(f.name));
+
+      // do it the easy way with FormData (FF 4+, Chrome 5+, Safari 5+)
+      if (formdata) {
+        formdata.append(fieldname, f);
+        if (j == last)
+          return submit_data();
+      }
+      // use FileReader supporetd by Firefox 3.6
+      else if (window.FileReader) {
+        var reader = new FileReader();
+
+        // closure to pass file properties to async callback function
+        reader.onload = (function(file, j) {
+          return function(e) {
+            multipart += 'Content-Disposition: form-data; name="' + fieldname + '"';
+            multipart += '; filename="' + (f.name_bin || file.name) + '"' + crlf;
+            multipart += 'Content-Length: ' + file.size + crlf;
+            multipart += 'Content-Type: ' + file.type + crlf + crlf;
+            multipart += reader.result + crlf;
+            multipart += dashdash + boundary + crlf;
+
+            if (j == last)  // we're done, submit the data
+              return submit_data();
+          }
+        })(f,j);
+        reader.readAsBinaryString(f);
+      }
+
+      j++;
     }
   };
 
@@ -1470,15 +1498,13 @@ function files_ui()
 
     // handle upload errors, parsing iframe content in onload
     $('#'+frame_name).load(function(e) {
-      // hide progressbar on upload error
-      if (!onload(e, this, ui.uploads[ts]) && window.progress_update)
-        window.progress_update({id: ts, done: true});
-      delete ui.uploads[ts];
+      onload(e, this, ui.uploads[ts]);
+      ui.file_upload_progress_stop(ts);
     });
 
     $(form).attr({
       target: frame_name,
-      action: this.env.url + this.url(action, {folder: this.env.folder, token: this.env.token, uploadid:ts}),
+      action: this.env.url + this.url(action, {folder: this.env.folder, token: this.env.token}),
       method: 'POST'
     }).attr(form.encoding ? 'encoding' : 'enctype', 'multipart/form-data')
       .submit();
@@ -1506,6 +1532,31 @@ function files_ui()
 
     if (!param.done)
       this.file_upload_progress(param.id);
+  };
+
+  this.file_upload_progress_stop = function(id)
+  {
+    if (window.progress_update)
+      window.progress_update({id: id, done: true});
+    delete ui.uploads[id];
+  };
+
+  // check upload max size
+  this.file_upload_size_check = function(files)
+  {
+    var i, size = 0, maxsize = this.env.capabilities.MAX_UPLOAD;
+
+    if (files && maxsize) {
+      for (i=0; i < files.length; i++)
+        size += files[i].size;
+
+      if (size > maxsize) {
+        alert(this.t('upload.size.error').replace('$size', this.file_size(maxsize)));
+        return false;
+      }
+    }
+
+    return true;
   };
 
   // Display file search form

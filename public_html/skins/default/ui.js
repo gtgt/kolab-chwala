@@ -70,7 +70,7 @@ function progress_update(data)
     table = $('#' + id), content = $('#info' + id),
     i, row, offset, rows = [];
 
-  if (!data || data.done) {
+  if (!data || data.done || !data.total) {
     if (table.length) {
       table.remove();
       content.remove();
@@ -110,6 +110,51 @@ function progress_update(data)
   }
 };
 
+// activate html5 file drop feature (if browser supports it)
+function init_drag_drop(container)
+{
+  if (!window.FormData && !(window.XMLHttpRequest && XMLHttpRequest.prototype && XMLHttpRequest.prototype.sendAsBinary)) {
+    return;
+  }
+
+  $(document.body).bind('dragover dragleave drop', function(e) {
+    if (!ui.env.folder)
+      return;
+
+    e.preventDefault();
+    container[e.type == 'dragover' ? 'addClass' : 'removeClass']('active');
+  });
+
+  container.bind('dragover dragleave', function(e) {
+    return drag_hover(e, e.type == 'dragover');
+  })
+  container.children('table').bind('dragover dragleave', function(e) {
+    return drag_hover(e, e.type == 'dragover');
+  })
+  container.get(0).addEventListener('drop', function(e) {
+      // abort event and reset UI
+      drag_hover(e, false);
+      return ui.file_drop(e);
+    }, false);
+};
+
+// handler for drag/drop on element
+function drag_hover(e, over)
+{
+  if (!ui.env.folder)
+    return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  var elem = $(e.target);
+
+  if (!elem.hasClass('droptarget'))
+    elem = elem.parents('.droptarget');
+
+  elem[over ? 'addClass' : 'removeClass']('hover');
+};
+
 function enable_command_handler(p)
 {
   if (p.command == 'file.save') {
@@ -123,6 +168,7 @@ $(window).load(function() {
   hack_file_input('file-upload-button');
   $('#forms > form').hide();
   ui.add_event_listener('enable-command', enable_command_handler);
+  init_drag_drop($('#taskcontent'));
 });
 
 // register buttons
