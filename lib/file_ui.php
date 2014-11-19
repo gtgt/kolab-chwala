@@ -109,10 +109,12 @@ class file_ui extends file_locale
         $url = $this->config->get('file_api_url', '');
 
         if (!$url) {
-            $url = rcube_utils::https_check() ? 'https://' : 'http://';
-            $url .= $_SERVER['SERVER_NAME'];
-            $url .= preg_replace('/\/?\?.*$/', '', $_SERVER['REQUEST_URI']);
-            $url .= '/api/';
+            $schema = rcube_utils::https_check() ? 'https' : 'http';
+            $port   = $schema == 'http' ? 80 : 443;
+            $url    = $schema . '://' . $_SERVER['SERVER_NAME'];
+            $url   .= $_SERVER['SERVER_PORT'] != $port ? ':' . $_SERVER['SERVER_PORT'] : '';
+            $url   .= preg_replace('/\/?\?.*$/', '', $_SERVER['REQUEST_URI']);
+            $url   .= '/api/';
         }
 
         $this->api = new file_ui_api($url);
