@@ -658,7 +658,7 @@ class seafile_file_storage implements file_storage
             $src_dir  = '/' . ltrim(implode('/', $path_src), '/');
             $dst_dir  = '/' . ltrim(implode('/', $path_dst), '/');
 
-            $success = $this->api->file_copy($repo_id, $f_old, $src_dir, $dst_dir, $dst_repo_id);
+            $success = $this->api->file_copy($repo_id, $f_src, $src_dir, $dst_dir, $dst_repo_id);
 
             // now rename the file if needed
             if ($success && $f_src != $f_dst) {
@@ -666,7 +666,7 @@ class seafile_file_storage implements file_storage
             }
         }
 
-        if (!$saved) {
+        if (!$success) {
             rcube::raise_error(array(
                 'code' => 600, 'type' => 'php',
                 'file' => __FILE__, 'line' => __LINE__,
