@@ -254,7 +254,7 @@ class file_locks {
             . " WHERE `uri` = ? AND `token` = ?",
             $uri, $lock['token']);
 
-        return $this->db->affected_rows();
+        return $this->db->affected_rows($stmt);
     }
 
     /**

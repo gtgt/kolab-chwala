@@ -189,7 +189,7 @@ class file_ui extends file_locale
 
                     if (($language = $this->get_language()) && $language != 'en_US') {
                         $_SESSION['user']['language'] = $language;
-                        $session_config['language']   = $language;
+//                        $session_config['language']   = $language;
                     }
 /*
                     // Configure API session

@@ -140,7 +140,7 @@ class kolab_file_storage implements file_storage
 
             // take the first entry if $host is not found
             if (is_array($host)) {
-                list($key, $val) = each($default_host);
+                list($key, $val) = each($host);
                 $host = is_numeric($key) ? $val : $key;
             }
         }

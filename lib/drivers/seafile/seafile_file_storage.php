@@ -610,7 +610,7 @@ class seafile_file_storage implements file_storage
                 'created'  => $file['created'] ? $file['created']->format('U') : 0,
             );
 
-            unset($files[$idx]);
+            unset($entries[$idx]);
         }
 
         // @TODO: pagination, search (by filename, mimetype)
@@ -833,7 +833,7 @@ class seafile_file_storage implements file_storage
             }
         }
 
-        foreach ($this->libraries as $library) {
+        foreach ($libraries as $library) {
             if ($library['virtual'] || $library['encrypted']) {
                 continue;
             }
