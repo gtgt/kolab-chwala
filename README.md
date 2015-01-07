@@ -32,24 +32,27 @@ CREATING BACKEND-DRIVER
 Chwala API supports creation of different storage backends.
 It is possible to create a driver class that will store files on
 any storage e.g. local filesystem. As for now it is possible to use
-only one storage at a time.
+only one storage driver at a time.
 
-There's currently one reference driver in Chwala - the Kolab driver.
-You can find it in lib/kolab directory. It's based on Roundcube Framework
-and plugins. The Kolab way is to store files in IMAP.
-The main driver file is lib/kolab/kolab_file_storage.php.
+There are currently two drivers available for Chwala: Kolab and Seafile.
+Tthe Kolab driver is considered the reference driver. Both can be found
+in the lib/drivers directory.
 
-To create a new driver you need to:
+The Kolab driver is based on Roundcube Framework and implements storage
+the "Kolab way", which is to store files in IMAP. The main file is
+lib/drivers/kolab/kolab_file_storage.php.
 
-1. Create driver directory as lib/<driver_name>. This directory will be
+To create a new driver for a different storage system you need to:
+
+1. Create driver directory as lib/drivers/<driver_name>. This directory will be
    added to PHP's include path.
 
-2. Create lib/<driver_name>/<driver_name>_file_storage.php file.
+2. Create lib/drivers/<driver_name>/<driver_name>_file_storage.php file.
    This file should define a class <driver_name>_file_storage which
-   will implement file_storage interface (defined in lib/file_storage.php).
+   implements the file_storage interface as defined in lib/file_storage.php.
 
 3. To change the driver set 'fileapi_backend' option to the driver name
-   in main configuration file. Default is 'kolab'.
+   in main configuration file. The default is 'kolab'.
 
 
 Driver initialization
