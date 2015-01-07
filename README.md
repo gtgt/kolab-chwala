@@ -35,7 +35,7 @@ any storage e.g. local filesystem. As for now it is possible to use
 only one storage driver at a time.
 
 There are currently two drivers available for Chwala: Kolab and Seafile.
-Tthe Kolab driver is considered the reference driver. Both can be found
+The Kolab driver is considered the reference driver. Both can be found
 in the lib/drivers directory.
 
 The Kolab driver is based on Roundcube Framework and implements storage
