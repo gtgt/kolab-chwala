@@ -40,6 +40,8 @@ class file_ui_api
     const ERROR_INTERNAL   = 100;
     const ERROR_CONNECTION = 200;
 
+    const ACCEPT_HEADER = "application/json,text/javascript,*/*";
+
     /**
      * Class constructor.
      *
@@ -69,30 +71,44 @@ class file_ui_api
     public static function configure($request)
     {
         // Configure connection options
-        $config  = rcube::get_instance()->config;
-        $options = array(
-            'ssl_verify_peer',
-            'ssl_verify_host',
-            'ssl_cafile',
-            'ssl_capath',
-            'ssl_local_cert',
-            'ssl_passphrase',
-            'follow_redirects',
-        );
+        $config      = rcube::get_instance()->config;
+        $http_config = (array) $config->get('http_request', $config->get('kolab_http_request'));
 
-        foreach ($options as $optname) {
-            if (($optvalue = $config->get($optname)) !== null) {
-                try {
-                    $request->setConfig($optname, $optvalue);
+        // Deprecated config, all options are separated variables
+        if (empty($http_config)) {
+            $options = array(
+                'ssl_verify_peer',
+                'ssl_verify_host',
+                'ssl_cafile',
+                'ssl_capath',
+                'ssl_local_cert',
+                'ssl_passphrase',
+                'follow_redirects',
+            );
+
+            foreach ($options as $optname) {
+                if (($optvalue = $config->get($optname)) !== null
+                    || ($optvalue = $config->get('kolab_' . $optname)) !== null
+                ) {
+                    $http_config[$optname] = $optvalue;
                 }
-                catch (Exception $e) {
-//                    rcube::log_error("HTTP: " . $e->getMessage());
-                }
+            }
+        }
+
+        if (!empty($http_config)) {
+            try {
+                $request->setConfig($http_config);
+            }
+            catch (Exception $e) {
+//                rcube::log_error("HTTP: " . $e->getMessage());
             }
         }
 
         // proxy User-Agent
         $request->setHeader('user-agent', $_SERVER['HTTP_USER_AGENT']);
+
+        // some HTTP server configurations require this header
+        $request->setHeader('accept', self::ACCEPT_HEADER);
     }
 
     /**
@@ -120,17 +136,18 @@ class file_ui_api
      *
      * @param string $username User name
      * @param string $password User password
+     * @param array  $get      Additional GET parameters (e.g. 'version')
      *
      * @return file_ui_api_result Request response
      */
-    public function login($username, $password)
+    public function login($username, $password, $get = null)
     {
         $query = array(
             'username' => $username,
             'password' => $password,
         );
 
-        $response = $this->post('authenticate', null, $query);
+        $response = $this->post('authenticate', $get, $query);
 
         return $response;
     }

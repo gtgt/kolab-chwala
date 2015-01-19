@@ -22,53 +22,28 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_api
+class file_api extends file_api_core
 {
-    const ERROR_CODE = 500;
-    const OUTPUT_JSON = 'application/json';
-    const OUTPUT_HTML = 'text/html';
-
     public $session;
-    public $api;
+    public $output_type = file_api_core::OUTPUT_JSON;
 
-    private $app_name = 'Kolab File API';
     private $conf;
     private $browser;
-    private $output_type = self::OUTPUT_JSON;
-    private $config = array(
-        'date_format' => 'Y-m-d H:i',
-        'language'    => 'en_US',
-    );
 
 
     public function __construct()
     {
         $rcube = rcube::get_instance();
         $rcube->add_shutdown_function(array($this, 'shutdown'));
+
         $this->conf = $rcube->config;
         $this->session_init();
-    }
 
-    /**
-     * Initialise backend class
-     */
-    protected function api_init()
-    {
-        if ($this->api) {
-            return;
+        if ($_SESSION['config']) {
+            $this->config = $_SESSION['config'];
         }
 
-        $driver = $this->conf->get('fileapi_backend', 'kolab');
-        $class  = $driver . '_file_storage';
-
-        $include_path = RCUBE_INSTALL_PATH . '/lib/' . $driver . PATH_SEPARATOR;
-        $include_path .= ini_get('include_path');
-        set_include_path($include_path);
-
-        $this->api = new $class;
-
-        // configure api
-        $this->api->configure(!empty($_SESSION['config']) ? $_SESSION['config'] : $this->config);
+        $this->locale_init();
     }
 
     /**
@@ -89,6 +64,11 @@ class file_api
                     $_SESSION['user']   = $username;
                     $_SESSION['time']   = time();
                     $_SESSION['config'] = $this->config;
+
+                    // remember client API version
+                    if (is_numeric($_GET['version'])) {
+                        $_SESSION['version'] = $_GET['version'];
+                    }
 
                     $this->output_success(array(
                         'token'        => session_id(),
@@ -223,8 +203,8 @@ class file_api
         }
 
         if (!empty($username)) {
-            $this->api_init();
-            $result = $this->api->authenticate($username, $password);
+            $backend = $this->get_backend();
+            $result  = $backend->authenticate($username, $password);
         }
 
         if (empty($result)) {
@@ -233,7 +213,7 @@ class file_api
             header('HTTP/1.1 401 Unauthorized');
             exit;
 */
-            throw new Exception("Invalid password or username", file_api::ERROR_CODE);
+            throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
         }
 
         return $username;
@@ -270,274 +250,31 @@ class file_api
                 return $this->supported_mimetypes();
 
             case 'capabilities':
-                // this one actually uses api driver, but we put it here
-                // because we'd need session for the api driver
                 return $this->capabilities();
         }
 
-        // init API driver
-        $this->api_init();
-
-        // GET arguments
-        $args = &$_GET;
-
-        // POST arguments (JSON)
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $post = file_get_contents('php://input');
-            $args += (array) json_decode($post, true);
-            unset($post);
-        }
-
-        // disable script execution time limit, so we can handle big files
-        @set_time_limit(0);
-
         // handle request
-        switch ($request) {
-            case 'file_list':
-                $params = array('reverse' => !empty($args['reverse']) && rcube_utils::get_boolean($args['reverse']));
-                if (!empty($args['sort'])) {
-                    $params['sort'] = strtolower($args['sort']);
-                }
+        if ($request && preg_match('/^[a-z0-9_-]+$/', $request)) {
+            // request name aliases for backward compatibility
+            $aliases = array(
+                'lock'          => 'lock_create',
+                'unlock'        => 'lock_delete',
+                'folder_rename' => 'folder_move',
+            );
 
-                if (!empty($args['search'])) {
-                    $params['search'] = $args['search'];
-                    if (!is_array($params['search'])) {
-                        $params['search'] = array('name' => $params['search']);
-                    }
-                }
+            $request = $aliases[$request] ?: $request;
 
-                return $this->api->file_list($args['folder'], $params);
+            require_once __DIR__ . "/api/common.php";
+            include_once __DIR__ . "/api/$request.php";
 
-            case 'file_upload':
-                // for Opera upload frame response cannot be application/json
-                $this->output_type = self::OUTPUT_HTML;
-
-                if (!isset($args['folder']) || $args['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-
-                $uploads = $this->upload();
-                $result  = array();
-
-                foreach ($uploads as $file) {
-                    $this->api->file_create($args['folder'] . file_storage::SEPARATOR . $file['name'], $file);
-                    unset($file['path']);
-                    $result[$file['name']] = array(
-                        'type' => $file['type'],
-                        'size' => $file['size'],
-                    );
-                }
-
-                return $result;
-
-            case 'file_create':
-            case 'file_update':
-                if (!isset($args['file']) || $args['file'] === '') {
-                    throw new Exception("Missing file name", file_api::ERROR_CODE);
-                }
-                if (!isset($args['content'])) {
-                    throw new Exception("Missing file content", file_api::ERROR_CODE);
-                }
-
-                $file = array(
-                    'content' => $args['content'],
-                    'type'    => rcube_mime::file_content_type($args['content'], $args['file'], $args['content-type'], true),
-                );
-
-                $this->api->$request($args['file'], $file);
-
-                if (!empty($args['info']) && rcube_utils::get_boolean($args['info'])) {
-                    return $this->api->file_info($args['file']);
-                }
-
-                return;
-
-            case 'file_delete':
-                $files = (array) $args['file'];
-
-                if (empty($files)) {
-                    throw new Exception("Missing file name", file_api::ERROR_CODE);
-                }
-
-                foreach ($files as $file) {
-                    $this->api->file_delete($file);
-                }
-                return;
-
-            case 'file_info':
-                if (!isset($args['file']) || $args['file'] === '') {
-                    throw new Exception("Missing file name", file_api::ERROR_CODE);
-                }
-
-                $info = $this->api->file_info($args['file']);
-
-                if (!empty($args['viewer']) && rcube_utils::get_boolean($args['viewer'])) {
-                    $this->file_viewer_info($args['file'], $info);
-                }
-
-                return $info;
-
-            case 'file_get':
-                $this->output_type = self::OUTPUT_HTML;
-
-                if (!isset($args['file']) || $args['file'] === '') {
-                    header("HTTP/1.0 ".file_api::ERROR_CODE." Missing file name");
-                }
-
-                $params = array(
-                    'force-download' => !empty($args['force-download']) && rcube_utils::get_boolean($args['force-download']),
-                    'force-type'     => $args['force-type'],
-                );
-
-                if (!empty($args['viewer'])) {
-                    $this->file_view($args['file'], $args['viewer'], $args, $params);
-                }
-
-                try {
-                    $this->api->file_get($args['file'], $params);
-                }
-                catch (Exception $e) {
-                    header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
-                }
-                exit;
-
-            case 'file_move':
-            case 'file_copy':
-                if (!isset($args['file']) || $args['file'] === '') {
-                    throw new Exception("Missing file name", file_api::ERROR_CODE);
-                }
-
-                if (is_array($args['file'])) {
-                    if (empty($args['file'])) {
-                        throw new Exception("Missing file name", file_api::ERROR_CODE);
-                    }
-                }
-                else {
-                    if (!isset($args['new']) || $args['new'] === '') {
-                        throw new Exception("Missing new file name", file_api::ERROR_CODE);
-                    }
-                    $args['file'] = array($args['file'] => $args['new']);
-                }
-
-                $overwrite = !empty($args['overwrite']) && rcube_utils::get_boolean($args['overwrite']);
-                $files     = (array) $args['file'];
-                $errors    = array();
-
-                foreach ($files as $file => $new_file) {
-                    if ($new_file === '') {
-                        throw new Exception("Missing new file name", file_api::ERROR_CODE);
-                    }
-                    if ($new_file === $file) {
-                        throw new Exception("Old and new file name is the same", file_api::ERROR_CODE);
-                    }
-
-                    try {
-                        $this->api->{$request}($file, $new_file);
-                    }
-                    catch (Exception $e) {
-                        if ($e->getCode() == file_storage::ERROR_FILE_EXISTS) {
-                            // delete existing file and do copy/move again
-                            if ($overwrite) {
-                                $this->api->file_delete($new_file);
-                                $this->api->{$request}($file, $new_file);
-                            }
-                            // collect file-exists errors, so the client can ask a user
-                            // what to do and skip or replace file(s)
-                            else {
-                                $errors[] = array(
-                                    'src' => $file,
-                                    'dst' => $new_file,
-                                );
-                            }
-                        }
-                        else {
-                            throw $e;
-                        }
-                    }
-                }
-
-                if (!empty($errors)) {
-                    return array('already_exist' => $errors);
-                }
-
-                return;
-
-            case 'folder_create':
-                if (!isset($args['folder']) || $args['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-                return $this->api->folder_create($args['folder']);
-
-            case 'folder_delete':
-                if (!isset($args['folder']) || $args['folder'] === '') {
-                    throw new Exception("Missing folder name", file_api::ERROR_CODE);
-                }
-                return $this->api->folder_delete($args['folder']);
-
-            case 'folder_rename':
-                if (!isset($args['folder']) || $args['folder'] === '') {
-                    throw new Exception("Missing source folder name", file_api::ERROR_CODE);
-                }
-                if (!isset($args['new']) || $args['new'] === '') {
-                    throw new Exception("Missing destination folder name", file_api::ERROR_CODE);
-                }
-                if ($args['new'] === $args['folder']) {
-                    return;
-                }
-                return $this->api->folder_rename($args['folder'], $args['new']);
-
-            case 'folder_list':
-                return $this->api->folder_list();
-
-            case 'quota':
-                $quota = $this->api->quota($args['folder']);
-
-                if (!$quota['total']) {
-                    $quota_result['percent'] = 0;
-                }
-                else if ($quota['total']) {
-                    if (!isset($quota['percent'])) {
-                        $quota_result['percent'] = min(100, round(($quota['used']/max(1,$quota['total']))*100));
-                    }
-                }
-
-                return $quota;
-        }
-
-        if ($request) {
-            throw new Exception("Unknown method", 501);
-        }
-    }
-
-    /**
-     * File uploads handler
-     */
-    protected function upload()
-    {
-        $files = array();
-
-        if (is_array($_FILES['file']['tmp_name'])) {
-            foreach ($_FILES['file']['tmp_name'] as $i => $filepath) {
-                if ($err = $_FILES['file']['error'][$i]) {
-                    if ($err == UPLOAD_ERR_INI_SIZE || $err == UPLOAD_ERR_FORM_SIZE) {
-                        throw new Exception("Maximum file size exceeded", file_api::ERROR_CODE);
-                    }
-                    throw new Exception("File upload failed", file_api::ERROR_CODE);
-                }
-
-                $files[] = array(
-                    'path' => $filepath,
-                    'name' => $_FILES['file']['name'][$i],
-                    'size' => filesize($filepath),
-                    'type' => rcube_mime::file_content_type($filepath, $_FILES['file']['name'][$i], $_FILES['file']['type']),
-                );
+            $class_name = "file_api_$request";
+            if (class_exists($class_name, false)) {
+                $handler = new $class_name($this);
+                return $handler->handle();
             }
         }
-        else if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            throw new Exception("File upload failed", file_api::ERROR_CODE);
-        }
 
-        return $files;
+        throw new Exception("Unknown method", file_api_core::ERROR_INVALID);
     }
 
     /**
@@ -566,135 +303,7 @@ class file_api
             return $status; // id, done, total, current, percent, start_time, eta, rate
         }
 
-        throw new Exception("Not supported", file_api::ERROR_CODE);
-    }
-
-    /*
-     * Returns API capabilities
-     */
-    protected function capabilities()
-    {
-        $this->api_init();
-
-        $caps = array();
-
-        // check support for upload progress
-        if (($progress_sec = $this->conf->get('upload_progress'))
-            && ini_get('apc.rfc1867') && function_exists('apc_fetch')
-        ) {
-            $caps[file_storage::CAPS_PROGRESS_NAME] = ini_get('apc.rfc1867_name');
-            $caps[file_storage::CAPS_PROGRESS_TIME] = $progress_sec;
-        }
-
-        foreach ($this->api->capabilities() as $name => $value) {
-            // skip disabled capabilities
-            if ($value !== false) {
-                $caps[$name] = $value;
-            }
-        }
-
-        return $caps;
-    }
-
-    /**
-     * Return mimetypes list supported by built-in viewers
-     *
-     * @return array List of mimetypes
-     */
-    protected function supported_mimetypes()
-    {
-        $mimetypes = array();
-        $dir       = RCUBE_INSTALL_PATH . 'lib/viewers';
-
-        if ($handle = opendir($dir)) {
-            while (false !== ($file = readdir($handle))) {
-                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class($this);
-
-                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
-                }
-            }
-            closedir($handle);
-        }
-
-        return $mimetypes;
-    }
-
-    /**
-     * Merge file viewer data into file info
-     */
-    protected function file_viewer_info($file, &$info)
-    {
-        if ($viewer = $this->find_viewer($info['type'])) {
-            $info['viewer'] = array();
-            if ($frame = $viewer->frame($file, $info['type'])) {
-                $info['viewer']['frame'] = $frame;
-            }
-            else if ($href = $viewer->href($file, $info['type'])) {
-                $info['viewer']['href'] = $href;
-            }
-        }
-    }
-
-    /**
-     * File vieweing request handler
-     */
-    protected function file_view($file, $viewer, &$args, &$params)
-    {
-        $path  = RCUBE_INSTALL_PATH . "lib/viewers/$viewer.php";
-        $class = "file_viewer_$viewer";
-
-        if (!file_exists($path)) {
-            return;
-        }
-
-        // get file info
-        try {
-            $info = $this->api->file_info($file);
-        }
-        catch (Exception $e) {
-            header("HTTP/1.0 " . file_api::ERROR_CODE . " " . $e->getMessage());
-            exit;
-        }
-
-        include_once $path;
-        $viewer = new $class($this);
-
-        // check if specified viewer supports file type
-        // otherwise return (fallback to file_get action)
-        if (!$viewer->supports($info['type'])) {
-            return;
-        }
-
-        $viewer->output($file, $info['type']);
-        exit;
-    }
-
-    /**
-     * Return built-in viewer opbject for specified mimetype
-     *
-     * @return object Viewer object
-     */
-    protected function find_viewer($mimetype)
-    {
-        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
-
-        if ($handle = opendir($dir)) {
-            while (false !== ($file = readdir($handle))) {
-                if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class($this);
-
-                    if ($viewer->supports($mimetype)) {
-                        return $viewer;
-                    }
-                }
-            }
-            closedir($handle);
-        }
+        throw new Exception("Not supported", file_api_core::ERROR_CODE);
     }
 
     /**
@@ -759,12 +368,16 @@ class file_api
 
         $response['status'] = 'ERROR';
 
+        if ($code) {
+            $response['code'] = $code;
+        }
+
         if (!empty($_REQUEST['req_id'])) {
             $response['req_id'] = $_REQUEST['req_id'];
         }
 
-        if (!$response['code']) {
-            $response['code'] = file_api::ERROR_CODE;
+        if (empty($response['code'])) {
+            $response['code'] = file_api_core::ERROR_CODE;
         }
 
         $this->output_send($response);
@@ -781,5 +394,40 @@ class file_api
         header("Content-Type: {$this->output_type}; charset=utf-8");
         echo json_encode($data);
         exit;
+    }
+
+    /**
+     * Returns API version supported by the client
+     */
+    public function client_version()
+    {
+        return $_SESSION['version'];
+    }
+
+    /**
+     * Create a human readable string for a number of bytes
+     *
+     * @param int Number of bytes
+     *
+     * @return string Byte string
+     */
+    public function show_bytes($bytes)
+    {
+        if ($bytes >= 1073741824) {
+            $gb  = $bytes/1073741824;
+            $str = sprintf($gb >= 10 ? "%d " : "%.1f ", $gb) . 'GB';
+        }
+        else if ($bytes >= 1048576) {
+            $mb  = $bytes/1048576;
+            $str = sprintf($mb >= 10 ? "%d " : "%.1f ", $mb) . 'MB';
+        }
+        else if ($bytes >= 1024) {
+            $str = sprintf("%d ",  round($bytes/1024)) . 'KB';
+        }
+        else {
+            $str = sprintf('%d ', $bytes) . 'B';
+        }
+
+        return $str;
     }
 }

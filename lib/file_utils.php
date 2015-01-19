@@ -68,6 +68,26 @@ class file_utils
         ),
     );
 
+    // list of known file extensions, more in Roundcube config
+    static $ext_map = array(
+        'doc'  => 'application/msword',
+        'eml'  => 'message/rfc822',
+        'gz'   => 'application/gzip',
+        'htm'  => 'text/html',
+        'html' => 'text/html',
+        'mp3'  => 'audio/mpeg',
+        'odp'  => 'application/vnd.oasis.opendocument.presentation',
+        'ods'  => 'application/vnd.oasis.opendocument.spreadsheet',
+        'odt'  => 'application/vnd.oasis.opendocument.text',
+        'ogg'  => 'application/ogg',
+        'pdf'  => 'application/pdf',
+        'ppt'  => 'application/vnd.ms-powerpoint',
+        'rar'  => 'application/x-rar-compressed',
+        'tgz'  => 'application/gzip',
+        'txt'  => 'text/plain',
+        'zip'  => 'application/zip',
+    );
+
 
     /**
      * Return list of mimetype prefixes for specified file class
@@ -118,6 +138,35 @@ class file_utils
         }
 
         return $mimetype;
+    }
+
+    /**
+     * Find mimetype from file name (extension)
+     *
+     * @param string $filename File name
+     * @param string $fallback Follback mimetype
+     *
+     * @return string File mimetype
+     */
+    static function ext_to_type($filename, $fallback = 'application/octet-stream')
+    {
+        static $mime_ext = array();
+
+        $config = rcube::get_instance()->config;
+        $ext    = substr($filename, strrpos($filename, '.') + 1);
+
+        if (empty($mime_ext)) {
+            $mime_ext = self::$ext_map;
+            foreach ($config->resolve_paths('mimetypes.php') as $fpath) {
+                $mime_ext = array_merge($mime_ext, (array) @include($fpath));
+            }
+        }
+
+        if (is_array($mime_ext) && $ext) {
+            $mimetype = $mime_ext[strtolower($ext)];
+        }
+
+        return $mimetype ?: $fallback;
     }
 
     /**

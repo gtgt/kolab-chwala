@@ -377,7 +377,14 @@ class rcube_washtml
         // Detect max nesting level (for dumpHTML) (#1489110)
         $this->max_nesting_level = (int) @ini_get('xdebug.max_nesting_level');
 
-        @$node->loadHTML($html);
+        // Use optimizations if supported
+        if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
+            @$node->loadHTML($html, LIBXML_PARSEHUGE | LIBXML_COMPACT);
+        }
+        else {
+            @$node->loadHTML($html);
+        }
+
         return $this->dumpHtml($node);
     }
 
@@ -410,6 +417,25 @@ class rcube_washtml
         );
         $html = preg_replace($html_search, $html_replace, trim($html));
 
+        //-> Replace all of those weird MS Word quotes and other high characters
+        $badwordchars=array(
+            "\xe2\x80\x98", // left single quote
+            "\xe2\x80\x99", // right single quote
+            "\xe2\x80\x9c", // left double quote
+            "\xe2\x80\x9d", // right double quote
+            "\xe2\x80\x94", // em dash
+            "\xe2\x80\xa6" // elipses
+        );
+        $fixedwordchars=array(
+            "'",
+            "'",
+            '"',
+            '"',
+            '&mdash;',
+            '...'
+        );
+        $html = str_replace($badwordchars,$fixedwordchars, $html);
+
         // PCRE errors handling (#1486856), should we use something like for every preg_* use?
         if ($html === null && ($preg_error = preg_last_error()) != PREG_NO_ERROR) {
             $errstr = "Could not clean up HTML message! PCRE Error: $preg_error.";
@@ -429,7 +455,7 @@ class rcube_washtml
         }
 
         // fix (unknown/malformed) HTML tags before "wash"
-        $html = preg_replace_callback('/(<[\/]*)([^\s>]+)/', array($this, 'html_tag_callback'), $html);
+        $html = preg_replace_callback('/(<(?!\!)[\/]*)([^\s>]+)/', array($this, 'html_tag_callback'), $html);
 
         // Remove invalid HTML comments (#1487759)
         // Don't remove valid conditional comments

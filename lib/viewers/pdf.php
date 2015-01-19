@@ -47,8 +47,14 @@ class file_viewer_pdf extends file_viewer
 
         $browser = $api->get_browser();
 
-        // disable viewer in unsupported browsers
-        if ($browser->ie && $browser->ver < 9) {
+        // disable viewer in unsupported browsers according to
+        // https://github.com/mozilla/pdf.js/wiki/Required-Browser-Features
+        if (($browser->ie && $browser->ver < 9)
+            || ($browser->opera && $browser->ver < 9.5)
+            || ($browser->chrome && $browser->ver < 24)
+            || ($browser->safari && $browser->ver < 5)
+            || ($browser->mz && $browser->ver < 6)
+        ) {
             $this->mimetypes = array();
         }
     }

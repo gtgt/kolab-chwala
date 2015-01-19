@@ -70,7 +70,7 @@ class rcube_imap extends rcube_storage
     protected $search_sort_field = '';
     protected $search_threads = false;
     protected $search_sorted = false;
-    protected $options = array('auth_method' => 'check');
+    protected $options = array('auth_type' => 'check');
     protected $caching = false;
     protected $messages_caching = false;
     protected $threading = false;
@@ -391,10 +391,10 @@ class rcube_imap extends rcube_storage
     public function check_permflag($flag)
     {
         $flag       = strtoupper($flag);
-        $imap_flag  = $this->conn->flags[$flag];
         $perm_flags = $this->get_permflags($this->folder);
+        $imap_flag  = $this->conn->flags[$flag];
 
-        return in_array_nocase($imap_flag, $perm_flags);
+        return $imap_flag && !empty($perm_flags) && in_array_nocase($imap_flag, $perm_flags);
     }
 
 
@@ -410,17 +410,7 @@ class rcube_imap extends rcube_storage
         if (!strlen($folder)) {
             return array();
         }
-/*
-        Checking PERMANENTFLAGS is rather rare, so we disable caching of it
-        Re-think when we'll use it for more than only MDNSENT flag
 
-        $cache_key = 'mailboxes.permanentflags.' . $folder;
-        $permflags = $this->get_cache($cache_key);
-
-        if ($permflags !== null) {
-            return explode(' ', $permflags);
-        }
-*/
         if (!$this->check_connection()) {
             return array();
         }
@@ -435,10 +425,7 @@ class rcube_imap extends rcube_storage
         if (!is_array($permflags)) {
             $permflags = array();
         }
-/*
-        // Store permflags as string to limit cached object size
-        $this->update_cache($cache_key, implode(' ', $permflags));
-*/
+
         return $permflags;
     }
 
@@ -2092,17 +2079,18 @@ class rcube_imap extends rcube_storage
     /**
      * Fetch message body of a specific message from the server
      *
-     * @param  int                $uid    Message UID
-     * @param  string             $part   Part number
-     * @param  rcube_message_part $o_part Part object created by get_structure()
-     * @param  mixed              $print  True to print part, ressource to write part contents in
-     * @param  resource           $fp     File pointer to save the message part
-     * @param  boolean            $skip_charset_conv Disables charset conversion
-     * @param  int                $max_bytes  Only read this number of bytes
+     * @param int                Message UID
+     * @param string             Part number
+     * @param rcube_message_part Part object created by get_structure()
+     * @param mixed              True to print part, resource to write part contents in
+     * @param resource           File pointer to save the message part
+     * @param boolean            Disables charset conversion
+     * @param int                Only read this number of bytes
+     * @param boolean            Enables formatting of text/* parts bodies
      *
      * @return string Message/part body if not printed
      */
-    public function get_message_part($uid, $part=1, $o_part=NULL, $print=NULL, $fp=NULL, $skip_charset_conv=false, $max_bytes=0)
+    public function get_message_part($uid, $part=1, $o_part=NULL, $print=NULL, $fp=NULL, $skip_charset_conv=false, $max_bytes=0, $formatted=true)
     {
         if (!$this->check_connection()) {
             return null;
@@ -2121,8 +2109,9 @@ class rcube_imap extends rcube_storage
         }
 
         if ($o_part && $o_part->size) {
+            $formatted = $formatted && $o_part->ctype_primary == 'text';
             $body = $this->conn->handlePartBody($this->folder, $uid, true,
-                $part ? $part : 'TEXT', $o_part->encoding, $print, $fp, $o_part->ctype_primary == 'text', $max_bytes);
+                $part ? $part : 'TEXT', $o_part->encoding, $print, $fp, $formatted, $max_bytes);
         }
 
         if ($fp || $print) {
@@ -2667,7 +2656,6 @@ class rcube_imap extends rcube_storage
 
         if ($list_extended) {
             // unsubscribe non-existent folders, remove from the list
-            // we can do this only when LIST response is available
             if (is_array($a_folders) && $name == '*' && !empty($this->conn->data['LIST'])) {
                 foreach ($a_folders as $idx => $folder) {
                     if (($opts = $this->conn->data['LIST'][$folder])
@@ -2680,19 +2668,14 @@ class rcube_imap extends rcube_storage
             }
         }
         else {
-            // unsubscribe non-existent folders, remove them from the list,
-            // we can do this only when LIST response is available
-            if (is_array($a_folders) && $name == '*' && !empty($this->conn->data['LIST'])) {
-                foreach ($a_folders as $idx => $folder) {
-                    if (!isset($this->conn->data['LIST'][$folder])
-                        || in_array('\\Noselect', $this->conn->data['LIST'][$folder])
-                    ) {
-                        // Some servers returns \Noselect for existing folders
-                        if (!$this->folder_exists($folder)) {
-                            $this->conn->unsubscribe($folder);
-                            unset($a_folders[$idx]);
-                        }
-                    }
+            // unsubscribe non-existent folders, remove them from the list
+            if (is_array($a_folders) && !empty($a_folders) && $name == '*') {
+                $existing    = $this->list_folders($root, $name);
+                $nonexisting = array_diff($a_folders, $existing);
+                $a_folders   = array_diff($a_folders, $nonexisting);
+
+                foreach ($nonexisting as $folder) {
+                    $this->conn->unsubscribe($folder);
                 }
             }
         }
@@ -3777,12 +3760,17 @@ class rcube_imap extends rcube_storage
     /**
      * Enable or disable messages caching
      *
-     * @param boolean $set Flag
+     * @param boolean $set  Flag
+     * @param int     $mode Cache mode
      */
-    public function set_messages_caching($set)
+    public function set_messages_caching($set, $mode = null)
     {
         if ($set) {
             $this->messages_caching = true;
+
+            if ($mode && ($cache = $this->get_mcache_engine())) {
+                $cache->set_mode($mode);
+            }
         }
         else {
             if ($this->mcache) {
@@ -3802,9 +3790,10 @@ class rcube_imap extends rcube_storage
         if ($this->messages_caching && !$this->mcache) {
             $rcube = rcube::get_instance();
             if (($dbh = $rcube->get_dbh()) && ($userid = $rcube->get_user_id())) {
-                $ttl = $rcube->config->get('messages_cache_ttl', '10d');
+                $ttl       = $rcube->config->get('messages_cache_ttl', '10d');
+                $threshold = $rcube->config->get('messages_cache_threshold', 50);
                 $this->mcache = new rcube_imap_cache(
-                    $dbh, $this, $userid, $this->options['skip_deleted'], $ttl);
+                    $dbh, $this, $userid, $this->options['skip_deleted'], $ttl, $threshold);
             }
         }
 
@@ -3816,7 +3805,7 @@ class rcube_imap extends rcube_storage
      * Clears the messages cache.
      *
      * @param string $folder Folder name
-     * @param array  $uids    Optional message UIDs to remove from cache
+     * @param array  $uids   Optional message UIDs to remove from cache
      */
     protected function clear_message_cache($folder = null, $uids = null)
     {

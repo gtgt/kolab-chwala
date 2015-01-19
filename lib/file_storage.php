@@ -30,13 +30,23 @@ interface file_storage
     const CAPS_PROGRESS_NAME = 'PROGRESS_NAME';
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
     const CAPS_QUOTA         = 'QUOTA';
+    const CAPS_LOCKS         = 'LOCKS';
 
     // config
     const SEPARATOR = '/';
 
     // error codes
     const ERROR             = 500;
+    const ERROR_LOCKED      = 423;
     const ERROR_FILE_EXISTS = 550;
+    const ERROR_UNSUPPORTED = 570;
+    const ERROR_NOAUTH      = 580;
+
+    // locks
+    const LOCK_SHARED    = 'shared';
+    const LOCK_EXCLUSIVE = 'exclusive';
+    const LOCK_INFINITE  = 'infinite';
+
 
     /**
      * Authenticates a user
@@ -49,11 +59,26 @@ interface file_storage
     public function authenticate($username, $password);
 
     /**
+     * Get password and name of authenticated user
+     *
+     * @return array Authenticated user data
+     */
+    public function auth_info();
+
+    /**
      * Configures environment
      *
-     * @param array $config COnfiguration
+     * @param array  $config Configuration
+     * @param string $title  Driver instance identifier
      */
-    public function configure($config);
+    public function configure($config, $title = null);
+
+    /**
+     * Returns current instance title
+     *
+     * @return string Instance title (mount point)
+     */
+    public function title();
 
     /**
      * Storage driver capabilities
@@ -63,10 +88,64 @@ interface file_storage
     public function capabilities();
 
     /**
+     * Save configuration of external driver (mount point)
+     *
+     * @param array $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_create($driver);
+
+    /**
+     * Delete configuration of external driver (mount point)
+     *
+     * @param string $title Driver instance title
+     *
+     * @throws Exception
+     */
+    public function driver_delete($title);
+
+    /**
+     * Return list of registered drivers (mount points)
+     *
+     * @return array List of drivers data
+     * @throws Exception
+     */
+    public function driver_list();
+
+    /**
+     * Returns metadata of the driver
+     *
+     * @return array Driver meta data (image, name, form)
+     */
+    public function driver_metadata();
+
+    /**
+     * Validate metadata (config) of the driver
+     *
+     * @param array $metadata Driver metadata
+     *
+     * @return array Driver meta data to be stored in configuration
+     * @throws Exception
+     */
+    public function driver_validate($metadata);
+
+    /**
+     * Update configuration of external driver (mount point)
+     *
+     * @param string $title  Driver instance title
+     * @param array  $driver Driver data
+     *
+     * @throws Exception
+     */
+    public function driver_update($title, $driver);
+
+    /**
      * Create a file.
      *
      * @param string $file_name Name of a file (with folder path)
-     * @param array  $file      File data (path/content, type)
+     * @param array  $file      File data (path/content, type), where
+     *                          content might be a string or resource
      *
      * @throws Exception
      */
@@ -135,7 +214,7 @@ interface file_storage
      * List files in a folder.
      *
      * @param string $folder_name Name of a folder with full path
-     * @param array  $params      List parameters ('sort', 'reverse', 'search')
+     * @param array  $params      List parameters ('sort', 'reverse', 'search', 'prefix')
      *
      * @return array List of files (file properties array indexed by filename)
      * @throws Exception
@@ -177,6 +256,48 @@ interface file_storage
      * @throws Exception
      */
     public function folder_list();
+
+    /**
+     * Returns a list of locks
+     *
+     * This method should return all the locks for a particular URI, including
+     * locks that might be set on a parent URI.
+     *
+     * If child_locks is set to true, this method should also look for
+     * any locks in the subtree of the URI for locks.
+     *
+     * @param string $uri         URI
+     * @param bool   $child_locks Enables subtree checks
+     *
+     * @return array List of locks
+     * @throws Exception
+     */
+    public function lock_list($uri, $child_locks = false);
+
+    /**
+     * Locks a URI
+     *
+     * @param string $uri  URI
+     * @param array  $lock Lock data
+     *                     - depth: 0/'infinite'
+     *                     - scope: 'shared'/'exclusive'
+     *                     - owner: string
+     *                     - token: string
+     *                     - timeout: int
+     *
+     * @throws Exception
+     */
+    public function lock($uri, $lock);
+
+    /**
+     * Removes a lock from a URI
+     *
+     * @param string $path URI
+     * @param array  $lock Lock data
+     *
+     * @throws Exception
+     */
+    public function unlock($uri, $lock);
 
     /**
      * Return disk quota information for specified folder.
