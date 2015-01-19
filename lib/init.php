@@ -25,13 +25,15 @@
 
 // Roundcube Framework constants
 define('FILE_API_START', microtime(true));
+define('_RCUBE_INSTALL_PATH', realpath(dirname(__FILE__)) . '/../../');
 define('RCUBE_INSTALL_PATH', realpath(dirname(__FILE__)) . '/../');
 define('RCUBE_CONFIG_DIR', RCUBE_INSTALL_PATH . 'config/');
 define('RCUBE_PLUGINS_DIR', RCUBE_INSTALL_PATH . 'lib/kolab/plugins');
 
 // Define include path
 $include_path  = RCUBE_INSTALL_PATH . '/lib' . PATH_SEPARATOR;
-$include_path .= RCUBE_INSTALL_PATH . '/lib/ext' . PATH_SEPARATOR;
+//$include_path .= RCUBE_INSTALL_PATH . '/lib/ext' . PATH_SEPARATOR;
+$include_path .= _RCUBE_INSTALL_PATH . '/program/lib' . PATH_SEPARATOR;
 $include_path .= RCUBE_INSTALL_PATH . '/lib/client' . PATH_SEPARATOR;
 $include_path .= ini_get('include_path');
 set_include_path($include_path);
