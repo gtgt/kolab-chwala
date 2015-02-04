@@ -31,7 +31,7 @@ CREATE TABLE `kolab_cache_contact` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `type` VARCHAR(32) CHARACTER SET ascii NOT NULL,
   `name` VARCHAR(255) NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE `kolab_cache_event` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `dtstart` DATETIME,
   `dtend` DATETIME,
@@ -75,7 +75,7 @@ CREATE TABLE `kolab_cache_task` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `dtstart` DATETIME,
   `dtend` DATETIME,
@@ -95,7 +95,7 @@ CREATE TABLE `kolab_cache_journal` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `dtstart` DATETIME,
   `dtend` DATETIME,
@@ -115,7 +115,7 @@ CREATE TABLE `kolab_cache_note` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   CONSTRAINT `fk_kolab_cache_note_folder` FOREIGN KEY (`folder_id`)
     REFERENCES `kolab_folders`(`folder_id`) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -133,7 +133,7 @@ CREATE TABLE `kolab_cache_file` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `filename` varchar(255) DEFAULT NULL,
   CONSTRAINT `fk_kolab_cache_file_folder` FOREIGN KEY (`folder_id`)
@@ -153,7 +153,7 @@ CREATE TABLE `kolab_cache_configuration` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `type` VARCHAR(32) CHARACTER SET ascii NOT NULL,
   CONSTRAINT `fk_kolab_cache_configuration_folder` FOREIGN KEY (`folder_id`)
@@ -173,7 +173,7 @@ CREATE TABLE `kolab_cache_freebusy` (
   `changed` DATETIME DEFAULT NULL,
   `data` LONGTEXT NOT NULL,
   `xml` LONGBLOB NOT NULL,
-  `tags` VARCHAR(255) NOT NULL,
+  `tags` TEXT NOT NULL,
   `words` TEXT NOT NULL,
   `dtstart` DATETIME,
   `dtend` DATETIME,
@@ -184,4 +184,4 @@ CREATE TABLE `kolab_cache_freebusy` (
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
 
 
-INSERT INTO `system` (`name`, `value`) VALUES ('libkolab-version', '2014021000');
+INSERT INTO `system` (`name`, `value`) VALUES ('libkolab-version', '2015011600');

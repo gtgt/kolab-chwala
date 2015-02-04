@@ -38,6 +38,7 @@ $config['kolab_messages_cache_bypass'] = 0;
 // LDAP directory to find avilable users for folder sharing.
 // Either contains an array with LDAP addressbook configuration or refers to entry in $config['ldap_public'].
 // If not specified, the configuraton from 'kolab_auth_addressbook' will be used.
+// Should be provided for multi-domain setups with placeholders like %dc, %d, %u, %fu or %dn.
 $config['kolab_users_directory'] = null;
 
 // Filter to be used for resolving user folders in LDAP.

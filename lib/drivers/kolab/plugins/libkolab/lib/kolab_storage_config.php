@@ -837,4 +837,30 @@ class kolab_storage_config
 
         return self::build_member_url($params);
     }
+
+    /**
+     * Resolve the email message reference from the given URI
+     */
+    public function get_message_reference($uri, $rel = null)
+    {
+        if ($linkref = self::parse_member_url($uri)) {
+            $linkref['subject'] = $linkref['params']['subject'];
+            $linkref['uri']     = $uri;
+
+            $rcmail = rcube::get_instance();
+            if (method_exists($rcmail, 'url')) {
+                $linkref['mailurl'] = $rcmail->url(array(
+                    'task'   => 'mail',
+                    'action' => 'show',
+                    'mbox'   => $linkref['folder'],
+                    'uid'    => $linkref['uid'],
+                    'rel'    => $rel,
+                ));
+            }
+
+            unset($linkref['params']);
+        }
+
+        return $linkref;
+    }
 }

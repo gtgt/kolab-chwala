@@ -25,7 +25,7 @@ BEFORE INSERT ON "kolab_folders" FOR EACH ROW
 BEGIN
     :NEW."folder_id" := "kolab_folders_seq".nextval;
 END;
-
+/
 
 CREATE TABLE "kolab_cache_contact" (
     "folder_id" number NOT NULL
@@ -36,7 +36,7 @@ CREATE TABLE "kolab_cache_contact" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "type" varchar(32) NOT NULL,
     "name" varchar(255) DEFAULT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE "kolab_cache_event" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "dtstart" timestamp DEFAULT NULL,
     "dtend" timestamp DEFAULT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE "kolab_cache_task" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "dtstart" timestamp DEFAULT NULL,
     "dtend" timestamp DEFAULT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE "kolab_cache_journal" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "dtstart" timestamp DEFAULT NULL,
     "dtend" timestamp DEFAULT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE "kolab_cache_note" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     PRIMARY KEY ("folder_id", "msguid")
 );
@@ -133,7 +133,7 @@ CREATE TABLE "kolab_cache_file" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "filename" varchar(255) DEFAULT NULL,
     PRIMARY KEY ("folder_id", "msguid")
@@ -152,7 +152,7 @@ CREATE TABLE "kolab_cache_configuration" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "type" varchar(32) NOT NULL,
     PRIMARY KEY ("folder_id", "msguid")
@@ -171,7 +171,7 @@ CREATE TABLE "kolab_cache_freebusy" (
     "changed" timestamp DEFAULT NULL,
     "data" clob NOT NULL,
     "xml" clob NOT NULL,
-    "tags" varchar(255) DEFAULT NULL,
+    "tags" clob DEFAULT NULL,
     "words" clob DEFAULT NULL,
     "dtstart" timestamp DEFAULT NULL,
     "dtend" timestamp DEFAULT NULL,
@@ -181,4 +181,4 @@ CREATE TABLE "kolab_cache_freebusy" (
 CREATE INDEX "kolab_cache_fb_uid2msguid" ON "kolab_cache_freebusy" ("folder_id", "uid", "msguid");
 
 
-INSERT INTO "system" ("name", "value") VALUES ('libkolab-version', '2014021000');
+INSERT INTO "system" ("name", "value") VALUES ('libkolab-version', '2015011600');

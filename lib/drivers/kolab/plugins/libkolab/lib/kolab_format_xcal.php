@@ -364,14 +364,17 @@ abstract class kolab_format_xcal extends kolab_format
                 $cr = new ContactReference(ContactReference::EmailReference, $attendee['email']);
                 $cr->setName($attendee['name']);
 
+                // set attendee RSVP if missing
+                if (!isset($attendee['rsvp'])) {
+                    $object['attendees'][$i]['rsvp'] = $attendee['rsvp'] = true;
+                }
+
                 $att = new Attendee;
                 $att->setContact($cr);
                 $att->setPartStat($this->part_status_map[$attendee['status']]);
                 $att->setRole($this->role_map[$attendee['role']] ? $this->role_map[$attendee['role']] : kolabformat::Required);
                 $att->setCutype($this->cutype_map[$attendee['cutype']] ? $this->cutype_map[$attendee['cutype']] : kolabformat::CutypeIndividual);
-                $att->setRSVP((bool)$attendee['rsvp'] || $reschedule);
-
-                $object['attendees'][$i]['rsvp'] = $attendee['rsvp'] || $reschedule;
+                $att->setRSVP((bool)$attendee['rsvp']);
 
                 if (!empty($attendee['delegated-from'])) {
                     $vdelegators = new vectorcontactref;

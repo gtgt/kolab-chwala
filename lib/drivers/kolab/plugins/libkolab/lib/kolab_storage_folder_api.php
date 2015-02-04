@@ -85,9 +85,10 @@ abstract class kolab_storage_folder_api
     /**
      * Returns the owner of the folder.
      *
+     * @param boolean  Return a fully qualified owner name (i.e. including domain for shared folders)
      * @return string  The owner of this folder.
      */
-    public function get_owner()
+    public function get_owner($fully_qualified = false)
     {
         // return cached value
         if (isset($this->owner))
@@ -106,14 +107,19 @@ abstract class kolab_storage_folder_api
             break;
 
         default:
-            list($prefix, $user) = explode($this->imap->get_hierarchy_delimiter(), $info['name']);
-            if (strpos($user, '@') === false) {
-                $domain = strstr($rcmail->get_user_name(), '@');
-                if (!empty($domain))
-                    $user .= $domain;
-            }
-            $this->owner = $user;
+            list($prefix, $this->owner) = explode($this->imap->get_hierarchy_delimiter(), $info['name']);
+            $fully_qualified = true;  // enforce email addresses (backwards compatibility)
             break;
+        }
+
+        if ($fully_qualified && strpos($this->owner, '@') === false) {
+            // extract domain from current user name
+            $domain = strstr($rcmail->get_user_name(), '@');
+            // fall back to mail_domain config option
+            if (empty($domain) && ($mdomain = $rcmail->config->mail_domain($this->imap->options['host']))) {
+                $domain = '@' . $mdomain;
+            }
+            $this->owner .= $domain;
         }
 
         return $this->owner;

@@ -223,7 +223,7 @@ abstract class kolab_format
                 if ($tz) $datetime->setTimezone($tz);
             }
             else if (is_string($datetime) && strlen($datetime)) {
-                $datetime = new DateTime($datetime, $tz ?: null);
+                $datetime = $tz ? new DateTime($datetime, $tz) : new DateTime($datetime);
             }
         }
         catch (Exception $e) {}

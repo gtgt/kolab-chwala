@@ -36,7 +36,7 @@ class kolab_bonnie_api
      */
     public function __construct($config)
     {
-        $this->config = $confg;
+        $this->config = $config;
 
         $this->client = new kolab_bonnie_api_client($config['uri'], $config['timeout'] ?: 5, (bool)$config['debug']);
 

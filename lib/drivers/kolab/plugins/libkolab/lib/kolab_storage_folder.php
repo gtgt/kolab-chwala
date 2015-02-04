@@ -30,18 +30,28 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public $cache;
 
-    private $type_annotation;
-    private $resource_uri;
+    /**
+     * Indicate validity status
+     * @var boolean
+     */
+    public $valid = false;
+
+    protected $error = 0;
+
+    protected $resource_uri;
 
 
     /**
      * Default constructor
+     *
+     * @param string The folder name/path
+     * @param string Expected folder type
      */
-    function __construct($name, $type = null)
+    function __construct($name, $type = null, $type_annotation = null)
     {
         parent::__construct($name);
         $this->imap->set_options(array('skip_deleted' => true));
-        $this->set_folder($name, $type);
+        $this->set_folder($name, $type, $type_annotation);
     }
 
 
@@ -49,30 +59,63 @@ class kolab_storage_folder extends kolab_storage_folder_api
      * Set the IMAP folder this instance connects to
      *
      * @param string The folder name/path
+     * @param string Expected folder type
      * @param string Optional folder type if known
      */
-    public function set_folder($name, $type = null)
+    public function set_folder($name, $type = null, $type_annotation = null)
     {
-        $this->type_annotation = $type ? $type : kolab_storage::folder_type($name);
+        if (empty($type_annotation)) {
+            $type_annotation = kolab_storage::folder_type($name);
+        }
 
         $oldtype = $this->type;
-        list($this->type, $suffix) = explode('.', $this->type_annotation);
+        list($this->type, $suffix) = explode('.', $type_annotation);
         $this->default      = $suffix == 'default';
         $this->subtype      = $this->default ? '' : $suffix;
         $this->name         = $name;
         $this->id           = kolab_storage::folder_id($name);
+        $this->valid        = !empty($this->type) && $this->type != 'mail' && (!$type || $this->type == $type);
+
+        if (!$this->valid) {
+            $this->error = $this->imap->get_error_code() < 0 ? kolab_storage::ERROR_IMAP_CONN : kolab_storage::ERROR_INVALID_FOLDER;
+        }
 
         // reset cached object properties
         $this->owner = $this->namespace = $this->resource_uri = $this->info = $this->idata = null;
 
-        // get a new cache instance of folder type changed
-        if (!$this->cache || $type != $oldtype)
+        // get a new cache instance if folder type changed
+        if (!$this->cache || $this->type != $oldtype)
             $this->cache = kolab_storage_cache::factory($this);
+        else
+            $this->cache->set_folder($this);
 
         $this->imap->set_folder($this->name);
-        $this->cache->set_folder($this);
     }
 
+    /**
+     * Returns code of last error
+     *
+     * @return int Error code
+     */
+    public function get_error()
+    {
+        return $this->error ?: $this->cache->get_error();
+    }
+
+    /**
+     * Check IMAP connection error state
+     */
+    public function check_error()
+    {
+        if (($err_code = $this->imap->get_error_code()) < 0) {
+            $this->error = kolab_storage::ERROR_IMAP_CONN;
+            if (($res_code = $this->imap->get_response_code()) !== 0 && in_array($res_code, array(rcube_storage::NOPERM, rcube_storage::READONLY))) {
+                $this->error = kolab_storage::ERROR_NO_PERMISSION;
+            }
+        }
+
+        return $this->error;
+    }
 
     /**
      * Compose a unique resource URI for this IMAP folder
@@ -97,7 +140,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
         }
 
         // compose fully qualified ressource uri for this instance
-        $this->resource_uri = 'imap://' . urlencode($this->get_owner()) . '@' . $this->imap->options['host'] . '/' . $subpath;
+        $this->resource_uri = 'imap://' . urlencode($this->get_owner(true)) . '@' . $this->imap->options['host'] . '/' . $subpath;
         return $this->resource_uri;
     }
 
@@ -138,6 +181,8 @@ class kolab_storage_folder extends kolab_storage_folder_api
         if (!($success = $this->set_metadata(array(kolab_storage::UID_KEY_SHARED => $uid)))) {
             $success = $this->set_metadata(array(kolab_storage::UID_KEY_PRIVATE => $uid));
         }
+
+        $this->check_error();
         return $success;
     }
 
@@ -147,6 +192,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
     public function get_ctag()
     {
         $fdata = $this->get_imap_data();
+        $this->check_error();
         return sprintf('%d-%d-%d', $fdata['UIDVALIDITY'], $fdata['HIGHESTMODSEQ'], $fdata['UIDNEXT']);
     }
 
@@ -204,6 +250,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function count($query = null)
     {
+        if (!$this->valid) {
+            return 0;
+        }
+
         // synchronize cache first
         $this->cache->synchronize();
 
@@ -220,6 +270,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
     public function get_objects($type = null)
     {
         if (!$type) $type = $this->type;
+
+        if (!$this->valid) {
+            return array();
+        }
 
         // synchronize caches
         $this->cache->synchronize();
@@ -238,9 +292,14 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function select($query = array())
     {
+        if (!$this->valid) {
+            return array();
+        }
+
         // check query argument
-        if (empty($query))
+        if (empty($query)) {
             return $this->get_objects();
+        }
 
         // synchronize caches
         $this->cache->synchronize();
@@ -258,6 +317,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function get_uids($query = array())
     {
+        if (!$this->valid) {
+            return array();
+        }
+
         // synchronize caches
         $this->cache->synchronize();
 
@@ -319,6 +382,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function get_object($uid, $type = null)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         // synchronize caches
         $this->cache->synchronize();
 
@@ -348,7 +415,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function get_attachment($uid, $part, $mailbox = null, $print = false, $fp = null, $skip_charset_conv = false)
     {
-        if ($msguid = ($mailbox ? $uid : $this->cache->uid2msguid($uid))) {
+        if ($this->valid && ($msguid = ($mailbox ? $uid : $this->cache->uid2msguid($uid)))) {
             $this->imap->set_folder($mailbox ? $mailbox : $this->name);
 
             if (substr($part, 0, 2) == 'i:') {
@@ -360,7 +427,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
                         $object['_formatobj']->get_attachments($object);
                     }
 
-                    foreach ($object['_attachments'] as $k => $attach) {
+                    foreach ($object['_attachments'] as $attach) {
                         if ($attach['id'] == $part) {
                             if ($print)   echo $attach['content'];
                             else if ($fp) fwrite($fp, $attach['content']);
@@ -392,6 +459,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function read_object($msguid, $type = null, $folder = null)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         if (!$type) $type = $this->type;
         if (!$folder) $folder = $this->name;
 
@@ -444,7 +515,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
         // get XML part
         foreach ((array)$message->attachments as $part) {
             if (!$xml && ($part->mimetype == $content_type || preg_match('!application/([a-z.]+\+)?xml!', $part->mimetype))) {
-                $xml = $part->body ? $part->body : $message->get_part_content($part->mime_id);
+                $xml = $message->get_part_body($part->mime_id, true);
             }
             else if ($part->filename || $part->content_id) {
                 $key  = $part->content_id ? trim($part->content_id, '<>') : $part->filename;
@@ -537,6 +608,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function save(&$object, $type = null, $uid = null)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         if (!$type)
             $type = $this->type;
 
@@ -732,6 +807,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function delete($object, $expunge = true)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         $msguid = is_array($object) ? $object['_msguid'] : $this->cache->uid2msguid($object);
         $success = false;
 
@@ -759,6 +838,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function delete_all()
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         $this->cache->purge();
         $this->cache->bypass(true);
         $result = $this->imap->clear_folder($this->name);
@@ -776,6 +859,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function undelete($uid)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         if ($msguid = $this->cache->uid2msguid($uid, true)) {
             $this->cache->bypass(true);
             $result = $this->imap->set_flag($msguid, 'UNDELETED', $this->name);
@@ -799,6 +886,10 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function move($uid, $target_folder)
     {
+        if (!$this->valid) {
+            return false;
+        }
+
         if (is_string($target_folder))
             $target_folder = kolab_storage::get_folder($target_folder);
 
@@ -882,7 +973,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
         if (!empty($object['_attachments']) && ($mem_limit = parse_bytes(ini_get('memory_limit'))) > 0) {
             $memory = function_exists('memory_get_usage') ? memory_get_usage() : 16*1024*1024; // safe value: 16MB
 
-            foreach ($object['_attachments'] as $id => $attachment) {
+            foreach ($object['_attachments'] as $attachment) {
                 $memory += $attachment['size'];
             }
 
@@ -1054,8 +1145,6 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     private function trigger_url($url, $auth_user = null, $auth_passwd = null)
     {
-        require_once('HTTP/Request2.php');
-
         try {
             $request = libkolab::http_request($url);
 
