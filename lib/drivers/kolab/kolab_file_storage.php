@@ -1070,9 +1070,9 @@ class kolab_file_storage implements file_storage
             $separator   = $storage->get_hierarchy_delimiter();
             $folder_name = str_replace(file_storage::SEPARATOR, $separator, $folder_name);
             $imap_name   = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
-            $folder      = kolab_storage::get_folder($imap_name);
+            $folder      = kolab_storage::get_folder($imap_name, 'file');
 
-            if (!$folder) {
+            if (!$folder || !$folder->valid) {
                 throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
             }
 

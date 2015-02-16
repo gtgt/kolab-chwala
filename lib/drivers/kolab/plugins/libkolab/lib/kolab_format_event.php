@@ -96,11 +96,13 @@ class kolab_format_event extends kolab_format_xcal
         // save recurrence exceptions
         if (is_array($object['recurrence']) && $object['recurrence']['EXCEPTIONS']) {
             $vexceptions = new vectorevent;
-            foreach((array)$object['recurrence']['EXCEPTIONS'] as $exception) {
+            foreach((array)$object['recurrence']['EXCEPTIONS'] as $i => $exception) {
                 $exevent = new kolab_format_event;
-                $exevent->set($this->compact_exception($exception, $object));  // only save differing values
+                $exevent->set(($compacted = $this->compact_exception($exception, $object)));  // only save differing values
                 $exevent->obj->setRecurrenceID(self::get_datetime($exception['start'], null, true), (bool)$exception['thisandfuture']);
                 $vexceptions->push($exevent->obj);
+                // write cleaned-up exception data back to memory/cache
+                $object['recurrence']['EXCEPTIONS'][$i] = $this->expand_exception($compacted, $object);
             }
             $this->obj->setExceptions($vexceptions);
         }
@@ -213,6 +215,12 @@ class kolab_format_event extends kolab_format_xcal
 
       foreach ($forbidden as $prop) {
         if (array_key_exists($prop, $exception)) {
+          unset($exception[$prop]);
+        }
+      }
+
+      foreach ($master as $prop => $value) {
+        if (isset($exception[$prop]) && gettype($exception[$prop]) == gettype($value) && $exception[$prop] == $value) {
           unset($exception[$prop]);
         }
       }

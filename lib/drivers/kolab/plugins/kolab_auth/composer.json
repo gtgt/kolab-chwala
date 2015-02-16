@@ -1,10 +1,10 @@
 {
-    "name": "kolab/libkolab",
+    "name": "kolab/kolab_auth",
     "type": "roundcube-plugin",
-    "description": "Plugin to setup a basic environment for the interaction with a Kolab server.",
+    "description": "Kolab authentication",
     "homepage": "http://git.kolab.org/roundcubemail-plugins-kolab/",
     "license": "AGPLv3",
-    "version": "3.2.3",
+    "version": "3.2.2",
     "authors": [
         {
             "name": "Thomas Bruederli",
@@ -12,9 +12,9 @@
             "role": "Lead"
         },
         {
-            "name": "Alensader Machniak",
+            "name": "Aleksander Machniak",
             "email": "machniak@kolabsys.com",
-            "role": "Developer"
+            "role": "Lead"
         }
     ],
     "repositories": [

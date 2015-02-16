@@ -31,6 +31,7 @@
 class kolab_auth extends rcube_plugin
 {
     static $ldap;
+    private $username;
     private $data = array();
 
     public function init()
@@ -56,11 +57,12 @@ class kolab_auth extends rcube_plugin
         // Hook to modify some configuration, e.g. ldap
         $this->add_hook('config_get', array($this, 'config_get'));
 
-        // Enable debug logs per-user, this enables logging only after
-        // user has logged in
-        if (!empty($_SESSION['username']) && $rcmail->config->get('kolab_auth_auditlog')) {
-            $this->add_hook('write_log', array($this, 'write_log'));
+        // Hook to modify logging directory
+        $this->add_hook('write_log', array($this, 'write_log'));
+        $this->username = $_SESSION['username'];
 
+        // Enable debug logs (per-user), when logged as another user
+        if (!empty($_SESSION['kolab_auth_admin']) && $rcmail->config->get('kolab_auth_auditlog')) {
             $rcmail->config->set('debug_level', 1);
             $rcmail->config->set('devel_mode', true);
             $rcmail->config->set('smtp_log', true);
@@ -81,8 +83,30 @@ class kolab_auth extends rcube_plugin
         }
     }
 
+    /**
+     * Startup hook handler
+     */
     public function startup($args)
     {
+        // Check access rights when logged in as another user
+        if (!empty($_SESSION['kolab_auth_admin']) && $args['task'] != 'login' && $args['task'] != 'logout') {
+            // access to specified task is forbidden,
+            // redirect to the first task on the list
+            if (!empty($_SESSION['kolab_auth_allowed_tasks'])) {
+                $tasks = (array)$_SESSION['kolab_auth_allowed_tasks'];
+                if (!in_array($args['task'], $tasks) && !in_array('*', $tasks)) {
+                    header('Location: ?_task=' . array_shift($tasks));
+                    die;
+                }
+
+                // add script that will remove disabled taskbar buttons
+                if (!in_array('*', $tasks)) {
+                    $this->add_hook('render_page', array($this, 'render_page'));
+                }
+            }
+        }
+
+        // load per-user settings
         $this->load_user_role_plugins_and_settings();
 
         return $args;
@@ -101,18 +125,33 @@ class kolab_auth extends rcube_plugin
 
             foreach ($args['result'] as $name => $config) {
                 if (in_array($name, $kolab_books) || in_array('*', $kolab_books)) {
-                    $args['result'][$name]['base_dn']        = self::parse_ldap_vars($config['base_dn']);
-                    $args['result'][$name]['search_base_dn'] = self::parse_ldap_vars($config['search_base_dn']);
-                    $args['result'][$name]['bind_dn']        = str_replace('%dn', $_SESSION['kolab_dn'], $config['bind_dn']);
-
-                    if (!empty($config['groups'])) {
-                        $args['result'][$name]['groups']['base_dn'] = self::parse_ldap_vars($config['groups']['base_dn']);
-                    }
+                    $args['result'][$name] = $this->patch_ldap_config($config);
                 }
             }
         }
+        else if ($args['name'] == 'kolab_users_directory' && !empty($args['result'])) {
+            $args['result'] = $this->patch_ldap_config($args['result']);
+        }
 
         return $args;
+    }
+
+    /**
+     * Helper method to patch the given LDAP directory config with user-specific values
+     */
+    protected function patch_ldap_config($config)
+    {
+        if (is_array($config)) {
+            $config['base_dn']        = self::parse_ldap_vars($config['base_dn']);
+            $config['search_base_dn'] = self::parse_ldap_vars($config['search_base_dn']);
+            $config['bind_dn']        = str_replace('%dn', $_SESSION['kolab_dn'], $config['bind_dn']);
+
+            if (!empty($config['groups'])) {
+                $config['groups']['base_dn'] = self::parse_ldap_vars($config['groups']['base_dn']);
+            }
+        }
+
+        return $config;
     }
 
     /**
@@ -155,24 +194,28 @@ class kolab_auth extends rcube_plugin
 
         if (!empty($role_plugins)) {
             foreach ($role_plugins as $role_dn => $plugins) {
-                $role_plugins[self::parse_ldap_vars($role_dn)] = $plugins;
+                $role_dn = self::parse_ldap_vars($role_dn);
+                if (!empty($role_plugins[$role_dn])) {
+                    $role_plugins[$role_dn] = array_unique(array_merge((array)$role_plugins[$role_dn], $plugins));
+                } else {
+                    $role_plugins[$role_dn] = $plugins;
+                }
             }
         }
 
         if (!empty($role_settings)) {
             foreach ($role_settings as $role_dn => $settings) {
-                $role_settings[self::parse_ldap_vars($role_dn)] = $settings;
+                $role_dn = self::parse_ldap_vars($role_dn);
+                if (!empty($role_settings[$role_dn])) {
+                    $role_settings[$role_dn] = array_merge((array)$role_settings[$role_dn], $settings);
+                } else {
+                    $role_settings[$role_dn] = $settings;
+                }
             }
         }
 
         foreach ($_SESSION['user_roledns'] as $role_dn) {
-            if (isset($role_plugins[$role_dn]) && is_array($role_plugins[$role_dn])) {
-                foreach ($role_plugins[$role_dn] as $plugin) {
-                    $this->require_plugin($plugin);
-                }
-            }
-
-            if (isset($role_settings[$role_dn]) && is_array($role_settings[$role_dn])) {
+            if (!empty($role_settings[$role_dn]) && is_array($role_settings[$role_dn])) {
                 foreach ($role_settings[$role_dn] as $setting_name => $setting) {
                     if (!isset($setting['mode'])) {
                         $setting['mode'] = 'override';
@@ -194,7 +237,7 @@ class kolab_auth extends rcube_plugin
 
                     $dont_override = (array) $rcmail->config->get('dont_override');
 
-                    if (!isset($setting['allow_override']) || !$setting['allow_override']) {
+                    if (empty($setting['allow_override'])) {
                         $rcmail->config->set('dont_override', array_merge($dont_override, array($setting_name)));
                     }
                     else {
@@ -208,6 +251,19 @@ class kolab_auth extends rcube_plugin
                             $rcmail->config->set('dont_override', $_dont_override);
                         }
                     }
+
+                    if ($setting_name == 'skin') {
+                        if ($rcmail->output->type == 'html') {
+                            $rcmail->output->set_skin($setting['value']);
+                            $rcmail->output->set_env('skin', $setting['value']);
+                        }
+                    }
+                }
+            }
+
+            if (!empty($role_plugins[$role_dn])) {
+                foreach ((array)$role_plugins[$role_dn] as $plugin) {
+                    $this->api->load_plugin($plugin);
                 }
             }
         }
@@ -225,36 +281,28 @@ class kolab_auth extends rcube_plugin
             return $args;
         }
 
-        $line = sprintf("[%s]: %s\n", $args['date'], $args['line']);
-
         // log_driver == 'file' is assumed here
         $log_dir  = $rcmail->config->get('log_dir', RCUBE_INSTALL_PATH . 'logs');
-        $log_path = $log_dir.'/'.strtolower($_SESSION['kolab_auth_admin']).'/'.strtolower($_SESSION['username']);
 
-        // Append original username + target username
-        if (!is_dir($log_path)) {
+        // Append original username + target username for audit-logging
+        if ($rcmail->config->get('kolab_auth_auditlog') && !empty($_SESSION['kolab_auth_admin'])) {
+            $args['dir'] = $log_dir . '/' . strtolower($_SESSION['kolab_auth_admin']) . '/' . strtolower($this->username);
+
             // Attempt to create the directory
-            if (@mkdir($log_path, 0750, true)) {
-                $log_dir = $log_path;
+            if (!is_dir($args['dir'])) {
+                @mkdir($args['dir'], 0750, true);
             }
         }
-        else {
-            $log_dir = $log_path;
+        // Define the user log directory if a username is provided
+        else if ($rcmail->config->get('per_user_logging') && !empty($this->username)) {
+            $user_log_dir = $log_dir . '/' . strtolower($this->username);
+            if (is_writable($user_log_dir)) {
+                $args['dir'] = $user_log_dir;
+            }
+            else if ($args['name'] != 'errors') {
+                $args['abort'] = true;  // don't log if unauthenticed
+            }
         }
-
-        // try to open specific log file for writing
-        $logfile = $log_dir.'/'.$args['name'];
-
-        if ($fp = fopen($logfile, 'a')) {
-            fwrite($fp, $line);
-            fflush($fp);
-            fclose($fp);
-        }
-        else {
-            trigger_error("Error writing to log file $logfile; Please check permissions", E_USER_WARNING);
-        }
-
-        $args['abort'] = true;
 
         return $args;
     }
@@ -337,9 +385,13 @@ class kolab_auth extends rcube_plugin
             return $args;
         }
 
+        // temporarily set the current username to the one submitted
+        $this->username = $user;
+
         $ldap = self::ldap();
         if (!$ldap || !$ldap->ready) {
             $args['abort'] = true;
+            $args['kolab_ldap_error'] = true;
             $message = sprintf(
                     'Login failure for user %s from %s in session %s (error %s)',
                     $user,
@@ -414,24 +466,69 @@ class kolab_auth extends rcube_plugin
                 return $args;
             }
 
-            // check if the original user has/belongs to administrative role/group
             $isadmin = false;
-            $group   = $rcmail->config->get('kolab_auth_group');
-            $role_dn = $rcmail->config->get('kolab_auth_role_value');
+            $admin_rights = $rcmail->config->get('kolab_auth_admin_rights', array());
 
-            // check role attribute
-            if (!empty($role_attr) && !empty($role_dn) && !empty($record[$role_attr])) {
-                $role_dn = $ldap->parse_vars($role_dn, $user, $host);
-                if (in_array($role_dn, (array)$record[$role_attr])) {
-                    $isadmin = true;
+            // @deprecated: fall-back to the old check if the original user has/belongs to administrative role/group
+            if (empty($admin_rights)) {
+                $group   = $rcmail->config->get('kolab_auth_group');
+                $role_dn = $rcmail->config->get('kolab_auth_role_value');
+
+                // check role attribute
+                if (!empty($role_attr) && !empty($role_dn) && !empty($record[$role_attr])) {
+                    $role_dn = $ldap->parse_vars($role_dn, $user, $host);
+                    if (in_array($role_dn, (array)$record[$role_attr])) {
+                        $isadmin = true;
+                    }
+                }
+
+                // check group
+                if (!$isadmin && !empty($group)) {
+                    $groups = $ldap->get_user_groups($record['dn'], $user, $host);
+                    if (in_array($group, $groups)) {
+                        $isadmin = true;
+                    }
+                }
+
+                if ($isadmin) {
+                    // user has admin privileges privilage, get "login as" user credentials
+                    $target_entry = $ldap->get_user_record($loginas, $host);
+                    $allowed_tasks = $rcmail->config->get('kolab_auth_allowed_tasks');
                 }
             }
+            else {
+                // get "login as" user credentials
+                $target_entry = $ldap->get_user_record($loginas, $host);
 
-            // check group
-            if (!$isadmin && !empty($group)) {
-                $groups = $ldap->get_user_groups($record['dn'], $user, $host);
-                if (in_array($group, $groups)) {
-                    $isadmin = true;
+                if (!empty($target_entry)) {
+                    // get effective rights to determine login-as permissions
+                    $effective_rights = (array)$ldap->effective_rights($target_entry['dn']);
+
+                    if (!empty($effective_rights)) {
+                        $effective_rights['attrib'] = $effective_rights['attributeLevelRights'];
+                        $effective_rights['entry']  = $effective_rights['entryLevelRights'];
+
+                        // compare the rights with the permissions mapping
+                        $allowed_tasks = array();
+                        foreach ($admin_rights as $task => $perms) {
+                            $perms_ = explode(':', $perms);
+                            $type   = array_shift($perms_);
+                            $req    = array_pop($perms_);
+                            $attrib = array_pop($perms_);
+
+                            if (array_key_exists($type, $effective_rights)) {
+                                if ($type == 'entry' && in_array($req, $effective_rights[$type])) {
+                                    $allowed_tasks[] = $task;
+                                }
+                                else if ($type == 'attrib' && array_key_exists($attrib, $effective_rights[$type]) &&
+                                        in_array($req, $effective_rights[$type][$attrib])) {
+                                    $allowed_tasks[] = $task;
+                                }
+                            }
+                        }
+
+                        $isadmin = !empty($allowed_tasks);
+                    }
                 }
             }
 
@@ -443,22 +540,22 @@ class kolab_auth extends rcube_plugin
                 $origname = $user;
             }
 
-            $record = null;
+            if (!$isadmin || empty($target_entry)) {
+                $this->add_texts('localization/');
 
-            // user has the privilage, get "login as" user credentials
-            if ($isadmin) {
-                $record = $ldap->get_user_record($loginas, $host);
-            }
-
-            if (empty($record)) {
                 $args['abort'] = true;
+                $args['error'] = $this->gettext(array(
+                    'name' => 'loginasnotallowed',
+                    'vars' => array('user' => Q($loginas)),
+                ));
+
                 $message = sprintf(
                         'Login failure for user %s (as user %s) from %s in session %s (error %s)',
                         $user,
                         $loginas,
                         rcube_utils::remote_ip(),
                         session_id(),
-                        "No user record found for '" . $loginas . "'"
+                        "No privileges to login as '" . $loginas . "'"
                     );
 
                 rcube::write_log('userlogins', $message);
@@ -466,12 +563,16 @@ class kolab_auth extends rcube_plugin
                 return $args;
             }
 
-            $args['user'] = $loginas;
+            // replace $record with target entry
+            $record = $target_entry;
+
+            $args['user'] = $this->username = $loginas;
 
             // Mark session to use SASL proxy for IMAP authentication
             $_SESSION['kolab_auth_admin']    = strtolower($origname);
             $_SESSION['kolab_auth_login']    = $rcmail->encrypt($admin_login);
             $_SESSION['kolab_auth_password'] = $rcmail->encrypt($admin_pass);
+            $_SESSION['kolab_auth_allowed_tasks'] = $allowed_tasks;
         }
 
         // Store UID and DN of logged user in session for use by other plugins
@@ -489,7 +590,7 @@ class kolab_auth extends rcube_plugin
             $this->data['user_login'] = is_array($record[$login_attr]) ? $record[$login_attr][0] : $record[$login_attr];
         }
         if ($this->data['user_login']) {
-            $args['user'] = $this->data['user_login'];
+            $args['user'] = $this->username = $this->data['user_login'];
         }
 
         // User name for identity (first log in)
@@ -521,6 +622,9 @@ class kolab_auth extends rcube_plugin
             rcube::write_log('userlogins', sprintf('Admin login for %s by %s from %s',
                 $args['user'], $origname, rcube_utils::remote_ip()));
         }
+
+        // load per-user settings/plugins
+        $this->load_user_role_plugins_and_settings();
 
         return $args;
     }
@@ -566,8 +670,8 @@ class kolab_auth extends rcube_plugin
             $admin_login = $rcmail->decrypt($_SESSION['kolab_auth_login']);
             $admin_pass  = $rcmail->decrypt($_SESSION['kolab_auth_password']);
 
-            $args['options']['smtp_auth_cid'] = $admin_login;
-            $args['options']['smtp_auth_pw']  = $admin_pass;
+            $args['smtp_auth_cid'] = $admin_login;
+            $args['smtp_auth_pw']  = $admin_pass;
         }
 
         return $args;
@@ -613,6 +717,28 @@ class kolab_auth extends rcube_plugin
         }
 
         return $args;
+    }
+
+    /**
+     * Action executed before the page is rendered to add an onload script
+     * that will remove all taskbar buttons for disabled tasks
+     */
+    public function render_page($args)
+    {
+        $rcmail  = rcube::get_instance();
+        $tasks   = (array)$_SESSION['kolab_auth_allowed_tasks'];
+        $tasks[] = 'logout';
+
+        // disable buttons in taskbar
+        $script = "
+        \$('a').filter(function() {
+            var ev = \$(this).attr('onclick');
+            return ev && ev.match(/'switch-task','([a-z]+)'/)
+                && \$.inArray(RegExp.\$1, " . json_encode($tasks) . ") < 0;
+        }).remove();
+        ";
+
+        $rcmail->output->add_script($script, 'docready');
     }
 
     /**

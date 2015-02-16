@@ -24,7 +24,7 @@
 
 class kolab_format_configuration extends kolab_format
 {
-    public $CTYPE   = 'application/x-vnd.kolab.configuration';
+    public $CTYPE   = 'application/vnd.kolab+xml';
     public $CTYPEv2 = 'application/x-vnd.kolab.configuration';
 
     protected $objclass   = 'Configuration';
@@ -48,9 +48,6 @@ class kolab_format_configuration extends kolab_format
      */
     public function set(&$object)
     {
-        // set common object properties
-        parent::set($object);
-
         // read type-specific properties
         switch ($object['type']) {
         case 'dictionary':
@@ -126,7 +123,12 @@ class kolab_format_configuration extends kolab_format
         }
 
         // adjust content-type string
-        $this->CTYPE = $this->CTYPEv2 = 'application/x-vnd.kolab.configuration.' . $object['type'];
+        $this->CTYPEv2 = 'application/x-vnd.kolab.configuration.' . $object['type'];
+
+        // reset old object data, otherwise set() will overwrite current data (#4095)
+        $this->xmldata = null;
+        // set common object properties
+        parent::set($object);
 
         // cache this data
         $this->data = $object;
@@ -222,7 +224,7 @@ class kolab_format_configuration extends kolab_format
 
         // adjust content-type string
         if ($object['type']) {
-            $this->CTYPE = $this->CTYPEv2 = 'application/x-vnd.kolab.configuration.' . $object['type'];
+            $this->CTYPEv2 = 'application/x-vnd.kolab.configuration.' . $object['type'];
         }
 
         $this->data = $object;

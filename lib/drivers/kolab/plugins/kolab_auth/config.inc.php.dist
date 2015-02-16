@@ -13,44 +13,55 @@
 //   With this %dc variable in base_dn and groups/base_dn will be
 //   replaced with DN string of resolved domain
 //---------------------------------------------------------------------
-$rcmail_config['kolab_auth_addressbook'] = '';
+$config['kolab_auth_addressbook'] = '';
 
 // This will overwrite defined filter
-$rcmail_config['kolab_auth_filter'] = '(&(objectClass=kolabInetOrgPerson)(|(uid=%u)(mail=%fu)(alias=%fu)))';
+$config['kolab_auth_filter'] = '(&(objectClass=kolabInetOrgPerson)(|(uid=%u)(mail=%fu)(alias=%fu)))';
 
-// Use this fields (from fieldmap configuration) to get authentication ID
-$rcmail_config['kolab_auth_login'] = 'email';
+// Use this field (from fieldmap configuration) to get authentication ID. Don't use an array here!
+$config['kolab_auth_login'] = 'email';
 
-// Use this fields (from fieldmap configuration) for default identity.
+// Use these fields (from fieldmap configuration) for default identity.
 // If the value array contains more than one field, first non-empty will be used
 // Note: These aren't LDAP attributes, but field names in config
 // Note: If there's more than one email address, as many identities will be created
-$rcmail_config['kolab_auth_name']         = array('name', 'cn');
-$rcmail_config['kolab_auth_email']        = array('email');
-$rcmail_config['kolab_auth_organization'] = array('organization');
-
-// Login and password of the admin user. Enables "Login As" feature.
-$rcmail_config['kolab_auth_admin_login']    = '';
-$rcmail_config['kolab_auth_admin_password'] = '';
-
-// Enable audit logging for abuse of administrative privileges.
-$rcmail_config['kolab_auth_auditlog'] = true;
+$config['kolab_auth_name']         = array('name', 'cn');
+$config['kolab_auth_email']        = array('email');
+$config['kolab_auth_organization'] = array('organization');
 
 // Role field (from fieldmap configuration)
-$rcmail_config['kolab_auth_role'] = 'role';
-// The required value for the role attribute to contain should the user be allowed
-// to login as another user.
-$rcmail_config['kolab_auth_role_value'] = '';
+$config['kolab_auth_role'] = 'role';
 
-// Administrative group name to which user must be assigned to
-// which adds privilege to login as another user.
-$rcmail_config['kolab_auth_group'] = '';
+// Template for user names displayed in the UI.
+// You can use all attributes from the 'fieldmap' property of the 'kolab_auth_addressbook' configuration
+$config['kolab_auth_user_displayname'] = '{name} ({ou})';
+
+// Login and password of the admin user. Enables "Login As" feature.
+$config['kolab_auth_admin_login']    = '';
+$config['kolab_auth_admin_password'] = '';
+
+// Enable audit logging for abuse of administrative privileges.
+$config['kolab_auth_auditlog'] = false;
+
+// As set of rules to define the required rights on the target entry
+// which allow an admin user to login as another user (the target).
+// The effective rights value refers to either entry level attribute level rights:
+//  * entry:[read|add|delete]
+//  * attrib:<attribute-name>:[read|write|delete]
+$config['kolab_auth_admin_rights'] = array(
+    // Roundcube task => required effective right
+    'settings'        => 'entry:read',
+    'mail'            => 'entry:delete',
+    'addressbook'     => 'entry:delete',
+    // or use a wildcard entry like this:
+    '*'               => 'entry:read',
+);
 
 // Enable plugins on a role-by-role basis. In this example, the 'acl' plugin
 // is enabled for people with a 'cn=professional-user,dc=mykolab,dc=ch' role.
 //
 // Note that this does NOT mean the 'acl' plugin is disabled for other people.
-$rcmail_config['kolab_auth_role_plugins'] = Array(
+$config['kolab_auth_role_plugins'] = Array(
         'cn=professional-user,dc=mykolab,dc=ch' => Array(
                 'acl',
             ),
@@ -62,7 +73,7 @@ $rcmail_config['kolab_auth_role_plugins'] = Array(
 // do not allow the setting to be controlled through the preferences, enable the
 // html editor for professional users and allow them to override the setting in
 // the preferences.
-$rcmail_config['kolab_auth_role_settings'] = Array(
+$config['kolab_auth_role_settings'] = Array(
         'cn=professional-user,dc=mykolab,dc=ch' => Array(
                 'htmleditor' => Array(
                         'mode' => 'override',
@@ -75,6 +86,6 @@ $rcmail_config['kolab_auth_role_settings'] = Array(
 // List of LDAP addressbooks (keys of ldap_public configuration array)
 // for which base_dn variables (%dc, etc.) will be replaced according to authenticated user DN
 // Note: special name '*' for all LDAP addressbooks
-$rcmail_config['kolab_auth_ldap_addressbooks'] = array('*');
+$config['kolab_auth_ldap_addressbooks'] = array('*');
 
 ?>
