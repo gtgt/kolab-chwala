@@ -1,0 +1,6 @@
+cache
+config/main.inc.php
+config/plugins.inc.php
+lib/ext/PEAR/
+logs
+public_html/htaccess
