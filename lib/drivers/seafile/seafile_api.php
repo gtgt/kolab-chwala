@@ -109,6 +109,10 @@ class seafile_api
             'ssl_cafile', 'ssl_capath', 'ssl_local_cert', 'ssl_passphrase'
         )));
 
+        // force CURL adapter, this allows to handle correctly
+        // compressed responses with simple SplObserver registered
+        $config['adapter'] = 'HTTP_Request2_Adapter_Curl';
+
         try {
             $request = new HTTP_Request2();
             $request->setConfig($config);

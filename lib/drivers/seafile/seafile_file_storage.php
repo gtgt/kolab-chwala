@@ -507,8 +507,21 @@ class seafile_file_storage implements file_storage
 
         // just send redirect to SeaFile server
         if ($file['size']) {
+            // In view-mode we can't redirect to SeaFile server because:
+            // - it responds with Content-Disposition: attachment, which causes that
+            //   e.g. previewing images is not possible
+            // - pdf/odf viewers can't follow redirects for some reason (#4590)
+            if (empty($params['force-download'])) {
+                if ($fp = fopen('php://output', 'wb')) {
+                    $this->save_file_content($link, $fp);
+                    fclose($fp);
+                    die;
+                }
+            }
+
             header("Location: $link");
         }
+
         die;
     }
 
