@@ -295,7 +295,7 @@ class file_api extends file_api_core
             if (!empty($status)) {
                 $status['percent'] = round($status['current']/$status['total']*100);
                 if ($status['percent'] < 100) {
-                    $diff = time() - intval($status['start_time']);
+                    $diff = max(1, time() - intval($status['start_time']));
                     // calculate time to end of uploading (in seconds)
                     $status['eta'] = intval($diff * (100 - $status['percent']) / $status['percent']);
                     // average speed (bytes per second)
