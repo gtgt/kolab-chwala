@@ -56,8 +56,8 @@ class kolab_file_storage implements file_storage
         // WARNING: We can use only plugins that are prepared for this
         //          e.g. are not using output or rcmail objects or
         //          doesn't throw errors when using them
-        $plugins  = (array)$this->rc->config->get('fileapi_plugins', array('kolab_auth'));
-        $required = array('libkolab');
+        $plugins = (array) $this->rc->config->get('fileapi_plugins', array('kolab_auth'));
+        $plugins = array_unique(array_merge($plugins, array('libkolab')));
 
         // Kolab WebDAV server supports plugins, no need to overwrite object
         if (!is_a($this->rc->plugins, 'rcube_plugin_api')) {
@@ -66,7 +66,11 @@ class kolab_file_storage implements file_storage
             $this->rc->plugins->init($this, '');
         }
 
-        $this->rc->plugins->load_plugins($plugins, $required);
+        // this way we're compatible with Roundcube Framework 1.2
+        // we can't use load_plugins() here
+        foreach ($plugins as $plugin) {
+            $this->rc->plugins->load_plugin($plugin, true);
+        }
 
         $this->init();
     }

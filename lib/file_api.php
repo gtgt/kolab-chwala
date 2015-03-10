@@ -134,13 +134,18 @@ class file_api extends file_api_core
         ini_set('session.use_cookies', 0);
         ini_set('session.serialize_handler', 'php');
 
-        // use database for storing session data
-        $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
+        // Roundcube Framework >= 1.2
+        if (in_array('factory', get_class_methods('rcube_session'))) {
+            $this->session = rcube_session::factory($this->conf);
+        }
+        // Rouncube Framework < 1.2
+        else {
+            $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
+            $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
+            $this->session->set_ip_check($this->conf->get('ip_check'));
+        }
 
         $this->session->register_gc_handler(array($rcube, 'gc'));
-
-        $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
-        $this->session->set_ip_check($this->conf->get('ip_check'));
 
         // this is needed to correctly close session in shutdown function
         $rcube->session = $this->session;
