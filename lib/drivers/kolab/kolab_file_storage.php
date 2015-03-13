@@ -1077,6 +1077,15 @@ class kolab_file_storage implements file_storage
             $folder      = kolab_storage::get_folder($imap_name, 'file');
 
             if (!$folder || !$folder->valid) {
+                $error = $folder->get_error();
+
+                if ($error === kolab_storage::ERROR_IMAP_CONN || $error === kolab_storage::ERROR_CACHE_DB) {
+                    throw new Exception("The storage is temporarily unavailable.", file_storage::ERROR_UNAVAILABLE);
+                }
+                else if ($error === kolab_storage::ERROR_NO_PERMISSION) {
+                    throw new Exception("Storage error. Access not permitted", file_storage::ERROR_FORBIDDEN);
+                }
+
                 throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
             }
 

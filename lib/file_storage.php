@@ -36,8 +36,10 @@ interface file_storage
     const SEPARATOR = '/';
 
     // error codes
-    const ERROR             = 500;
     const ERROR_LOCKED      = 423;
+    const ERROR             = 500;
+    const ERROR_UNAVAILABLE = 503;
+    const ERROR_FORBIDDEN   = 530;
     const ERROR_FILE_EXISTS = 550;
     const ERROR_UNSUPPORTED = 570;
     const ERROR_NOAUTH      = 580;
