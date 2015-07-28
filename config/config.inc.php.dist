@@ -72,4 +72,4 @@ $config['fileapi_seafile_ssl_verify_peer'] = false;
 // ------------------------------------------------
 
 // Default URI location for WebDAV storage
-$config['fileapi_webdav_baseuri'] = true;
+$config['fileapi_webdav_baseuri'] = 'https://localhost/iRony';
