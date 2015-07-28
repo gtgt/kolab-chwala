@@ -47,6 +47,7 @@ $LANG['form.cancel'] = 'Cancel';
 $LANG['form.hostname'] = 'Hostname:';
 $LANG['form.username'] = 'Username:';
 $LANG['form.password'] = 'Password:';
+$LANG['form.baseuri'] = 'Base URI:';
 
 $LANG['login.username'] = 'Username';
 $LANG['login.password'] = 'Password';
