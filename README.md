@@ -6,7 +6,7 @@ placed in lib/ext directory. In case you're using a package version
 with lib/ext directory empty make sure all dependencies are installed
 on your system. These are Roundcube Framework and its dependencies plus
 PEAR::HTTP_Request2 and PEAR::Net_URL2 packages. Additionally Smarty v3 need
-to be installed.
+to be installed. Webdav driver requires SabreDAV library.
 
 1. Create local config
 
@@ -24,6 +24,15 @@ $ chown <www-user> temp
 
 4. Optionally, configure your webserver to point to the 'public_html' directory of this
 package as document root.
+
+
+SabreDAV INSTALLATION
+=====================
+
+cd lib/ext
+wget https://github.com/fruux/sabre-dav/releases/download/2.1.6/sabredav-2.1.6.zip
+unzip sabredav-2.1.6.zip
+rm -f sabredav-2.1.6.zip
 
 
 CREATING BACKEND-DRIVER

@@ -1,9 +1,9 @@
 <?php
-/*
+/**
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2012-2013, Kolab Systems AG                                |
+ | Copyright (C) 2012-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -23,6 +23,7 @@
 */
 
 require 'SabreDAV/vendor/autoload.php';
+
 use Sabre\DAV\Client;
 
 class webdav_file_storage implements file_storage
@@ -31,7 +32,6 @@ class webdav_file_storage implements file_storage
      * @var rcube
      */
     protected $rc;
-
 
     /**
      * @var array
@@ -42,7 +42,7 @@ class webdav_file_storage implements file_storage
      * @var string
      */
     protected $title;
-    
+
     /**
      * @var Sabre\DAV\Client
      */
@@ -73,19 +73,22 @@ class webdav_file_storage implements file_storage
             'password' => $password,
             'authType' => Client::AUTH_BASIC,
         );
-        
+
         $client = new Client($settings);
-        
+
         try {
-            $client->propfind('',array());
-        } catch (Exception $e) {
+            $client->propfind('', array());
+        }
+        catch (Exception $e) {
             return false;
         }
-        if ($this->title) { 
+
+        if ($this->title) {
             $_SESSION[$this->title . '_webdav_user']  = $username;
             $_SESSION[$this->title . '_webdav_pass']  = $this->rc->encrypt($password);
             $this->client = $client;
         }
+
         return true;
     }
 
@@ -113,28 +116,33 @@ class webdav_file_storage implements file_storage
         $this->config = array_merge($this->config, $config);
         $this->title = $title;
     }
-    
+
     /**
      * Initializes WebDAV client
      */
     protected function init()
     {
-        if ($this->client !== null)
+        if ($this->client !== null) {
             return true;
-        
-        //Load configuration for main driver
+        }
+
+        // Load configuration for main driver
         $config['baseUri'] = $this->rc->config->get('fileapi_webdav_baseUri');
+
         if (!empty($config['baseUri'])) {
             $config['username'] = $_SESSION['username'];
             $config['password'] = $this->rc->decrypt($_SESSION['password']);
         }
+
         $this->config = array_merge($config, $this->config);
-        
-        //Use session username if not set in configuration
-        if (!isset($this->config['username']))
-            $this->config['username'] = $_SESSION[$this->title . 'webdav_user'];
-        if (!isset($this->config['password']) )   
-            $this->config['password'] = $this->rc->decrypt($_SESSION[$this->title . 'webdav_pass']);
+
+        // Use session username if not set in configuration
+        if (!isset($this->config['username'])) {
+            $this->config['username'] = $_SESSION[$this->title . '_webdav_user'];
+        }
+        if (!isset($this->config['password'])) {
+            $this->config['password'] = $this->rc->decrypt($_SESSION[$this->title . '_webdav_pass']);
+        }
 
         $this->client = new Client(array(
             'baseUri'  => $this->config['baseUri'],
@@ -231,7 +239,7 @@ class webdav_file_storage implements file_storage
      */
     public function driver_metadata()
     {
-        $image_content = file_get_contents(__DIR__ . '/owncloud.png');
+        $image_content = file_get_contents(__DIR__ . '/webdav.png');
 
         $metadata = array(
             'image' => 'data:image/png;base64,' . base64_encode($image_content),
@@ -239,14 +247,14 @@ class webdav_file_storage implements file_storage
             'ref'   => 'http://www.webdav.org/',
             'description' => 'WebDAV client',
             'form'  => array(
-                'baseUri'  => 'Base URI',
-                'username' => 'Username',
-                'password' => 'Password',
+                'baseUri'  => 'baseuri',
+                'username' => 'username',
+                'password' => 'password',
             ),
         );
-        
+
         // these are returned when authentication on folders list fails
-        if ($this->config['userName']) {
+        if ($this->config['username']) {
             $metadata['form_values'] = array(
                 'baseUri'  => $this->config['baseUri'],
                 'username' => $this->config['username'],
@@ -277,12 +285,13 @@ class webdav_file_storage implements file_storage
         if (!is_string($metadata['baseUri']) || !strlen($metadata['baseUri'])) {
             throw new Exception("Missing base URL.", file_storage::ERROR);
         }
-        
+
         // Ensure baseUri ends with a slash
         $baseUri = $metadata['baseUri'];
-        if (substr($baseUri, -1) != '/')
+        if (substr($baseUri, -1) != '/') {
             $baseUri .= '/';
-        
+        }
+
         $this->config['baseUri'] = $baseUri;
 
         if (!$this->authenticate($metadata['username'], $metadata['password'])) {
@@ -290,7 +299,7 @@ class webdav_file_storage implements file_storage
         }
 
         return array(
-            'baseUri' => $baseUri,
+            'baseUri'  => $baseUri,
             'username' => $metadata['username'],
             'password' => $metadata['password'],
         );
@@ -307,17 +316,20 @@ class webdav_file_storage implements file_storage
     public function file_create($file_name, $file)
     {
         $this->init();
-        
+
         if ($file['path']) {
             $data = fopen($file['path'], 'r');
-        } else {
-            //Resource or data
+        }
+        else {
+            // Resource or data
             $data = $file['content'];
         }
-        $response = $this->client->request('PUT', $file_name, $data);
-        
+
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('PUT', $file_name, $data);
+
         if ($response['statusCode'] != 201) {
-            throw new Exception("Storage error. ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error. " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -332,17 +344,20 @@ class webdav_file_storage implements file_storage
     public function file_update($file_name, $file)
     {
         $this->init();
-        
+
         if ($file['path']) {
             $data = fopen($file['path'], 'r');
-        } else {
+        }
+        else {
             //Resource or data
             $data = $file['content'];
         }
-        $response = $this->client->request('PUT', $file_name, $data);
-        
+
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('PUT', $file_name, $data);
+
         if ($response['statusCode'] != 204) {
-            throw new Exception("Storage error. ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error. " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -356,11 +371,12 @@ class webdav_file_storage implements file_storage
     public function file_delete($file_name)
     {
         $this->init();
-        print_r($file_name);
-        
-        $response = $this->client->request('DELETE', $file_name);
+
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('DELETE', $file_name);
+
         if ($response['statusCode'] != 204) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -376,19 +392,23 @@ class webdav_file_storage implements file_storage
     public function file_get($file_name, $params = array(), $fp = null)
     {
         $this->init();
-        
-        //TODO: Write directly to $fp
-        $response = $this->client->request('GET', $file_name);
 
-        $size = $response['headers']['content-length'][0];
+        // TODO: Write directly to $fp
+
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('GET', $file_name);
+
         if ($response['statusCode'] != 200) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
-        
+
+        $size = $response['headers']['content-length'][0];
+
         // write to file pointer, send no headers
         if ($fp) {
-            if ($size)
+            if ($size) {
                 fwrite($fp, $response['body']);
+            }
             return;
         }
 
@@ -435,23 +455,24 @@ class webdav_file_storage implements file_storage
     public function file_info($file_name)
     {
         $this->init();
-        
+
         try {
-            $props = $this->client->propfind($file_name, array(
-                '{DAV:}resourcetype',
-                '{DAV:}getcontentlength',
-                '{DAV:}getcontenttype',
-                '{DAV:}getlastmodified',
-                '{DAV:}creationdate'
-            ), 0);
-        } catch (Exception $e) {
+            $props = $this->client->propfind($this->encode_path($file_name), array(
+                    '{DAV:}resourcetype',
+                    '{DAV:}getcontentlength',
+                    '{DAV:}getcontenttype',
+                    '{DAV:}getlastmodified',
+                    '{DAV:}creationdate'
+                ), 0);
+        }
+        catch (Exception $e) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
-        
+
         $mtime = new DateTime($props['{DAV:}getlastmodified']);
         $ctime = new DateTime($props['{DAV:}creationdate']);
-    
-        return array (         
+
+        return array (
             'name'     => end(explode('/', $file_name)),
             'size'     => (int) $props['{DAV:}getcontentlength'],
             'type'     => (string) $props['{DAV:}getcontenttype'],
@@ -459,7 +480,7 @@ class webdav_file_storage implements file_storage
             'ctime'    => $ctime ? $ctime->format($this->config['date_format']) : '',
             'modified' => $mtime ? $mtime->format('U') : 0,
             'created'  => $ctime ? $ctime->format('U') : 0,
-            );
+        );
     }
 
     /**
@@ -474,44 +495,49 @@ class webdav_file_storage implements file_storage
     public function file_list($folder_name, $params = array())
     {
         $this->init();
-        
+
         try {
-            $items = $this->client->propfind($folder_name, array(
-                '{DAV:}resourcetype',
-                '{DAV:}getcontentlength',
-                '{DAV:}getcontenttype',
-                '{DAV:}getlastmodified',
-                '{DAV:}creationdate'
-            ), 1);
-        } catch (Exception $e) {
+            $items = $this->client->propfind($this->encode_path($folder_name), array(
+                    '{DAV:}resourcetype',
+                    '{DAV:}getcontentlength',
+                    '{DAV:}getcontenttype',
+                    '{DAV:}getlastmodified',
+                    '{DAV:}creationdate'
+                ), 1);
+        }
+        catch (Exception $e) {
             throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
         }
 
         $result = array();
-        foreach($items as $file => $props) {
+
+        foreach ($items as $file => $props) {
             //Skip directories
             $is_dir = in_array('{DAV:}collection', $props['{DAV:}resourcetype']->resourceType);
-            if ($is_dir)
+            if ($is_dir) {
                 continue;
-            
+            }
+
             $mtime = new DateTime($props['{DAV:}getlastmodified']);
             $ctime = new DateTime($props['{DAV:}creationdate']);
-        
-            $path = $this->get_full_url($file);
-        
-            $result[$path] = array (         
-                'name'     => end(explode('/', $path)),
+
+            $path  = $this->get_full_url($file);
+            $path  = $this->decode_path($path);
+            $fname = end(explode('/', $path));
+
+            $result[$path] = array(
+                'name'     => $fname,
                 'size'     => (int) $props['{DAV:}getcontentlength'],
                 'type'     => (string) $props['{DAV:}getcontenttype'],
                 'mtime'    => $mtime ? $mtime->format($this->config['date_format']) : '',
                 'ctime'    => $ctime ? $ctime->format($this->config['date_format']) : '',
                 'modified' => $mtime ? $mtime->format('U') : 0,
                 'created'  => $ctime ? $ctime->format('U') : 0,
-                );
+            );
         }
 
         // @TODO: pagination, search (by filename, mimetype)
-        
+
         // Sorting
         $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
         $index = array();
@@ -530,7 +556,7 @@ class webdav_file_storage implements file_storage
         if ($params['reverse']) {
             $result = array_reverse($result, true);
         }
-        
+
         return $result;
     }
 
@@ -545,10 +571,13 @@ class webdav_file_storage implements file_storage
     public function file_copy($file_name, $new_name)
     {
         $this->init();
-            
-        $response = $this->client->request('COPY', $file_name, null, array('Destination' => $this->config['baseUri'].'/'.$new_name));
+
+        $request   =  array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('COPY', $file_name, null, $request);
+
         if ($response['statusCode'] != 201) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -563,10 +592,13 @@ class webdav_file_storage implements file_storage
     public function file_move($file_name, $new_name)
     {
         $this->init();
-            
-        $response = $this->client->request('MOVE', $file_name, null, array('Destination' => $this->config['baseUri'].'/'.$new_name));
+
+        $request   = array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $file_name = $this->encode_path($file_name);
+        $response  = $this->client->request('MOVE', $file_name, null, $request);
+
         if ($response['statusCode'] != 201) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -580,10 +612,12 @@ class webdav_file_storage implements file_storage
     public function folder_create($folder_name)
     {
         $this->init();
-        
-        $response = $this->client->request('MKCOL', $folder_name);
+
+        $folder_name = $this->encode_path($folder_name);
+        $response    = $this->client->request('MKCOL', $folder_name);
+
         if ($response['statusCode'] != 201) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -597,10 +631,12 @@ class webdav_file_storage implements file_storage
     public function folder_delete($folder_name)
     {
         $this->init();
-        
-        $response = $this->client->request('DELETE', $folder_name);
+
+        $folder_name = $this->encode_path($folder_name);
+        $response    = $this->client->request('DELETE', $folder_name);
+
         if ($response['statusCode'] != 204) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -615,10 +651,13 @@ class webdav_file_storage implements file_storage
     public function folder_move($folder_name, $new_name)
     {
         $this->init();
-        
-        $response = $this->client->request('MOVE', $folder_name, null, array('Destination' => $this->config['baseUri'].'/'.$new_name));
+
+        $request     = array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $folder_name = $this->encode_path($folder_name);
+        $response    = $this->client->request('MOVE', $folder_name, null, $request);
+
         if ($response['statusCode'] != 201) {
-            throw new Exception("Storage error: ".$response['body'], file_storage::ERROR);
+            throw new Exception("Storage error: " . $response['body'], file_storage::ERROR);
         }
     }
 
@@ -631,29 +670,40 @@ class webdav_file_storage implements file_storage
     public function folder_list()
     {
         $this->init();
-        
+
         try {
             $items = $this->client->propfind('', array(
                 '{DAV:}resourcetype',
-            ), 'infinity'); //TODO: Maybe replace infinity by recursion
-        } catch (Exception $e) {
-            print_r($e);
+            ), 'infinity');
+
+            // TODO: Replace infinity by recursion
+            // Many servers just do not support 'Depth: infinity' for security reasons
+            // E.g. SabreDAV has this optional and disabled by default
+        }
+        catch (Exception $e) {
             throw new Exception("User credentials not provided", file_storage::ERROR_NOAUTH);
         }
-        $result = array('.');
-        foreach($items as $file => $props) {
-            //Skip directories
+
+        $result = array();
+
+        foreach ($items as $file => $props) {
+            // Skip files
             $is_dir = in_array('{DAV:}collection', $props['{DAV:}resourcetype']->resourceType);
-            if (!$is_dir)
+            if (!$is_dir) {
                 continue;
-            
+            }
+
             $path = $this->get_relative_url($file);
-            
-            if (!empty($path))
-                $result[] = './'.$path;
+            $path = $this->decode_path($path);
+
+            if ($path !== '') {
+                $result[] = $path;
+            }
         }
+
         // ensure sorted folders
         usort($result, array($this, 'sort_folder_comparator'));
+
         return $result;
     }
 
@@ -746,22 +796,22 @@ class webdav_file_storage implements file_storage
     public function quota($folder)
     {
         $this->init();
-        
-        $props = $this->client->propfind($file_name, array(
+
+        $props = $this->client->propfind($this->encode_path($folder), array(
             '{DAV:}quota-available-bytes',
             '{DAV:}quota-used-bytes',
         ), 0);
-        
-        $usedB = $props['{DAV:}quota-used-bytes'];
-        $availableB = $props['{DAV:}quota-available-bytes'];
+
+        $used      = $props['{DAV:}quota-used-bytes'];
+        $available = $props['{DAV:}quota-available-bytes'];
 
         return array(
             // expected values in kB
-            'total' => ($usedB + $availableB) / 1024,
-            'used'  => $usedB / 1024,
+            'total' => ($used + $available) / 1024,
+            'used'  => $used / 1024,
         );
     }
-    
+
     /**
      * Gets the relative URL of a resource
      *
@@ -770,14 +820,11 @@ class webdav_file_storage implements file_storage
      */
     protected function get_relative_url($url)
     {
-        return trim(
-            str_replace(
-                $this->config['baseUri'], 
-                '',
-                $this->client->getAbsoluteUrl($url))
-            , '/');
+        $url = $this->client->getAbsoluteUrl($url);
+
+        return trim(str_replace($this->config['baseUri'], '', $url), '/');
     }
-    
+
     /**
      * Gets the full URL of a resource
      *
@@ -786,29 +833,61 @@ class webdav_file_storage implements file_storage
      */
     protected function get_full_url($url)
     {
-        if (!empty($this->title))
-            return $this->title.'/'.$this->get_relative_url($url);
+        if (!empty($this->title)) {
+            return $this->title . '/' . $this->get_relative_url($url);
+        }
+
         return $this->get_relative_url($url);
     }
-    
+
+    /**
+     * Encode folder/file names in the path
+     * so it can be used as URL
+     *
+     * @param string $path File/folder path
+     *
+     * @return string Encoded URL
+     */
+    protected function encode_path($path)
+    {
+        $path = explode('/', $path);
+        $path = array_map('rawurlencode', $path);
+
+        return implode('/', $path);
+    }
+
+    /**
+     * Decode folder/file URL path
+     *
+     * @param string $path File/folder path
+     *
+     * @return string Decoded path
+     */
+    protected function decode_path($path)
+    {
+        $path = explode('/', $path);
+        $path = array_map('rawurldecode', $path);
+
+        return implode('/', $path);
+    }
+
     protected function uri2resource($uri)
     {
-        list($file, $repo_id, $library) = $this->find_library($uri);
-
         // convert to imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
+        $uri  = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
+        $base = preg_replace('|^[a-zA-Z]+://|', '', $this->config['baseUri']);
 
-        return 'seafile://' . urlencode($library['owner']) . '@' . $this->config['host'] . '/' . $uri;
+        return 'webdav://' . urlencode($base) . '/' . $uri;
     }
 
     protected function resource2uri($resource)
     {
-        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+        if (!preg_match('|^webdav://(.*)$|', $resource, $matches)) {
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
-        $user = urldecode($matches[1]);
-        $uri  = $matches[3];
+        $uri = explode('/', $matches[1], 2);
+        $uri = end($uri);
 
         // convert from imap charset (to be safe to store in DB)
         $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
@@ -825,5 +904,24 @@ class webdav_file_storage implements file_storage
             $this->lock_db = new file_locks;
         }
     }
-}
 
+    /**
+     * Callback for uasort() that implements correct
+     * locale-aware case-sensitive sorting
+     */
+    protected function sort_folder_comparator($str1, $str2)
+    {
+        $path1 = explode('/', $str1);
+        $path2 = explode('/', $str2);
+
+        foreach ($path1 as $idx => $folder1) {
+            $folder2 = $path2[$idx];
+
+            if ($folder1 === $folder2) {
+                continue;
+            }
+
+            return strcoll($folder1, $folder2);
+        }
+    }
+}
