@@ -13,8 +13,8 @@
 $config['fileapi_backend'] = 'kolab';
 
 // Enabled external storage drivers
-// Note: Currenty only 'seafile' is available
-$config['fileapi_drivers'] = array('seafile');
+// Note: Currenty only 'seafile' and webdav is available
+$config['fileapi_drivers'] = array('seafile', 'webdav');
 
 // Pre-defined list of external storage sources.
 // Here admins can define sources which will be "mounted" into users folder tree
@@ -26,6 +26,12 @@ $config['fileapi_sources'] = array(
         // when username is set to '%u' current user name and password
         // will be used to authenticate to this storage source
         'username' => '%u',
+    ),
+    'Public-Files' => array(
+        'driver'   => 'webdav',
+        'baseuri'  => 'https://some.host.tld/Files',
+        'username' => 'admin',
+        'password' => 'pass',
     ),
 );
 */
@@ -53,8 +59,17 @@ $config['fileapi_seafile_cache'] = 'db';
 // Expiration time of SeaFile cache entries
 $config['fileapi_seafile_cache_ttl'] = '7d';
 
+// Default SeaFile Web API host
+$config['fileapi_seafile_host'] = 'localhost';
+
 // Enables SSL certificates validation when connecting
 // with any SeaFile server
 $config['fileapi_seafile_ssl_verify_host'] = false;
 $config['fileapi_seafile_ssl_verify_peer'] = false;
 
+// ------------------------------------------------
+// WebDAV driver settings
+// ------------------------------------------------
+
+// Default URI location for WebDAV storage
+$config['fileapi_webdav_baseuri'] = true;

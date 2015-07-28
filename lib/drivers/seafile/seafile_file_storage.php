@@ -117,7 +117,7 @@ class seafile_file_storage implements file_storage
             'ssl_verify_peer' => $this->rc->config->get('fileapi_seafile_ssl_verify_peer', true),
             'ssl_verify_host' => $this->rc->config->get('fileapi_seafile_ssl_verify_host', true),
             'cache'           => $this->rc->config->get('fileapi_seafile_cache'),
-            'cache_ttl'       => $this->rc->config->get('fileapi_seafile_cache', '14d'),
+            'cache_ttl'       => $this->rc->config->get('fileapi_seafile_cache_ttl', '14d'),
             'debug'           => $this->rc->config->get('fileapi_seafile_debug', false),
         );
 

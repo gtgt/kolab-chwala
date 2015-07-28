@@ -68,7 +68,7 @@ class webdav_file_storage implements file_storage
     public function authenticate($username, $password)
     {
         $settings = array(
-            'baseUri'  => $this->config['baseUri'],
+            'baseUri'  => $this->config['baseuri'],
             'userName' => $username,
             'password' => $password,
             'authType' => Client::AUTH_BASIC,
@@ -127,9 +127,9 @@ class webdav_file_storage implements file_storage
         }
 
         // Load configuration for main driver
-        $config['baseUri'] = $this->rc->config->get('fileapi_webdav_baseUri');
+        $config['baseuri'] = $this->rc->config->get('fileapi_webdav_baseuri');
 
-        if (!empty($config['baseUri'])) {
+        if (!empty($config['baseuri'])) {
             $config['username'] = $_SESSION['username'];
             $config['password'] = $this->rc->decrypt($_SESSION['password']);
         }
@@ -145,7 +145,7 @@ class webdav_file_storage implements file_storage
         }
 
         $this->client = new Client(array(
-            'baseUri'  => $this->config['baseUri'],
+            'baseUri'  => $this->config['baseuri'],
             'userName' => $this->config['username'],
             'password' => $this->config['password'],
             'authType' => Client::AUTH_BASIC,
@@ -247,7 +247,7 @@ class webdav_file_storage implements file_storage
             'ref'   => 'http://www.webdav.org/',
             'description' => 'WebDAV client',
             'form'  => array(
-                'baseUri'  => 'baseuri',
+                'baseuri'  => 'baseuri',
                 'username' => 'username',
                 'password' => 'password',
             ),
@@ -256,7 +256,7 @@ class webdav_file_storage implements file_storage
         // these are returned when authentication on folders list fails
         if ($this->config['username']) {
             $metadata['form_values'] = array(
-                'baseUri'  => $this->config['baseUri'],
+                'baseuri'  => $this->config['baseuri'],
                 'username' => $this->config['username'],
             );
         }
@@ -282,24 +282,24 @@ class webdav_file_storage implements file_storage
             throw new Exception("Missing user password.", file_storage::ERROR);
         }
 
-        if (!is_string($metadata['baseUri']) || !strlen($metadata['baseUri'])) {
+        if (!is_string($metadata['baseuri']) || !strlen($metadata['baseuri'])) {
             throw new Exception("Missing base URL.", file_storage::ERROR);
         }
 
         // Ensure baseUri ends with a slash
-        $baseUri = $metadata['baseUri'];
-        if (substr($baseUri, -1) != '/') {
-            $baseUri .= '/';
+        $base_uri = $metadata['baseuri'];
+        if (substr($base_uri, -1) != '/') {
+            $base_uri .= '/';
         }
 
-        $this->config['baseUri'] = $baseUri;
+        $this->config['baseuri'] = $base_uri;
 
         if (!$this->authenticate($metadata['username'], $metadata['password'])) {
             throw new Exception("Unable to authenticate user", file_storage::ERROR_NOAUTH);
         }
 
         return array(
-            'baseUri'  => $baseUri,
+            'baseuri'  => $base_uri,
             'username' => $metadata['username'],
             'password' => $metadata['password'],
         );
@@ -572,7 +572,7 @@ class webdav_file_storage implements file_storage
     {
         $this->init();
 
-        $request   =  array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $request   =  array('Destination' => $this->config['baseuri'] . '/' . rawurlencode($new_name));
         $file_name = $this->encode_path($file_name);
         $response  = $this->client->request('COPY', $file_name, null, $request);
 
@@ -593,7 +593,7 @@ class webdav_file_storage implements file_storage
     {
         $this->init();
 
-        $request   = array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $request   = array('Destination' => $this->config['baseuri'] . '/' . rawurlencode($new_name));
         $file_name = $this->encode_path($file_name);
         $response  = $this->client->request('MOVE', $file_name, null, $request);
 
@@ -652,7 +652,7 @@ class webdav_file_storage implements file_storage
     {
         $this->init();
 
-        $request     = array('Destination' => $this->config['baseUri'] . '/' . rawurlencode($new_name));
+        $request     = array('Destination' => $this->config['baseuri'] . '/' . rawurlencode($new_name));
         $folder_name = $this->encode_path($folder_name);
         $response    = $this->client->request('MOVE', $folder_name, null, $request);
 
@@ -822,7 +822,7 @@ class webdav_file_storage implements file_storage
     {
         $url = $this->client->getAbsoluteUrl($url);
 
-        return trim(str_replace($this->config['baseUri'], '', $url), '/');
+        return trim(str_replace($this->config['baseuri'], '', $url), '/');
     }
 
     /**
@@ -875,7 +875,7 @@ class webdav_file_storage implements file_storage
     {
         // convert to imap charset (to be safe to store in DB)
         $uri  = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
-        $base = preg_replace('|^[a-zA-Z]+://|', '', $this->config['baseUri']);
+        $base = preg_replace('|^[a-zA-Z]+://|', '', $this->config['baseuri']);
 
         return 'webdav://' . urlencode($base) . '/' . $uri;
     }
