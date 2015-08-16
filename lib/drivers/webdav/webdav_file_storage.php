@@ -113,8 +113,12 @@ class webdav_file_storage implements file_storage
      */
     public function configure($config, $title = null)
     {
+        if (!empty($config['host'])) {
+            $config['baseuri'] = $config['host'];
+        }
+
         $this->config = array_merge($this->config, $config);
-        $this->title = $title;
+        $this->title  = $title;
     }
 
     /**
@@ -142,6 +146,10 @@ class webdav_file_storage implements file_storage
         }
         if (!isset($this->config['password'])) {
             $this->config['password'] = $this->rc->decrypt($_SESSION[$this->title . '_webdav_pass']);
+        }
+
+        if (empty($this->config['baseuri'])) {
+            throw new Exception("Missing base URI of WebDAV server", file_storage::ERROR_NOAUTH);
         }
 
         $this->client = new Client(array(
@@ -299,7 +307,8 @@ class webdav_file_storage implements file_storage
         }
 
         return array(
-            'baseuri'  => $base_uri,
+            'host'     => $base_uri,
+            'port'     => 0,
             'username' => $metadata['username'],
             'password' => $metadata['password'],
         );

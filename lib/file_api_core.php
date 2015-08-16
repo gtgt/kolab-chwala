@@ -85,12 +85,20 @@ class file_api_core extends file_locale
         $preconf = $rcube->config->get('fileapi_sources');
         $result  = array();
         $all     = array();
+        $iRony   = defined('KOLAB_DAV_ROOT');
 
         if (!empty($enabled)) {
             $backend = $this->get_backend();
             $drivers = $backend->driver_list();
 
             foreach ($drivers as $item) {
+                // Disable webdav sources/drivers in iRony
+                // It does not work when the API is used where
+                // some SabreDAV classes are redefined
+                if ($iRony && $item['driver'] == 'webdav') {
+                    continue;
+                }
+
                 $all[] = $item['title'];
 
                 if ($item['enabled'] && in_array($item['driver'], (array) $enabled)) {
