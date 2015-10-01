@@ -513,8 +513,7 @@ class webdav_file_storage implements file_storage
                     break;
 
                 case 'class':
-                    $params['search']['type'] = file_utils::class2mimetypes($params['search']['class']);
-                    unset($params['search']['class']);
+                    $params['search']['class'] = file_utils::class2mimetypes($params['search']['class']);
                     break;
                 }
             }
@@ -559,10 +558,10 @@ class webdav_file_storage implements file_storage
                         }
                         break;
 
-                    case 'type':
+                    case 'class':
                         foreach ($value as $type) {
-                            if (strpos($ctype, $type) !== false) {
-                                break 3;
+                            if (stripos($ctype, $type) !== false) {
+                                continue 3;
                             }
                         }
                         continue 3; // skip the file
