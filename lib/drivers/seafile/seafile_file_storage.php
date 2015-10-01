@@ -601,8 +601,8 @@ class seafile_file_storage implements file_storage
                     }
                     else if ($idx == 'class') {
                         foreach ($value as $v) {
-                            if (stripos($file['type'], $v) === 0) {
-                                break 2;
+                            if (stripos($file['type'], $v) !== false) {
+                                continue 2;
                             }
                         }
 
