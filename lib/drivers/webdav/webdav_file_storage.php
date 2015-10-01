@@ -505,6 +505,11 @@ class webdav_file_storage implements file_storage
     {
         $this->init();
 
+        if (!empty($params['search']) && !empty($params['search']['class'])) {
+            $params['search']['type'] = file_utils::class2mimetypes($params['search']['class']);
+            unset($params['search']['class']);
+        }
+
         try {
             $items = $this->client->propfind($this->encode_path($folder_name), array(
                     '{DAV:}resourcetype',
@@ -529,15 +534,41 @@ class webdav_file_storage implements file_storage
 
             $mtime = new DateTime($props['{DAV:}getlastmodified']);
             $ctime = new DateTime($props['{DAV:}creationdate']);
+            $ctype = (string) $props['{DAV:}getcontenttype'];
 
             $path  = $this->get_full_url($file);
             $path  = $this->decode_path($path);
             $fname = end(explode('/', $path));
 
+            if (!empty($params['search'])) {
+                foreach ($params['search'] as $idx => $value) {
+                    switch ($idx) {
+                    case 'name':
+                        if (stripos($fname, $value) === false) {
+                            continue 3; // skip the file
+                        }
+                        break;
+
+                    case 'type':
+                        $found = false;
+                        foreach ($value as $type) {
+                            if (strpos($ctype, $type) !== false) {
+                                $found = true;
+                                break;
+                            }
+                        }
+                        if (!$found) {
+                            continue 3; // skip the file
+                        }
+                        break;
+                    }
+                }
+            }
+
             $result[$path] = array(
                 'name'     => $fname,
                 'size'     => (int) $props['{DAV:}getcontentlength'],
-                'type'     => (string) $props['{DAV:}getcontenttype'],
+                'type'     => $ctype,
                 'mtime'    => $mtime ? $mtime->format($this->config['date_format']) : '',
                 'ctime'    => $ctime ? $ctime->format($this->config['date_format']) : '',
                 'modified' => $mtime ? $mtime->format('U') : 0,
@@ -545,7 +576,7 @@ class webdav_file_storage implements file_storage
             );
         }
 
-        // @TODO: pagination, search (by filename, mimetype)
+        // @TODO: pagination
 
         // Sorting
         $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
