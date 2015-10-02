@@ -303,9 +303,10 @@ class kolab_file_storage implements file_storage
         $quota   = $storage->get_capability('QUOTA');
 
         return array(
-            file_storage::CAPS_MAX_UPLOAD => $max_filesize,
-            file_storage::CAPS_QUOTA      => $quota,
-            file_storage::CAPS_LOCKS      => true,
+            file_storage::CAPS_MAX_UPLOAD    => $max_filesize,
+            file_storage::CAPS_QUOTA         => $quota,
+            file_storage::CAPS_LOCKS         => true,
+            file_storage::CAPS_SUBSCRIPTIONS => true,
         );
     }
 
@@ -857,7 +858,7 @@ class kolab_file_storage implements file_storage
     public function folder_create($folder_name)
     {
         $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
-        $success     = kolab_storage::folder_create($folder_name, 'file');
+        $success     = kolab_storage::folder_create($folder_name, 'file', true);
 
         if (!$success) {
             throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
@@ -908,16 +909,27 @@ class kolab_file_storage implements file_storage
      */
     public function folder_list()
     {
-        $folders = kolab_storage::list_folders('', '*', 'file', false);
+        $folders = kolab_storage::list_folders('', '*', 'file', true);
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
-        // create 'Files' folder in case there's no folder of type 'file'
+        // create/subscribe 'Files' folder in case there's no folder of type 'file'
         if (empty($folders)) {
-            if (kolab_storage::folder_create('Files', 'file')) {
-                $folders[] = 'Files';
+            $imap    = $this->rc->get_storage();
+            $default = 'Files';
+
+            // the folder may exist but be unsubscribed
+            if (!$imap->folder_exists($default)) {
+                if (kolab_storage::folder_create($default, 'file', true)) {
+                    $folders[] = $default;
+                }
+            }
+            else if (kolab_storage::folder_type($default) == 'file') {
+                if ($imap->subscribe($default)) {
+                    $folders[] = $default;
+                }
             }
         }
         else {

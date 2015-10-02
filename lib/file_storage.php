@@ -31,6 +31,7 @@ interface file_storage
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
     const CAPS_QUOTA         = 'QUOTA';
     const CAPS_LOCKS         = 'LOCKS';
+    const CAPS_SUBSCRIPTIONS = 'SUBSCRIPTIONS';
 
     // config
     const SEPARATOR = '/';
