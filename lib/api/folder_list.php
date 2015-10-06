@@ -31,9 +31,19 @@ class file_api_folder_list extends file_api_common
     {
         parent::handle();
 
-        // get folders from main driver
+        // List parameters
+        $params = array();
+        if (!empty($this->args['unsubscribed']) && rcube_utils::get_boolean((string) $this->args['unsubscribed'])) {
+            $params['type'] = file_storage::FILTER_UNSUBSCRIBED;
+        }
+        if (isset($this->args['search']) && strlen($this->args['search'])) {
+            $params['search'] = $this->args['search'];
+            $search = mb_strtoupper($this->args['search']);
+        }
+
+        // get folders from default driver
         $backend = $this->api->get_backend();
-        $folders = $backend->folder_list();
+        $folders = $this->folder_list($backend, $params);
 
         // old result format
         if ($this->api->client_version() < 2) {
@@ -58,13 +68,16 @@ class file_api_folder_list extends file_api_common
                 }
             }
 
-            $folders[] = $title;
-            $has_more  = true;
+            if (!isset($search) || strpos(mb_strtoupper($title), $search) !== false) {
+                $folders[] = $title;
+                $has_more  = count($folders) > 0;
+            }
 
             if ($driver != $backend) {
                 try {
-                    foreach ($driver->folder_list() as $folder) {
+                    foreach ($this->folder_list($driver, $params) as $folder) {
                         $folders[] = $prefix . $folder;
+                        $has_more = true;
                     }
                 }
                 catch (Exception $e) {
@@ -78,7 +91,7 @@ class file_api_folder_list extends file_api_common
 
         // re-sort the list
         if ($has_more) {
-            usort($folders, array($this, 'sort_folder_comparator'));
+            usort($folders, array('file_utils', 'sort_folder_comparator'));
         }
 
         return array(
@@ -88,22 +101,17 @@ class file_api_folder_list extends file_api_common
     }
 
     /**
-     * Callback for uasort() that implements correct
-     * locale-aware case-sensitive sorting
+     * Wrapper for folder_list() method on specified driver
      */
-    protected function sort_folder_comparator($str1, $str2)
+    protected function folder_list($driver, $params)
     {
-        $path1 = explode(file_storage::SEPARATOR, $str1);
-        $path2 = explode(file_storage::SEPARATOR, $str2);
-
-        foreach ($path1 as $idx => $folder1) {
-            $folder2 = $path2[$idx];
-
-            if ($folder1 === $folder2) {
-                continue;
+        if ($params['type'] == file_storage::FILTER_UNSUBSCRIBED) {
+            $caps = $driver->capabilities();
+            if (empty($caps[file_storage::CAPS_SUBSCRIPTIONS])) {
+                return array();
             }
-
-            return strcoll($folder1, $folder2);
         }
+
+        return $driver->folder_list($params);
     }
 }

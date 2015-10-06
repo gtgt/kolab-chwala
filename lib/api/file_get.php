@@ -24,6 +24,8 @@
 
 class file_api_file_get extends file_api_common
 {
+    protected $driver;
+
     /**
      * Request handler
      */

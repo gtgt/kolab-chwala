@@ -827,12 +827,38 @@ class seafile_file_storage implements file_storage
     }
 
     /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
      * Returns list of folders.
+     *
+     * @param array $params List parameters ('type', 'search')
      *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list()
+    public function folder_list($params = array())
     {
         $libraries = $this->libraries();
         $folders   = array();
@@ -868,7 +894,7 @@ class seafile_file_storage implements file_storage
 
         // sort folders
         $folders = array_keys($folders);
-        usort($folders, array($this, 'sort_folder_comparator'));
+        usort($folders, array('file_utils', 'sort_folder_comparator'));
 
         return $folders;
     }
@@ -1018,26 +1044,6 @@ class seafile_file_storage implements file_storage
         }
 
         return $folders;
-    }
-
-    /**
-     * Callback for uasort() that implements correct
-     * locale-aware case-sensitive sorting
-     */
-    protected function sort_folder_comparator($str1, $str2)
-    {
-        $path1 = explode('/', $str1);
-        $path2 = explode('/', $str2);
-
-        foreach ($path1 as $idx => $folder1) {
-            $folder2 = $path2[$idx];
-
-            if ($folder1 === $folder2) {
-                continue;
-            }
-
-            return strcoll($folder1, $folder2);
-        }
     }
 
     /**

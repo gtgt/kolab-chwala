@@ -233,7 +233,7 @@ class file_api_core extends file_locale
                 foreach ($driver->capabilities() as $name => $value) {
                     // skip disabled capabilities
                     if ($value !== false) {
-                        $caps['roots'][$title][$name] = $value;
+                        $caps['MOUNTPOINTS'][$title][$name] = $value;
                     }
                 }
             }

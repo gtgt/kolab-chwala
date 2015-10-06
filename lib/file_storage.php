@@ -50,6 +50,9 @@ interface file_storage
     const LOCK_EXCLUSIVE = 'exclusive';
     const LOCK_INFINITE  = 'infinite';
 
+    // list filters
+    const FILTER_UNSUBSCRIBED = 'unsubscribed';
+
 
     /**
      * Authenticates a user
@@ -253,12 +256,32 @@ interface file_storage
     public function folder_move($folder_name, $new_name);
 
     /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name);
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name);
+
+    /**
      * Returns list of folders.
+     *
+     * @param array $params List parameters ('type', 'search')
      *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list();
+    public function folder_list($params = array());
 
     /**
      * Returns a list of locks

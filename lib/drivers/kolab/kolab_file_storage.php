@@ -861,7 +861,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_create($folder_name, 'file', true);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to create the folder", file_storage::ERROR);
         }
     }
 
@@ -878,7 +878,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_delete($folder_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to delete folder.", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to delete the folder.", file_storage::ERROR);
         }
     }
 
@@ -897,26 +897,63 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_rename($folder_name, $new_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to rename folder", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to rename the folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name)
+    {
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+        $storage     = $this->rc->get_storage();
+
+        if (!$storage->subscribe($folder_name)) {
+            throw new Exception("Storage error. Unable to subscribe the folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name)
+    {
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+        $storage     = $this->rc->get_storage();
+
+        if (!$storage->unsubscribe($folder_name)) {
+            throw new Exception("Storage error. Unable to unsubsribe the folder", file_storage::ERROR);
         }
     }
 
     /**
      * Returns list of folders.
      *
+     * @param array $params List parameters ('type', 'search')
+     *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list()
+    public function folder_list($params = array())
     {
-        $folders = kolab_storage::list_folders('', '*', 'file', true);
+        $unsubscribed = $params['type'] & file_storage::FILTER_UNSUBSCRIBED;
+        $folders      = kolab_storage::list_folders('', '*', 'file', true);
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
         // create/subscribe 'Files' folder in case there's no folder of type 'file'
-        if (empty($folders)) {
+        if (empty($folders) && $subscribed) {
             $imap    = $this->rc->get_storage();
             $default = 'Files';
 
@@ -933,9 +970,45 @@ class kolab_file_storage implements file_storage
             }
         }
         else {
+            if ($unsubscribed) {
+                $subscribed = $folders;
+                $folders    = kolab_storage::list_folders('', '*', 'file', false);
+                $folders    = array_diff($folders, $subscribed);
+            }
+
             $callback = function($folder) { return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET); };
             $folders  = array_map($callback, $folders);
         }
+
+        // searching
+        if (isset($params['search'])) {
+            $imap    = $this->rc->get_storage();
+            $search  = mb_strtoupper($params['search']);
+            $prefix  = null;
+            $ns      = $imap->get_namespace('other');
+
+            if (!empty($ns)) {
+                $prefix = rcube_charset::convert($ns[0][0], 'UTF7-IMAP', RCUBE_CHARSET);
+            }
+
+            $folders = array_filter($folders, function($folder) use ($search, $prefix) {
+                $path = explode('/', $folder);
+
+                // search in folder name not the full path
+                if (strpos(mb_strtoupper($path[count($path)-1]), $search) !== false) {
+                    return true;
+                }
+                // if it is an other user folder, we'll match the user name
+                // and return all folders of the matching user
+                else if (strpos($folder, $prefix) === 0 && strpos(mb_strtoupper($path[1]), $search) !== false) {
+                    return true;
+                }
+
+                return false;
+            });
+        }
+
+        $folders = array_values($folders);
 
         return $folders;
     }

@@ -89,6 +89,8 @@ class file_api_lib extends file_api_core
                 break;
 
             case 'folder_create':
+            case 'folder_subscribe':
+            case 'folder_unsubscribe':
             case 'folder_delete':
                 $args = array(
                     'folder' => $arguments[0],

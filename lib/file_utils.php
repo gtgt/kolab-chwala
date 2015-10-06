@@ -186,4 +186,26 @@ class file_utils
 
         return $uri;
     }
+
+    /**
+     * Callback for uasort() that implements correct
+     * locale-aware case-sensitive sorting
+     */
+    public static function sort_folder_comparator($str1, $str2)
+    {
+        $path1 = explode(file_storage::SEPARATOR, $str1);
+        $path2 = explode(file_storage::SEPARATOR, $str2);
+
+        foreach ($path1 as $idx => $folder1) {
+            $folder2 = $path2[$idx];
+
+            if ($folder1 === $folder2) {
+                continue;
+            }
+
+            return strcoll($folder1, $folder2);
+        }
+
+        return 0;
+    }
 }

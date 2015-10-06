@@ -211,26 +211,58 @@ function files_api()
   };
 
   // Folder list parser, converts it into structure
-  this.folder_list_parse = function(list, num)
+  this.folder_list_parse = function(list, num, subscribed)
   {
-    var i, n, items, items_len, f, tmp, folder,
+    var i, n, j, items, items_len, f, tmp, folder,
+      subs_support, subs_prefixes = {}, found,
+      separator = this.env.directory_separator,
       len = list ? list.length : 0, folders = {};
 
     if (!num) num = 1;
 
+    if (subscribed === undefined)
+      subscribed = true;
+
+    // prepare subscriptions support detection
+    if (len && this.env.caps) {
+      subs_support = !!this.env.caps.SUBSCRIPTIONS;
+      $.each(this.env.caps.MOUNTPOINTS || [], function(i, v) {
+        subs_prefixes[i] = !!v.SUBSCRIPTIONS;
+      });
+    }
+
     for (i=0; i<len; i++) {
       folder = list[i];
-      items = folder.split(this.env.directory_separator);
+      items = folder.split(separator);
       items_len = items.length;
 
       for (n=0; n<items_len-1; n++) {
-        tmp = items.slice(0,n+1);
-        f = tmp.join(this.env.directory_separator);
+        tmp = items.slice(0, n+1);
+        f = tmp.join(separator);
         if (!folders[f])
           folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
       }
 
       folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
+
+      // set subscription flag, leave undefined if the source does not support subscriptions
+      found = false;
+      for (j in subs_prefixes) {
+        if (folder === j) {
+          // this is a mount point
+          found = true;
+          break;
+        }
+        if (folder.indexOf(j + separator) === 0) {
+          if (subs_prefixes[j])
+            folders[folder].subscribed = subscribed;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found && subs_support)
+        folders[folder].subscribed = subscribed;
     }
 
     return folders;
