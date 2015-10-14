@@ -56,7 +56,7 @@ class kolab_file_storage implements file_storage
         // WARNING: We can use only plugins that are prepared for this
         //          e.g. are not using output or rcmail objects or
         //          doesn't throw errors when using them
-        $plugins = (array) $this->rc->config->get('fileapi_plugins', array('kolab_auth'));
+        $plugins = (array) $this->rc->config->get('fileapi_plugins', array('kolab_auth', 'kolab_folders'));
         $plugins = array_unique(array_merge($plugins, array('libkolab')));
 
         // Kolab WebDAV server supports plugins, no need to overwrite object
@@ -946,14 +946,16 @@ class kolab_file_storage implements file_storage
     public function folder_list($params = array())
     {
         $unsubscribed = $params['type'] & file_storage::FILTER_UNSUBSCRIBED;
-        $folders      = kolab_storage::list_folders('', '*', 'file', true);
+        $rights       = ($params['type'] & file_storage::FILTER_WRITABLE) ? 'w' : null;
+        $imap         = $this->rc->get_storage();
+        $folders      = $imap->list_folders_subscribed('', '*', 'file', $rights);
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
         // create/subscribe 'Files' folder in case there's no folder of type 'file'
-        if (empty($folders) && $subscribed) {
+        if (empty($folders) && !$unsubscribed) {
             $imap    = $this->rc->get_storage();
             $default = 'Files';
 
@@ -972,17 +974,24 @@ class kolab_file_storage implements file_storage
         else {
             if ($unsubscribed) {
                 $subscribed = $folders;
-                $folders    = kolab_storage::list_folders('', '*', 'file', false);
+                $folders    = $imap->list_folders('', '*', 'file', $rights);
                 $folders    = array_diff($folders, $subscribed);
             }
 
-            $callback = function($folder) { return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET); };
+            // convert folder names to UTF-8
+            $callback = function($folder) {
+                if (strpos($folder, '&') !== false) {
+                    return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET);
+                }
+
+                return $folder;
+            };
+
             $folders  = array_map($callback, $folders);
         }
 
         // searching
         if (isset($params['search'])) {
-            $imap    = $this->rc->get_storage();
             $search  = mb_strtoupper($params['search']);
             $prefix  = null;
             $ns      = $imap->get_namespace('other');

@@ -51,7 +51,8 @@ interface file_storage
     const LOCK_INFINITE  = 'infinite';
 
     // list filters
-    const FILTER_UNSUBSCRIBED = 'unsubscribed';
+    const FILTER_UNSUBSCRIBED = 1;
+    const FILTER_WRITABLE     = 2;
 
 
     /**

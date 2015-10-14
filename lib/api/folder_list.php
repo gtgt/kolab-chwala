@@ -32,9 +32,12 @@ class file_api_folder_list extends file_api_common
         parent::handle();
 
         // List parameters
-        $params = array();
+        $params = array('type' => 0);
         if (!empty($this->args['unsubscribed']) && rcube_utils::get_boolean((string) $this->args['unsubscribed'])) {
-            $params['type'] = file_storage::FILTER_UNSUBSCRIBED;
+            $params['type'] |= file_storage::FILTER_UNSUBSCRIBED;
+        }
+        if (!empty($this->args['writable']) && rcube_utils::get_boolean((string) $this->args['writable'])) {
+            $params['type'] |= file_storage::FILTER_WRITABLE;
         }
         if (isset($this->args['search']) && strlen($this->args['search'])) {
             $params['search'] = $this->args['search'];
@@ -105,7 +108,7 @@ class file_api_folder_list extends file_api_common
      */
     protected function folder_list($driver, $params)
     {
-        if ($params['type'] == file_storage::FILTER_UNSUBSCRIBED) {
+        if ($params['type'] & file_storage::FILTER_UNSUBSCRIBED) {
             $caps = $driver->capabilities();
             if (empty($caps[file_storage::CAPS_SUBSCRIPTIONS])) {
                 return array();
