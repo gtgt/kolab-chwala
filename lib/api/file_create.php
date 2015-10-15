@@ -52,13 +52,24 @@ class file_api_file_create extends file_api_common
             $chunk = $this->args['content'];
         }
 
+        $ctype = $this->args['content-type'];
+        if ($ctype && !preg_match('/^[a-z_-]+\/[a-z._-]+$/', $ctype)) {
+            $ctype = '';
+        }
+
         $request = $this instanceof file_api_file_update ? 'file_update' : 'file_create';
         $file    = array(
             'content' => $this->args['content'],
             'path'    => $this->args['path'],
-            'type'    => rcube_mime::file_content_type($chunk,
-                $this->args['file'], $this->args['content-type'], !$is_file),
+            'type'    => rcube_mime::file_content_type($chunk, $this->args['file'], $ctype, !$is_file),
         );
+
+        if (strpos($file['type'], 'empty') !== false && $ctype) {
+            $file['type'] = $ctype;
+        }
+        else if (empty($file['type'])) {
+            $file['type'] = 'application/octet-stream';
+        }
 
         list($driver, $path) = $this->api->get_driver($this->args['file']);
 
