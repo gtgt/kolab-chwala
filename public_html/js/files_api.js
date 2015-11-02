@@ -167,10 +167,10 @@ function files_api()
   this.logout = function(response) {};
 
   // set state
-  this.set_busy = function(a, message) {};
+  this.set_busy = function(state, message) {};
 
   // displays error message
-  this.display_message = function(label) {};
+  this.display_message = function(label, type) {};
 
   // called when a request timed out
   this.request_timed_out = function() {};
@@ -395,20 +395,26 @@ function files_api()
 
   // Checks if specified mimetype is supported natively by the browser (return 1)
   // or can be displayed in the browser using File API viewer (return 2)
-  this.file_type_supported = function(type)
+  // or using Manticore - WebODF collaborative editor (return 4)
+  this.file_type_supported = function(type, capabilities)
   {
-    var i, t, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
-      caps = this.env.browser_capabilities || {};
+    var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
+      caps = this.env.browser_capabilities || {},
+      doc = /^application\/vnd.oasis.opendocument.(text)$/i;
+
+    // Manticore?
+    if (capabilities && capabilities.MANTICORE && doc.test(type))
+      res |= 4;
 
     if (caps.tif)
       img += '|tiff';
 
     if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
-      return 1;
+      res |= 1;
 
     // prefer text viewer for any text type
     if (/^text\/(?!(pdf|x-pdf))/i.test(type))
-      return 2;
+      res |= 2;
 
     if (caps.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
@@ -420,17 +426,19 @@ function files_api()
 
     for (i in regexps)
       if (regexps[i].test(type))
-        return 1;
+        res |= 1;
 
     for (i in navigator.mimeTypes) {
       t = navigator.mimeTypes[i].type;
       if (t == type && navigator.mimeTypes[i].enabledPlugin)
-        return 1;
+        res |= 1;
     }
 
     // types with viewer support
     if ($.inArray(type, this.env.supported_mimetypes) > -1)
-      return 2;
+      res |= 2;
+
+    return res;
   };
 
   // Return browser capabilities
@@ -534,6 +542,180 @@ function files_api()
       return '-';
 
     return (new Date(1970, 1, 1, 0, 0, s, 0)).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
+  };
+};
+
+/**
+ * Class implementing Manticore Client API
+ */
+function manticore_api(conf)
+{
+  var domain, locks = {}, callbacks = {},
+    self = this,
+    manticore = conf.iframe.contentWindow;
+
+  if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
+    domain = RegExp.$1;
+
+  // Register 'message' event to receive messages from Manticore iframe
+  window.addEventListener('message', function(event) {
+    if (event.source == manticore && event.origin == domain) {
+      self.message_handler(event.data);
+    }
+  });
+
+  // Handle document title changes
+  if (conf.title_input)
+    $(conf.title_input).change(function() { self.set_title($(this).val()); });
+
+  // set state
+  this.set_busy = function(state, message)
+  {
+    if (conf.set_busy)
+      return conf.set_busy(state, message);
+  };
+
+  // displays error/notification message
+  this.display_message = function(label, type)
+  {
+    if (conf.display_message)
+      return conf.display_message(label, type);
+
+    if (type == 'error')
+      alert(this.gettext(label));
+  };
+
+  // hides the error/notification message
+  this.hide_message = function(id)
+  {
+    if (conf.hide_message)
+      return conf.hide_message(id);
+  };
+
+  // localization method
+  this.gettext = function(label)
+  {
+    if (conf.gettext)
+      return conf.gettext(label);
+
+    return label;
+  };
+
+  // display loading message
+  this.init_lock = this.set_busy(true, 'loading');
+
+  // Handle messages from Manticore
+  this.message_handler = function(data)
+  {
+    var result;
+
+    console.log(data);
+
+    if (callbacks[data.id])
+      result = callbacks[data.id](data);
+    if (result !== false && conf[data.name])
+      result = conf[data.name](data);
+
+    delete callbacks[data.id];
+
+    if (locks[data.id]) {
+      this.set_busy(false);
+      this.hide_message(data.id);
+      delete locks[data.id];
+    }
+
+    if (result === false)
+      return;
+
+    switch (data.name) {
+      case 'ready':
+        this.ready();
+        break;
+
+      case 'titleChangeEvent':
+        if (conf.title_input)
+          $(conf.title_input).val(data.value);
+        break;
+    }
+  };
+
+  this.post = function(action, data, callback, lock_label)
+  {
+    if (!data) data = {};
+
+    if (lock_label) {
+      data.id = this.set_busy(true, this.gettext(lock_label));
+      locks[data.id] = true;
+    }
+
+    if (!data.id)
+      data.id = (new Date).getTime();
+
+    data.name = action;
+
+    callbacks[data.id] = callback;
+
+    console.log(data);
+
+    manticore.postMessage(data, domain);
+  };
+
+  this.ready = function()
+  {
+    if (this.init_lock) {
+      this.set_busy(false);
+      this.hide_message(this.init_lock);
+      delete this.init_lock;
+    }
+
+    if (conf.export_menu)
+      this.export_menu(conf.export_menu);
+
+    if (conf.title_input)
+      this.get_title(function(data) {
+        $(conf.title_input).val(data.value || '');
+      });
+  };
+
+  // Save current document
+  this.save = function(callback)
+  {
+    this.post('actionSave', {}, callback, 'saving');
+  };
+
+  // Export/download current document
+  this.export = function(type, callback)
+  {
+    this.post('actionExport', {value: type}, callback);
+  };
+
+  // Get supported export formats and create content of menu element
+  this.export_menu = function(menu)
+  {
+    this.post('getExportFormats', {}, function(data) {
+      var items = [];
+
+      $.each(data.value || [], function(i, v) {
+        items.push($('<li>').attr({role: 'menuitem'}).append(
+          $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
+            .text(v.label).click(function() { self.export(v.format); })
+        ));
+      });
+
+      $(menu).html('').append(items);
+    });
+  };
+
+  // Get document title
+  this.get_title = function(callback)
+  {
+    this.post('getTitle', {}, callback);
+  };
+
+  // Set document title
+  this.set_title = function(title, callback)
+  {
+    this.post('setTitle', {value: title}, callback);
   };
 };
 
