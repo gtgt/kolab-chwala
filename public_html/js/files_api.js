@@ -561,10 +561,22 @@ function files_api()
 
 /**
  * Class implementing Manticore Client API
+ *
+ * Configuration:
+ *    iframe - manticore iframe element
+ *    title_input - document title element
+ *    export_menu - export formats list
+ *    members_list - collaborators list
+ *    photo_url - <img> src for a collaborator
+ *    photo_default_url - default image of a collaborator
+ *    set_busy, display_message, hide_message, gettext - methods
  */
 function manticore_api(conf)
 {
-  var domain, locks = {}, callbacks = {},
+  var domain,
+    locks = {},
+    callbacks = {},
+    members = {},
     self = this,
     manticore = conf.iframe.contentWindow;
 
@@ -578,18 +590,18 @@ function manticore_api(conf)
     }
   });
 
-  // Handle document title changes
+  // Bind for document title changes
   if (conf.title_input)
     $(conf.title_input).change(function() { self.set_title($(this).val()); });
 
-  // set state
+  // Sets state
   this.set_busy = function(state, message)
   {
     if (conf.set_busy)
       return conf.set_busy(state, message);
   };
 
-  // displays error/notification message
+  // Displays error/notification message
   this.display_message = function(label, type)
   {
     if (conf.display_message)
@@ -599,14 +611,14 @@ function manticore_api(conf)
       alert(this.gettext(label));
   };
 
-  // hides the error/notification message
+  // Hides the error/notification message
   this.hide_message = function(id)
   {
     if (conf.hide_message)
       return conf.hide_message(id);
   };
 
-  // localization method
+  // Localization method
   this.gettext = function(label)
   {
     if (conf.gettext)
@@ -615,7 +627,7 @@ function manticore_api(conf)
     return label;
   };
 
-  // display loading message
+  // Display loading message
   this.init_lock = this.set_busy(true, 'loading');
 
   // Handle messages from Manticore
@@ -627,7 +639,7 @@ function manticore_api(conf)
 
     if (callbacks[data.id])
       result = callbacks[data.id](data);
-    if (result !== false && conf[data.name])
+    if (result !== false && data.name && conf[data.name])
       result = conf[data.name](data);
 
     delete callbacks[data.id];
@@ -646,9 +658,23 @@ function manticore_api(conf)
         this.ready();
         break;
 
-      case 'titleChangeEvent':
+      case 'titleChanged':
         if (conf.title_input)
           $(conf.title_input).val(data.value);
+        break;
+
+      case 'memberAdded':
+        // @TODO: display notification?
+        if (conf.members_list)
+          $(conf.members_list).append(this.member_item(data));
+        break;
+
+      case 'memberRemoved':
+        // @TODO: display notification?
+        if (conf.members_list) {
+          $('#' + members[data.memberId].id, conf.members_list).remove();
+          delete members[data.memberId];
+        }
         break;
     }
   };
@@ -664,6 +690,10 @@ function manticore_api(conf)
 
     if (!data.id)
       data.id = (new Date).getTime();
+
+    // make sure the id is not in use
+    while (callbacks[data.id])
+      data.id++;
 
     data.name = action;
 
@@ -685,9 +715,18 @@ function manticore_api(conf)
     if (conf.export_menu)
       this.export_menu(conf.export_menu);
 
+    if (conf.members_list)
+      this.get_members(function(data) {
+        var images = [], id = (new Date).getTime();
+        $.each(data.value || [], function() {
+          images.push(self.member_item(this, id++));
+        });
+        $(conf.members_list).html('').append(images);
+      });
+
     if (conf.title_input)
       this.get_title(function(data) {
-        $(conf.title_input).val(data.value || '');
+        $(conf.title_input).val(data.value);
       });
   };
 
@@ -730,6 +769,33 @@ function manticore_api(conf)
   this.set_title = function(title, callback)
   {
     this.post('setTitle', {value: title}, callback);
+  };
+
+  // Get document session members
+  this.get_members = function(callback)
+  {
+    this.post('getMembers', {}, callback);
+  };
+
+  // Creates session member image element
+  this.member_item = function(member, id)
+  {
+    member.id = 'member' + (id || (new Date).getTime());
+    member.name = member.fullName + ' (' + member.email + ')';
+
+    members[member.memberId] = member;
+
+    var img = $('<img>').attr({title: member.name, id: member.id, 'class': 'photo', src: conf.photo_default_url})
+        .css({'border-color': member.color})
+        .text(name);
+
+    if (conf.photo_url) {
+      img.attr('src', conf.photo_url.replace(/%email/, urlencode(member.email)));
+      if (conf.photo_default_url)
+        img.error(function() { this.src = conf.photo_default_url; });
+    }
+
+    return img;
   };
 };
 
