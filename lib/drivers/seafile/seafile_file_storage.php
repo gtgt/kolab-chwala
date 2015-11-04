@@ -908,25 +908,25 @@ class seafile_file_storage implements file_storage
      * If child_locks is set to true, this method should also look for
      * any locks in the subtree of the URI for locks.
      *
-     * @param string $uri         URI
+     * @param string $path        File/folder path
      * @param bool   $child_locks Enables subtree checks
      *
      * @return array List of locks
      * @throws Exception
      */
-    public function lock_list($uri, $child_locks = false)
+    public function lock_list($path, $child_locks = false)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         // get locks list
         $list = $this->lock_db->lock_list($uri, $child_locks);
 
         // convert back resource string into URIs
         foreach ($list as $idx => $lock) {
-            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+            $list[$idx]['uri'] = $this->uri2path($lock['uri']);
         }
 
         return $list;
@@ -935,7 +935,7 @@ class seafile_file_storage implements file_storage
     /**
      * Locks a URI
      *
-     * @param string $uri  URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *                     - depth: 0/'infinite'
      *                     - scope: 'shared'/'exclusive'
@@ -945,12 +945,12 @@ class seafile_file_storage implements file_storage
      *
      * @throws Exception
      */
-    public function lock($uri, $lock)
+    public function lock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->uri2resource($path);
 
         if (!$this->lock_db->lock($uri, $lock)) {
             throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
@@ -960,17 +960,17 @@ class seafile_file_storage implements file_storage
     /**
      * Removes a lock from a URI
      *
-     * @param string $path URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *
      * @throws Exception
      */
-    public function unlock($uri, $lock)
+    public function unlock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->unlock($uri, $lock)) {
             throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
@@ -1200,29 +1200,47 @@ class seafile_file_storage implements file_storage
         return true;
     }
 
-    protected function uri2resource($uri)
+    /**
+     * Convert file/folder path into a global URI.
+     *
+     * @param string $path File/folder path
+     *
+     * @return string URI
+     * @throws Exception
+     */
+    public function path2uri($path)
     {
-        list($file, $repo_id, $library) = $this->find_library($uri);
+        list($file, $repo_id, $library) = $this->find_library($path);
 
-        // convert to imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
-
-        return 'seafile://' . urlencode($library['owner']) . '@' . $this->config['host'] . '/' . $uri;
+        return 'seafile://' . rawurlencode($library['owner']) . '@' . $this->config['host']
+            . '/' . file_utils::encode_path($path);
     }
 
-    protected function resource2uri($resource)
+    /**
+     * Convert global URI into file/folder path.
+     *
+     * @param string $uri URI
+     *
+     * @return string File/folder path
+     * @throws Exception
+     */
+    public function uri2path($uri)
     {
-        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $uri, $matches)) {
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
-        $user = urldecode($matches[1]);
-        $uri  = $matches[3];
+        $user = rawurldecode($matches[1]);
+        $host = $matches[2];
+        $path = file_utils::decode_path($matches[3]);
 
-        // convert from imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+        list($file, $repo_id, $library) = $this->find_library($path, true);
 
-        return $uri;
+        if (empty($library) || $host != $this->config['host'] || $user != $library['owner']) {
+            throw new Exception("Internal storage error. Unresolvable URI.", file_storage::ERROR);
+        }
+
+        return $path;
     }
 
     /**

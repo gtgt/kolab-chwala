@@ -208,4 +208,34 @@ class file_utils
 
         return 0;
     }
+
+    /**
+     * Encode folder path for use in an URI
+     *
+     * @param string $path Folder path
+     *
+     * @return string Encoded path
+     */
+    public static function encode_path($path)
+    {
+        $items = explode(file_storage::SEPARATOR, $path);
+        $items = array_map('rawurlencode', $items);
+
+        return implode(file_storage::SEPARATOR, $items);
+    }
+
+    /**
+     * Decode an URI into folder path
+     *
+     * @param string $path Encoded folder path
+     *
+     * @return string Decoded path
+     */
+    public static function decode_path($path)
+    {
+        $items = explode(file_storage::SEPARATOR, $path);
+        $items = array_map('rawurldecode', $items);
+
+        return implode(file_storage::SEPARATOR, $items);
+    }
 }

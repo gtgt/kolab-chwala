@@ -1031,25 +1031,25 @@ class kolab_file_storage implements file_storage
      * If child_locks is set to true, this method should also look for
      * any locks in the subtree of the URI for locks.
      *
-     * @param string $uri         URI
+     * @param string $path        File/folder path
      * @param bool   $child_locks Enables subtree checks
      *
      * @return array List of locks
      * @throws Exception
      */
-    public function lock_list($uri, $child_locks = false)
+    public function lock_list($path, $child_locks = false)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         // get locks list
         $list = $this->lock_db->lock_list($uri, $child_locks);
 
         // convert back resource string into URIs
         foreach ($list as $idx => $lock) {
-            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+            $list[$idx]['uri'] = $this->uri2path($lock['uri']);
         }
 
         return $list;
@@ -1058,7 +1058,7 @@ class kolab_file_storage implements file_storage
     /**
      * Locks a URI
      *
-     * @param string $uri  URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *                     - depth: 0/'infinite'
      *                     - scope: 'shared'/'exclusive'
@@ -1068,12 +1068,12 @@ class kolab_file_storage implements file_storage
      *
      * @throws Exception
      */
-    public function lock($uri, $lock)
+    public function lock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->lock($uri, $lock)) {
             throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
@@ -1083,17 +1083,17 @@ class kolab_file_storage implements file_storage
     /**
      * Removes a lock from a URI
      *
-     * @param string $path URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *
      * @throws Exception
      */
-    public function unlock($uri, $lock)
+    public function unlock($path, $lock)
     {
         $this->init_lock_db();
 
-        // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        // convert path to global resource string
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->unlock($uri, $lock)) {
             throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
@@ -1236,19 +1236,27 @@ class kolab_file_storage implements file_storage
         return $file;
     }
 
-    protected function uri2resource($uri)
+    /**
+     * Convert file/folder path into a global URI.
+     *
+     * @param string $path File/folder path
+     *
+     * @return string URI
+     * @throws Exception
+     */
+    public function path2uri($path)
     {
         $storage   = $this->rc->get_storage();
         $namespace = $storage->get_namespace();
         $separator = $storage->get_hierarchy_delimiter();
-        $uri       = str_replace(file_storage::SEPARATOR, $separator, $uri);
+        $path      = str_replace(file_storage::SEPARATOR, $separator, $path);
         $owner     = $this->rc->get_user_name();
 
         // find the owner and remove namespace prefix
         foreach ($namespace as $type => $ns) {
             foreach ($ns as $root) {
-                if (is_array($root) && $root[0] && strpos($uri, $root[0]) === 0) {
-                    $uri = substr($uri, strlen($root[0]));
+                if (is_array($root) && $root[0] && strpos($path, $root[0]) === 0) {
+                    $path = substr($path, strlen($root[0]));
 
                     switch ($type) {
                     case 'shared':
@@ -1258,7 +1266,7 @@ class kolab_file_storage implements file_storage
                         break;
 
                     case 'other':
-                        list($user, $uri) = explode($separator, $uri, 2);
+                        list($user, $path) = explode($separator, $path, 2);
 
                         if (strpos($user, '@') === false) {
                             $domain = strstr($owner, '@');
@@ -1276,15 +1284,21 @@ class kolab_file_storage implements file_storage
             }
         }
 
-        // convert to imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
-
-        return 'imap://' . urlencode($owner) . '@' . $storage->options['host'] . '/' . $uri;
+        return 'imap://' . rawurlencode($owner) . '@' . $storage->options['host']
+            . '/' . file_utils::encode_path($path);
     }
 
-    protected function resource2uri($resource)
+    /**
+     * Convert global URI into file/folder path.
+     *
+     * @param string $uri URI
+     *
+     * @return string File/folder path
+     * @throws Exception
+     */
+    public function uri2path($uri)
     {
-        if (!preg_match('|^imap://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+        if (!preg_match('|^imap://([^@]+)@([^/]+)/(.*)$|', $uri, $matches)) {
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
@@ -1292,11 +1306,8 @@ class kolab_file_storage implements file_storage
         $separator = $storage->get_hierarchy_delimiter();
         $owner     = $this->rc->get_user_name();
 
-        $user = urldecode($matches[1]);
-        $uri  = $matches[3];
-
-        // convert from imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+        $user = rawurldecode($matches[1]);
+        $path = file_utils::decode_path($matches[3]);
 
         // personal namespace
         if ($user == $owner) {
@@ -1305,7 +1316,7 @@ class kolab_file_storage implements file_storage
         }
         // shared namespace
         else if (preg_match('/^shared\((.*)\)$/', $user, $matches)) {
-            $uri = $matches[1] . $uri;
+            $path = $matches[1] . $path;
         }
         // other users namespace
         else {
@@ -1314,12 +1325,10 @@ class kolab_file_storage implements file_storage
             list($local, $domain) = explode('@', $user);
 
             // here we assume there's only one other users namespace root
-            $uri = $namespace[0][0] . $local . $separator . $uri;
+            $path = $namespace[0][0] . $local . $separator . $path;
         }
 
-        $uri = str_replace($separator, file_storage::SEPARATOR, $uri);
-
-        return $uri;
+        return str_replace($separator, file_storage::SEPARATOR, $path);
     }
 
     /**
