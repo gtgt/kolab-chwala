@@ -32,7 +32,7 @@ class file_api_core extends file_locale
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
 
-    public $config = array(
+    public $env = array(
         'date_format' => 'Y-m-d H:i',
         'language'    => 'en_US',
     );
@@ -66,7 +66,7 @@ class file_api_core extends file_locale
         $this->backend = $this->load_driver_object($driver);
 
         // configure api
-        $this->backend->configure($this->config);
+        $this->backend->configure($this->env);
 
         return $this->backend;
     }
@@ -179,7 +179,7 @@ class file_api_core extends file_locale
             }
 
             // configure api
-            $driver->configure(array_merge($config, $this->config), $key);
+            $driver->configure(array_merge($config, $this->env), $key);
         }
 
         return $this->drivers[$key];
@@ -226,6 +226,11 @@ class file_api_core extends file_locale
             if ($value !== false) {
                 $caps[$name] = $value;
             }
+        }
+
+        // Manticore support
+        if ($manticore = $rcube->config->get('fileapi_manticore')) {
+            $caps['MANTICORE'] = true;
         }
 
         // get capabilities of other drivers

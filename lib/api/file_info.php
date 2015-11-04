@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2012-2014, Kolab Systems AG                                |
+ | Copyright (C) 2012-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -39,8 +39,17 @@ class file_api_file_info extends file_api_common
 
         $info = $driver->file_info($path);
 
+        // Possible 'viewer' types are defined in files_api.js:file_type_supported()
+        // 1 - Native browser support
+        // 2 - Chwala viewer exists
+        // 4 - Manticore (WebODF collaborative editor)
+
         if (rcube_utils::get_boolean((string) $this->args['viewer'])) {
             $this->file_viewer_info($this->args['file'], $info);
+
+            if ((intval($this->args['viewer']) & 4) && $this->rc->config->get('fileapi_manticore')) {
+                $this->file_manticore_handler($this->args['file'], $info);
+            }
         }
 
         return $info;
@@ -59,6 +68,24 @@ class file_api_file_info extends file_api_common
             else if ($href = $viewer->href($file, $info['type'])) {
                 $info['viewer']['href'] = $href;
             }
+        }
+    }
+
+    /**
+     * Merge manticore session data into file info
+     */
+    protected function file_manticore_handler($file, &$info)
+    {
+        // check if file type is supported by webodf editor?
+        if (strtolower($info['type']) != 'application/vnd.oasis.opendocument.text') {
+            return;
+        }
+
+        $manticore = new file_manticore($this->api);
+
+        if ($uri = $manticore->viewer_uri($file)) {
+            $info['viewer']['href']      = $uri;
+            $info['viewer']['manticore'] = true;
         }
     }
 }

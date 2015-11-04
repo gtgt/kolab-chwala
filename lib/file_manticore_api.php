@@ -1,9 +1,9 @@
 <?php
-/*
+/**
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2011-2012, Kolab Systems AG                                |
+ | Copyright (C) 2011-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -23,9 +23,9 @@
 */
 
 /**
- * Helper class to connect to the API
+ * Helper class to connect to the Manticore API
  */
-class file_ui_api
+class file_manticore_api
 {
     /**
      * @var HTTP_Request2
@@ -37,10 +37,16 @@ class file_ui_api
      */
     private $base_url;
 
+    /**
+     * @var bool
+     */
+    private $debug = false;
+
     const ERROR_INTERNAL   = 100;
-    const ERROR_CONNECTION = 200;
+    const ERROR_CONNECTION = 500;
 
     const ACCEPT_HEADER = "application/json,text/javascript,*/*";
+
 
     /**
      * Class constructor.
@@ -49,17 +55,13 @@ class file_ui_api
      */
     public function __construct($base_url)
     {
-        $this->base_url = $base_url;
-        $this->init();
-    }
-
-    /**
-     * Initializes HTTP Request object.
-     */
-    public function init()
-    {
         require_once 'HTTP/Request2.php';
-        $this->request = new HTTP_Request2();
+
+        $config         = rcube::get_instance()->config;
+        $this->debug    = rcube_utils::get_boolean($config->get('fileapi_manticore_debug'));
+        $this->base_url = rtrim($base_url, '/') . '/';
+        $this->request  = new HTTP_Request2();
+
         self::configure($this->request);
     }
 
@@ -100,7 +102,7 @@ class file_ui_api
                 $request->setConfig($http_config);
             }
             catch (Exception $e) {
-//                rcube::log_error("HTTP: " . $e->getMessage());
+                rcube::log_error("HTTP: " . $e->getMessage());
             }
         }
 
@@ -109,6 +111,8 @@ class file_ui_api
 
         // some HTTP server configurations require this header
         $request->setHeader('accept', self::ACCEPT_HEADER);
+
+        $request->setHeader('Content-Type', 'application/json; charset=UTF-8');
     }
 
     /**
@@ -136,69 +140,97 @@ class file_ui_api
      *
      * @param string $username User name
      * @param string $password User password
-     * @param array  $get      Additional GET parameters (e.g. 'version')
      *
-     * @return file_ui_api_result Request response
+     * @return string Session token (on success)
      */
-    public function login($username, $password, $get = null)
+    public function login($username, $password)
     {
         $query = array(
-            'username' => $username,
+            'email'    => $username,
             'password' => $password,
         );
 
-        $response = $this->post('authenticate', $get, $query);
+        // remove current token if any
+        $this->request->setHeader('Authorization');
 
-        return $response;
+        // authenticate the user
+        $response = $this->post('auth/local', $query);
+
+        if ($token = $response->get('token')) {
+            $this->set_session_token($token);
+        }
+
+        return $token;
     }
 
     /**
-     * Logs specified user out of the API
+     * Sets request session token.
+     *
+     * @param string $token    Session token.
+     * @param bool   $validate Enables token validatity check
+     *
+     * @return bool Token validity status
+     */
+    public function set_session_token($token, $validate = false)
+    {
+        $this->request->setHeader('Authorization', "Bearer $token");
+
+        if ($validate) {
+            $result = $this->get('api/user/me');
+
+            return $result->get_error_code() == 200;
+        }
+
+        return true;
+    }
+
+    /**
+     * Delete document editing session
+     *
+     * @param array $id Session identifier
      *
      * @return bool True on success, False on failure
      */
-    public function logout()
+    public function session_delete($id)
     {
-        $response = $this->get('quit');
+        $res = $this->delete('api/documents/' . $id);
 
-        return $response->get_error_code() ? false : true;
+        return $res->get_error_code() == 200;
     }
 
     /**
-     * Sets session token value.
+     * Create document editing session
      *
-     * @param string $token  Token string
+     * @param array $params Session parameters
+     *
+     * @return bool True on success, False on failure
      */
-    public function set_session_token($token)
+    public function session_create($params)
     {
-        $this->request->setHeader('X-Session-Token', $token);
-    }
+        $res = $this->post('api/documents', $params);
 
-    /**
-     * Gets capabilities of the API (according to logged in user).
-     *
-     * @return kolab_client_api_result  Capabilities response
-     */
-    public function get_capabilities()
-    {
-        $this->get('capabilities');
+        // @TODO: 422?
+        return $res->get_error_code() == 201 || $res->get_error_code() == 422;
     }
 
     /**
      * API's GET request.
      *
-     * @param string $action  Action name
-     * @param array  $args    Request arguments
+     * @param string $action Action name
+     * @param array  $get    Request arguments
      *
-     * @return file_ui_api_result  Response
+     * @return file_ui_api_result Response
      */
-    public function get($action, $args = array())
+    public function get($action, $get = array())
     {
-        $url = $this->build_url($action, $args);
+        $url = $this->build_url($action, $get);
 
-//        Log::trace("Calling API GET: $url");
+        if ($this->debug) {
+            rcube::write_log('manticore', "GET: $url " . json_encode($get));
+        }
 
         $this->request->setMethod(HTTP_Request2::METHOD_GET);
+        $this->request->setBody('');
 
         return $this->get_response($url);
     }
@@ -206,20 +238,43 @@ class file_ui_api
     /**
      * API's POST request.
      *
-     * @param string $action    Action name
-     * @param array  $url_args  URL arguments
-     * @param array  $post      POST arguments
+     * @param string $action Action name
+     * @param array  $post   POST arguments
      *
-     * @return kolab_client_api_result  Response
+     * @return kolab_client_api_result Response
      */
-    public function post($action, $url_args = array(), $post = array())
+    public function post($action, $post = array())
     {
-        $url = $this->build_url($action, $url_args);
+        $url = $this->build_url($action);
 
-//        Log::trace("Calling API POST: $url");
+        if ($this->debug) {
+            rcube::write_log('manticore', "POST: $url " . json_encode($post));
+        }
 
         $this->request->setMethod(HTTP_Request2::METHOD_POST);
-        $this->request->addPostParameter($post);
+        $this->request->setBody(json_encode($post));
+
+        return $this->get_response($url);
+    }
+
+    /**
+     * API's DELETE request.
+     *
+     * @param string $action Action name
+     * @param array  $get    Request arguments
+     *
+     * @return file_ui_api_result Response
+     */
+    public function delete($action, $get = array())
+    {
+        $url = $this->build_url($action, $get);
+
+        if ($this->debug) {
+            rcube::write_log('manticore', "DELETE: $url " . json_encode($get));
+        }
+
+        $this->request->setMethod(HTTP_Request2::METHOD_DELETE);
+        $this->request->setBody('');
 
         return $this->get_response($url);
     }
@@ -230,13 +285,11 @@ class file_ui_api
      *
      * @return Net_URL2 URL object
      */
-    private function build_url($action, $args)
+    private function build_url($action, $args = array())
     {
-        $url = new Net_URL2($this->base_url);
+        $url = new Net_URL2($this->base_url . $action);
 
-        $args['method'] = $action;
-
-        $url->setQueryVariables($args);
+        $url->setQueryVariables((array) $args);
 
         return $url;
     }
@@ -267,23 +320,23 @@ class file_ui_api
                 self::ERROR_INTERNAL, $e->getMessage());
         }
 
-        $body     = @json_decode($body, true);
-        $err_code = null;
-        $err_str  = null;
+        $code = $response->getStatus();
 
-        if (is_array($body) && (empty($body['status']) || $body['status'] != 'OK')) {
-            $err_code = !empty($body['code']) ? $body['code'] : self::ERROR_INTERNAL;
-            $err_str  = !empty($body['reason']) ? $body['reason'] : 'Unknown error';
-        }
-        else if (!is_array($body)) {
-            $err_code = self::ERROR_INTERNAL;
-            $err_str  = 'Unable to decode response';
+        if ($this->debug) {
+            rcube::write_log('manticore', "Response [$code]: $body");
         }
 
-        if (!$err_code && array_key_exists('result', (array) $body)) {
-            $body = $body['result'];
+        if ($code < 300) {
+            $result = $body ? json_decode($body, true) : array();
+        }
+        else {
+            if ($code != 401) {
+                rcube::raise_error("Error $code on $url", true, false);
+            }
+
+            $error = $body;
         }
 
-        return new file_ui_api_result($body, $err_code, $err_str);
+        return new file_ui_api_result($result, $code, $error);
     }
 }

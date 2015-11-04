@@ -36,6 +36,10 @@ $config['fileapi_sources'] = array(
 );
 */
 
+// Manticore service URL. Enables use of WebODF collaborative editor.
+// Note: this URL should be accessible from Chwala host and Roundcube host as well.
+$config['fileapi_manticore'] = null;
+
 // Name of the user interface skin.
 $config['file_api_skin'] = 'default';
 
