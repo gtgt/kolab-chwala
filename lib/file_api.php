@@ -25,10 +25,9 @@
 class file_api extends file_api_core
 {
     public $session;
+    public $config;
+    public $browser;
     public $output_type = file_api_core::OUTPUT_JSON;
-
-    private $conf;
-    private $browser;
 
 
     public function __construct()
@@ -36,11 +35,11 @@ class file_api extends file_api_core
         $rcube = rcube::get_instance();
         $rcube->add_shutdown_function(array($this, 'shutdown'));
 
-        $this->conf = $rcube->config;
+        $this->config = $rcube->config;
         $this->session_init();
 
-        if ($_SESSION['config']) {
-            $this->config = $_SESSION['config'];
+        if ($_SESSION['env']) {
+            $this->env = $_SESSION['env'];
         }
 
         $this->locale_init();
@@ -56,28 +55,28 @@ class file_api extends file_api_core
         // Check the session, authenticate the user
         if (!$this->session_validate()) {
             $this->session->destroy(session_id());
+            $this->session->regenerate_id(false);
 
-            if ($this->request == 'authenticate') {
-                $this->session->regenerate_id(false);
+            if ($username = $this->authenticate()) {
+                $_SESSION['user'] = $username;
+                $_SESSION['time'] = time();
+                $_SESSION['env']  = $this->env;
 
-                if ($username = $this->authenticate()) {
-                    $_SESSION['user']   = $username;
-                    $_SESSION['time']   = time();
-                    $_SESSION['config'] = $this->config;
+                // remember client API version
+                if (is_numeric($_GET['version'])) {
+                    $_SESSION['version'] = $_GET['version'];
+                }
 
-                    // remember client API version
-                    if (is_numeric($_GET['version'])) {
-                        $_SESSION['version'] = $_GET['version'];
-                    }
-
+                if ($this->request == 'authenticate') {
                     $this->output_success(array(
                         'token'        => session_id(),
                         'capabilities' => $this->capabilities(),
                     ));
                 }
             }
-
-            throw new Exception("Invalid session", 403);
+            else {
+                throw new Exception("Invalid session", 403);
+            }
         }
 
         // Call service method
@@ -107,7 +106,7 @@ class file_api extends file_api_core
             return false;
         }
 
-        $timeout = $this->conf->get('session_lifetime', 0) * 60;
+        $timeout = $this->config->get('session_lifetime', 0) * 60;
         if ($timeout && $_SESSION['time'] && $_SESSION['time'] < time() - $timeout) {
             return false;
         }
@@ -123,8 +122,8 @@ class file_api extends file_api_core
     private function session_init()
     {
         $rcube     = rcube::get_instance();
-        $sess_name = $this->conf->get('session_name');
-        $lifetime  = $this->conf->get('session_lifetime', 0) * 60;
+        $sess_name = $this->config->get('session_name');
+        $lifetime  = $this->config->get('session_lifetime', 0) * 60;
 
         if ($lifetime) {
             ini_set('session.gc_maxlifetime', $lifetime * 2);
@@ -136,13 +135,13 @@ class file_api extends file_api_core
 
         // Roundcube Framework >= 1.2
         if (in_array('factory', get_class_methods('rcube_session'))) {
-            $this->session = rcube_session::factory($this->conf);
+            $this->session = rcube_session::factory($this->config);
         }
         // Rouncube Framework < 1.2
         else {
-            $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
-            $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
-            $this->session->set_ip_check($this->conf->get('ip_check'));
+            $this->session = new rcube_session($rcube->get_dbh(), $this->config);
+            $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
+            $this->session->set_ip_check($this->config->get('ip_check'));
         }
 
         $this->session->register_gc_handler(array($rcube, 'gc'));
@@ -157,7 +156,7 @@ class file_api extends file_api_core
     public function shutdown()
     {
         // write performance stats to logs/console
-        if ($this->conf->get('devel_mode')) {
+        if ($this->config->get('devel_mode')) {
             if (function_exists('memory_get_peak_usage'))
                 $mem = memory_get_peak_usage();
             else if (function_exists('memory_get_usage'))
@@ -210,15 +209,15 @@ class file_api extends file_api_core
         if (!empty($username)) {
             $backend = $this->get_backend();
             $result  = $backend->authenticate($username, $password);
-        }
 
-        if (empty($result)) {
+            if (empty($result)) {
 /*
-            header('WWW-Authenticate: Basic realm="' . $this->app_name .'"');
-            header('HTTP/1.1 401 Unauthorized');
-            exit;
+                header('WWW-Authenticate: Basic realm="' . $this->app_name .'"');
+                header('HTTP/1.1 401 Unauthorized');
+                exit;
 */
-            throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
+                throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
+            }
         }
 
         return $username;
@@ -239,14 +238,14 @@ class file_api extends file_api_core
                 return array();
 
             case 'configure':
-                foreach (array_keys($this->config) as $name) {
+                foreach (array_keys($this->env) as $name) {
                     if (isset($_GET[$name])) {
-                        $this->config[$name] = $_GET[$name];
+                        $this->env[$name] = $_GET[$name];
                     }
                 }
-                $_SESSION['config'] = $this->config;
+                $_SESSION['env'] = $this->env;
 
-                return $this->config;
+                return $this->env;
 
             case 'upload_progress':
                 return $this->upload_progress();

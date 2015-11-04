@@ -36,12 +36,12 @@ class file_api_lib extends file_api_core
 
         switch ($name) {
             case 'configure':
-                foreach (array_keys($this->config) as $name) {
+                foreach (array_keys($this->env) as $name) {
                     if (isset($arguments[0][$name])) {
-                        $this->config[$name] = $arguments[0][$name];
+                        $this->env[$name] = $arguments[0][$name];
                     }
                 }
-                return $this->config;
+                return $this->env;
 
             case 'mimetypes':
                 return $this->supported_mimetypes();
