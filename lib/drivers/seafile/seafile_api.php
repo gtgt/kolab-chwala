@@ -379,12 +379,13 @@ class seafile_api
     /**
      * List directory entries (files and directories)
      *
-     * @param string $repo_id Library identifier
-     * @param string $dir     Directory name (with path)
+     * @param string $repo_id  Library identifier
+     * @param string $dir      Directory name (with path)
+     * @param string $type     Entry type ('dir' or 'file')
      *
      * @return bool|array List of directories/files on success, False on failure
      */
-    public function directory_entries($repo_id, $dir)
+    public function directory_entries($repo_id, $dir, $type = null)
     {
         // sanity checks
         if (!is_string($dir)) {
@@ -414,7 +415,13 @@ class seafile_api
         //    "name": "test_dir"
         // }]
 
-        return $this->request('GET', "repos/$repo_id/dir", array('p' => $dir));
+        $params = array('p' => $dir);
+
+        if ($type) {
+            $params['t'] = $type == 'dir' ? 'd' : 'f';
+        }
+
+        return $this->request('GET', "repos/$repo_id/dir", $params);
     }
 
     /**

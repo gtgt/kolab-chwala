@@ -938,7 +938,7 @@ class kolab_file_storage implements file_storage
     /**
      * Returns list of folders.
      *
-     * @param array $params List parameters ('type', 'search')
+     * @param array $params List parameters ('type', 'search', 'extended', 'permissions')
      *
      * @return array List of folders
      * @throws Exception
@@ -956,7 +956,6 @@ class kolab_file_storage implements file_storage
 
         // create/subscribe 'Files' folder in case there's no folder of type 'file'
         if (empty($folders) && !$unsubscribed) {
-            $imap    = $this->rc->get_storage();
             $default = 'Files';
 
             // the folder may exist but be unsubscribed
@@ -987,7 +986,7 @@ class kolab_file_storage implements file_storage
                 return $folder;
             };
 
-            $folders  = array_map($callback, $folders);
+            $folders = array_map($callback, $folders);
         }
 
         // searching
@@ -1019,7 +1018,56 @@ class kolab_file_storage implements file_storage
 
         $folders = array_values($folders);
 
+        // In extended format we return array of arrays
+        if ($params['extended']) {
+            $me = $this;
+            $fn = function($folder) use ($params, $rights, $me) {
+                $folder = array('folder' => $folder);
+
+                // check if folder is readonly
+                if (!$rights && $params['permissions']) {
+                    $acl = $me->folder_rights($folder['folder']);
+
+                    if (!($acl & file_storage::ACL_WRITE)) {
+                        $folder['readonly'] = true;
+                    }
+                }
+
+                return $folder;
+            };
+
+            $folders = array_map($fn, $folders);
+        }
+
         return $folders;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder Folder name
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder)
+    {
+        $storage = $this->rc->get_storage();
+        $folder  = rcube_charset::convert($folder, RCUBE_CHARSET, 'UTF7-IMAP');
+        $rights  = file_storage::ACL_READ;
+
+        // For better performance, assume personal folders are writeable
+        if ($storage->folder_namespace($folder) == 'personal') {
+            $rights |= file_storage::ACL_WRITE;
+        }
+        else {
+            $myrights = $storage->my_rights($folder);
+
+            if (in_array('t', (array) $myrights)) {
+                $rights |= file_storage::ACL_WRITE;
+            }
+        }
+
+        return $rights;
     }
 
     /**

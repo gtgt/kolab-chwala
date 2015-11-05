@@ -92,6 +92,7 @@ class file_api_lib extends file_api_core
             case 'folder_subscribe':
             case 'folder_unsubscribe':
             case 'folder_delete':
+            case 'folder_rights':
                 $args = array(
                     'folder' => $arguments[0],
                 );

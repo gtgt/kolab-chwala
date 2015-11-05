@@ -54,6 +54,9 @@ interface file_storage
     const FILTER_UNSUBSCRIBED = 1;
     const FILTER_WRITABLE     = 2;
 
+    // folder permissions
+    const ACL_READ = 1;
+    const ACL_WRITE = 2;
 
     /**
      * Authenticates a user
@@ -277,12 +280,21 @@ interface file_storage
     /**
      * Returns list of folders.
      *
-     * @param array $params List parameters ('type', 'search')
+     * @param array $params List parameters ('type', 'search', 'extended', 'permissions')
      *
      * @return array List of folders
      * @throws Exception
      */
     public function folder_list($params = array());
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder_name);
 
     /**
      * Returns a list of locks

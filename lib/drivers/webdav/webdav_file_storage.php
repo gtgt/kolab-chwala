@@ -775,7 +775,28 @@ class webdav_file_storage implements file_storage
         // ensure sorted folders
         usort($result, array('file_utils', 'sort_folder_comparator'));
 
+        // In extended format we return array of arrays
+        if (!empty($params['extended'])) {
+            foreach ($result as $idx => $folder) {
+                $item = array('folder' => $folder);
+                $result[$idx] = $item;
+            }
+        }
+
         return $result;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder_name)
+    {
+        // @TODO
+        return file_storage::ACL_READ | file_storage::ACL_WRITE;
     }
 
     /**

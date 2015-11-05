@@ -213,7 +213,7 @@ function files_api()
   // Folder list parser, converts it into structure
   this.folder_list_parse = function(list, num, subscribed)
   {
-    var i, n, j, items, items_len, f, tmp, folder,
+    var i, n, j, items, items_len, f, tmp, folder, readonly,
       subs_support, subs_prefixes = {}, found,
       separator = this.env.directory_separator,
       len = list ? list.length : 0, folders = {};
@@ -233,6 +233,14 @@ function files_api()
 
     for (i=0; i<len; i++) {
       folder = list[i];
+      readonly = false;
+
+      // in extended format folder is an object
+      if (typeof folder !== 'string') {
+        readonly = folder.readonly;
+        folder = folder.folder;
+      }
+
       items = folder.split(separator);
       items_len = items.length;
 
@@ -243,7 +251,12 @@ function files_api()
           folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
       }
 
-      folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
+      folders[folder] = {
+        name: items.pop(),
+        depth: items_len-1,
+        id: 'f' + num++,
+        readonly: readonly
+      };
 
       // set subscription flag, leave undefined if the source does not support subscriptions
       found = false;
