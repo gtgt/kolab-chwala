@@ -1020,23 +1020,33 @@ class kolab_file_storage implements file_storage
 
         // In extended format we return array of arrays
         if ($params['extended']) {
-            $me = $this;
-            $fn = function($folder) use ($params, $rights, $me) {
-                $folder = array('folder' => $folder);
+            if (!$rights && $params['permissions']) {
+                // get list of known writable folders from cache
+                $cache_key   = 'mailboxes.permissions';
+                $permissions = (array) $imap->get_cache($cache_key);
+            }
+
+            foreach ($folders as $idx => $folder_name) {
+                $folder = array('folder' => $folder_name);
 
                 // check if folder is readonly
-                if (!$rights && $params['permissions']) {
-                    $acl = $me->folder_rights($folder['folder']);
+                if (isset($permissions)) {
+                    if (!array_key_exists($folder_name, $permissions)) {
+                        $acl = $this->folder_rights($folder_name);
+                        $permissions[$folder_name] = $acl;
+                    }
 
-                    if (!($acl & file_storage::ACL_WRITE)) {
+                    if (!($permissions[$folder_name] & file_storage::ACL_WRITE)) {
                         $folder['readonly'] = true;
                     }
                 }
 
-                return $folder;
-            };
+                $folders[$idx] = $folder;
+            }
 
-            $folders = array_map($fn, $folders);
+            if ($cache_key) {
+                $imap->update_cache($cache_key, $permissions);
+            }
         }
 
         return $folders;
@@ -1055,6 +1065,14 @@ class kolab_file_storage implements file_storage
         $folder  = rcube_charset::convert($folder, RCUBE_CHARSET, 'UTF7-IMAP');
         $rights  = file_storage::ACL_READ;
 
+        // get list of known writable folders from cache
+        $cache_key   = 'mailboxes.permissions';
+        $permissions = (array) $storage->get_cache($cache_key);
+
+        if (array_key_exists($folder, $permissions)) {
+            return $permissions[$folder];
+        }
+
         // For better performance, assume personal folders are writeable
         if ($storage->folder_namespace($folder) == 'personal') {
             $rights |= file_storage::ACL_WRITE;
@@ -1065,6 +1083,9 @@ class kolab_file_storage implements file_storage
             if (in_array('t', (array) $myrights)) {
                 $rights |= file_storage::ACL_WRITE;
             }
+
+            $permissions[$folder] = $rights;
+            $storage->update_cache($cache_key, $permissions);
         }
 
         return $rights;
