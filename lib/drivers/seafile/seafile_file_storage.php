@@ -581,7 +581,7 @@ class seafile_file_storage implements file_storage
         }
 
         // get directory entries
-        $entries = $this->api->directory_entries($repo_id, $folder);
+        $entries = $this->api->directory_entries($repo_id, $folder, 'file');
         $result  = array();
 
         foreach ((array) $entries as $idx => $file) {
@@ -860,6 +860,7 @@ class seafile_file_storage implements file_storage
      */
     public function folder_list($params = array())
     {
+        $writable  = ($params['type'] & file_storage::FILTER_WRITABLE) ? true : false;
         $libraries = $this->libraries();
         $folders   = array();
 
@@ -877,7 +878,14 @@ class seafile_file_storage implements file_storage
                 continue;
             }
 
-            $folders[$library['name']] = $library['mtime'];
+            if (strpos($library['permission'], 'w') === false) {
+                $readonly_prefixes[] = $library['name'];
+            }
+
+            $folders[$library['name']] = array(
+                'mtime'      => $library['mtime'],
+                'permission' => $library['permission'],
+            );
 
             if ($folder_tree = $this->folders_tree($library, '', $library, $cached)) {
                 $folders = array_merge($folders, $folder_tree);
@@ -888,15 +896,86 @@ class seafile_file_storage implements file_storage
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
-        if ($cache) {
+        if ($cache && $cached != $folders) {
             $cache->set('folders', $folders);
         }
 
+        // remove read-only folders when requested
+        if ($writable) {
+            foreach ($folders as $folder_name => $folder) {
+                if (strpos($folder['permission'], 'w') === false) {
+                    unset($folders[$folder_name]);
+                }
+            }
+        }
+
+        // In extended format we return array of arrays
+        if (!empty($params['extended'])) {
+            foreach ($folders as $folder_name => $folder) {
+                $item = array('folder' => $folder_name);
+
+                // check if folder is readonly
+                if (!$writable && $params['permissions']) {
+                    if (strpos($folder['permission'], 'w') === false) {
+                        $item['readonly'] = true;
+                    }
+                }
+
+                $folders[$folder_name] = $item;
+            }
+        }
+        else {
+            $folders = array_keys($folders);
+        }
+
         // sort folders
-        $folders = array_keys($folders);
         usort($folders, array('file_utils', 'sort_folder_comparator'));
 
         return $folders;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder_name)
+    {
+        // It is not possible (yet) to assign a specified library/folder
+        // to the mount point. So, it is a "virtual" folder.
+        if (!strlen($folder_name)) {
+            return 0;
+        }
+
+        list($folder, $repo_id, $library) = $this->find_library($folder_name);
+
+        // @TODO: we should check directory permission not library
+        // However, there's no API for this, we'd need to get a list
+        // of directories of a parent folder/library
+/*
+        if (strpos($folder, '/')) {
+            // @TODO
+        }
+        else {
+            $acl = $library['permission'];
+        }
+*/
+        $acl    = $library['permission'];
+        $rights = 0;
+        $map    = array(
+            'r' => file_storage::ACL_READ,
+            'w' => file_storage::ACL_WRITE,
+        );
+
+        foreach ($map as $key => $value) {
+            if (strpos($acl, $key) !== false) {
+                $rights |= $value;
+            }
+        }
+
+        return $rights;
     }
 
     /**
@@ -1016,23 +1095,29 @@ class seafile_file_storage implements file_storage
         $root   = $library['name'] . ($fname != '/' ? $fname : '');
 
         // nothing changed, use cached folders tree of this folder
-        if ($cached && $cached[$root] && $cached[$root] == $folder['mtime']) {
-            foreach ($cached as $folder_name => $mtime) {
+        if ($cached && is_array($cached[$root]) && $cached[$root]['mtime'] == $folder['mtime']) {
+            foreach ($cached as $folder_name => $f) {
                 if (strpos($folder_name, $root . '/') === 0) {
-                    $folders[$folder_name] = $mtime;
+                    $folders[$folder_name] = array(
+                        'mtime'      => $f['mtime'],
+                        'permission' => $f['permission'],
+                    );
                 }
             }
         }
         // get folder content (files and sub-folders)
         // there's no API method to get only folders
-        else if ($content = $this->api->directory_entries($library['id'], $fname)) {
+        else if ($content = $this->api->directory_entries($library['id'], $fname, 'dir')) {
             if ($fname != '/') {
                 $fname .= '/';
             }
 
             foreach ($content as $item) {
                 if ($item['type'] == 'dir' && strlen($item['name'])) {
-                    $folders[$root . '/' . $item['name']] = $item['mtime'];
+                    $folders[$root . '/' . $item['name']] = array(
+                        'mtime'      => $item['mtime'],
+                        'permission' => $item['permission'],
+                    );
 
                     // get subfolders recursively
                     $folders_tree = $this->folders_tree($library, $fname, $item, $cached);

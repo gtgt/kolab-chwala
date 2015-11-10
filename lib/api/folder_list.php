@@ -43,6 +43,10 @@ class file_api_folder_list extends file_api_common
             $params['search'] = $this->args['search'];
             $search = mb_strtoupper($this->args['search']);
         }
+        if (!empty($this->args['permissions']) && rcube_utils::get_boolean((string) $this->args['permissions'])) {
+            $params['extended']    = true;
+            $params['permissions'] = true;
+        }
 
         // get folders from default driver
         $backend = $this->api->get_backend();
@@ -65,6 +69,9 @@ class file_api_folder_list extends file_api_common
             // folder exists in main source, replace it with external one
             if (($idx = array_search($title, $folders)) !== false) {
                 foreach ($folders as $idx => $folder) {
+                    if (is_array($folder)) {
+                        $folder = $folder['folder'];
+                    }
                     if ($folder == $title || strpos($folder, $prefix) === 0) {
                         unset($folders[$idx]);
                     }
@@ -72,15 +79,37 @@ class file_api_folder_list extends file_api_common
             }
 
             if (!isset($search) || strpos(mb_strtoupper($title), $search) !== false) {
-                $folders[] = $title;
-                $has_more  = count($folders) > 0;
+                $has_more = count($folders) > 0;
+                $folder   = $params['extended'] ? array('folder' => $title) : $title;
+
+                if ($params['permissions'] || ($params['type'] & file_storage::FILTER_WRITABLE)) {
+                    if ($readonly = !($driver->folder_rights('') & file_storage::ACL_WRITE)) {
+                        if ($params['permissions']) {
+                            $folder['readonly'] = true;
+                        }
+                    }
+                }
+                else {
+                    $readonly = false;
+                }
+
+                if (!$readonly || !($params['type'] & file_storage::FILTER_WRITABLE)) {
+                    $folders[] = $folder;
+                }
             }
 
             if ($driver != $backend) {
                 try {
                     foreach ($this->folder_list($driver, $params) as $folder) {
-                        $folders[] = $prefix . $folder;
-                        $has_more = true;
+                        if (is_array($folder)) {
+                            $folder['folder'] = $prefix . $folder['folder'];
+                        }
+                        else {
+                            $folder = $prefix . $folder;
+                        }
+
+                        $folders[] = $folder;
+                        $has_more  = true;
                     }
                 }
                 catch (Exception $e) {

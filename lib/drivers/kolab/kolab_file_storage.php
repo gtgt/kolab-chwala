@@ -938,7 +938,7 @@ class kolab_file_storage implements file_storage
     /**
      * Returns list of folders.
      *
-     * @param array $params List parameters ('type', 'search')
+     * @param array $params List parameters ('type', 'search', 'extended', 'permissions')
      *
      * @return array List of folders
      * @throws Exception
@@ -956,7 +956,6 @@ class kolab_file_storage implements file_storage
 
         // create/subscribe 'Files' folder in case there's no folder of type 'file'
         if (empty($folders) && !$unsubscribed) {
-            $imap    = $this->rc->get_storage();
             $default = 'Files';
 
             // the folder may exist but be unsubscribed
@@ -987,7 +986,7 @@ class kolab_file_storage implements file_storage
                 return $folder;
             };
 
-            $folders  = array_map($callback, $folders);
+            $folders = array_map($callback, $folders);
         }
 
         // searching
@@ -1019,7 +1018,77 @@ class kolab_file_storage implements file_storage
 
         $folders = array_values($folders);
 
+        // In extended format we return array of arrays
+        if ($params['extended']) {
+            if (!$rights && $params['permissions']) {
+                // get list of known writable folders from cache
+                $cache_key   = 'mailboxes.permissions';
+                $permissions = (array) $imap->get_cache($cache_key);
+            }
+
+            foreach ($folders as $idx => $folder_name) {
+                $folder = array('folder' => $folder_name);
+
+                // check if folder is readonly
+                if (isset($permissions)) {
+                    if (!array_key_exists($folder_name, $permissions)) {
+                        $acl = $this->folder_rights($folder_name);
+                        $permissions[$folder_name] = $acl;
+                    }
+
+                    if (!($permissions[$folder_name] & file_storage::ACL_WRITE)) {
+                        $folder['readonly'] = true;
+                    }
+                }
+
+                $folders[$idx] = $folder;
+            }
+
+            if ($cache_key) {
+                $imap->update_cache($cache_key, $permissions);
+            }
+        }
+
         return $folders;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder Folder name
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder)
+    {
+        $storage = $this->rc->get_storage();
+        $folder  = rcube_charset::convert($folder, RCUBE_CHARSET, 'UTF7-IMAP');
+        $rights  = file_storage::ACL_READ;
+
+        // get list of known writable folders from cache
+        $cache_key   = 'mailboxes.permissions';
+        $permissions = (array) $storage->get_cache($cache_key);
+
+        if (array_key_exists($folder, $permissions)) {
+            return $permissions[$folder];
+        }
+
+        // For better performance, assume personal folders are writeable
+        if ($storage->folder_namespace($folder) == 'personal') {
+            $rights |= file_storage::ACL_WRITE;
+        }
+        else {
+            $myrights = $storage->my_rights($folder);
+
+            if (in_array('t', (array) $myrights)) {
+                $rights |= file_storage::ACL_WRITE;
+            }
+
+            $permissions[$folder] = $rights;
+            $storage->update_cache($cache_key, $permissions);
+        }
+
+        return $rights;
     }
 
     /**

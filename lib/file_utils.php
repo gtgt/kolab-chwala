@@ -191,10 +191,11 @@ class file_utils
      * Callback for uasort() that implements correct
      * locale-aware case-sensitive sorting
      */
-    public static function sort_folder_comparator($str1, $str2)
+    public static function sort_folder_comparator($p1, $p2)
     {
-        $path1 = explode(file_storage::SEPARATOR, $str1);
-        $path2 = explode(file_storage::SEPARATOR, $str2);
+        $ext   = is_array($p1); // folder can be a string or an array with 'folder' key
+        $path1 = explode(file_storage::SEPARATOR, $ext ? $p1['folder'] : $p1);
+        $path2 = explode(file_storage::SEPARATOR, $ext ? $p2['folder'] : $p2);
 
         foreach ($path1 as $idx => $folder1) {
             $folder2 = $path2[$idx];
