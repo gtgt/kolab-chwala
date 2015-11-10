@@ -361,7 +361,7 @@ class kolab_auth extends rcube_plugin
         $input = new html_inputfield(array('name' => '_loginas', 'id' => 'rcmloginas',
             'type' => 'text', 'autocomplete' => 'off'));
         $row = html::tag('tr', null,
-            html::tag('td', 'title', html::label('rcmloginas', Q($this->gettext('loginas'))))
+            html::tag('td', 'title', html::label('rcmloginas', rcube::Q($this->gettext('loginas'))))
             . html::tag('td', 'input', $input->show(trim(rcube_utils::get_input_value('_loginas', rcube_utils::INPUT_POST))))
         );
         $args['content'] = preg_replace('/<\/tbody>/i', $row . '</tbody>', $args['content']);
@@ -380,7 +380,7 @@ class kolab_auth extends rcube_plugin
         $pass    = $args['pass'];
         $loginas = trim(rcube_utils::get_input_value('_loginas', rcube_utils::INPUT_POST));
 
-        if (empty($user) || empty($pass)) {
+        if (empty($user) || (empty($pass) && empty($_SERVER['REMOTE_USER']))) {
             $args['abort'] = true;
             return $args;
         }
@@ -546,7 +546,7 @@ class kolab_auth extends rcube_plugin
                 $args['abort'] = true;
                 $args['error'] = $this->gettext(array(
                     'name' => 'loginasnotallowed',
-                    'vars' => array('user' => Q($loginas)),
+                    'vars' => array('user' => rcube::Q($loginas)),
                 ));
 
                 $message = sprintf(

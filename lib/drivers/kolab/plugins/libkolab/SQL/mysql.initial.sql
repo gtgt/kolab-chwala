@@ -6,6 +6,7 @@
  * @licence GNU AGPL
  **/
 
+/*!40014  SET FOREIGN_KEY_CHECKS=0 */;
 
 DROP TABLE IF EXISTS `kolab_folders`;
 
@@ -15,6 +16,8 @@ CREATE TABLE `kolab_folders` (
   `type` VARCHAR(32) NOT NULL,
   `synclock` INT(10) NOT NULL DEFAULT '0',
   `ctag` VARCHAR(40) DEFAULT NULL,
+  `changed` DATETIME DEFAULT NULL,
+  `objectcount` BIGINT DEFAULT NULL,
   PRIMARY KEY(`folder_id`),
   INDEX `resource_type` (`resource`, `type`)
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
@@ -183,5 +186,6 @@ CREATE TABLE `kolab_cache_freebusy` (
   INDEX `freebusy_uid2msguid` (`folder_id`,`uid`,`msguid`)
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
 
+/*!40014  SET FOREIGN_KEY_CHECKS=1 */;
 
-INSERT INTO `system` (`name`, `value`) VALUES ('libkolab-version', '2015011600');
+REPLACE INTO `system` (`name`, `value`) VALUES ('libkolab-version', '2015020600');

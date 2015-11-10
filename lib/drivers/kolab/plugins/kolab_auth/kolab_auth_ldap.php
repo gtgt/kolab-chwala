@@ -27,8 +27,7 @@
  */
 class kolab_auth_ldap extends rcube_ldap_generic
 {
-    private $icache = array();
-    private $conf = array();
+    private $conf     = array();
     private $fieldmap = array();
 
 
@@ -212,7 +211,7 @@ class kolab_auth_ldap extends rcube_ldap_generic
      * Search records (simplified version of rcube_ldap::search)
      *
      * @param mixed   $fields   The field name or array of field names to search in
-     * @param mixed   $value    Search value (or array of values when $fields is array)
+     * @param string  $value    Search value
      * @param int     $mode     Matching mode:
      *                          0 - partial (*abc*),
      *                          1 - strict (=),
@@ -229,57 +228,33 @@ class kolab_auth_ldap extends rcube_ldap_generic
             return array();
         }
 
-        $mode = intval($mode);
+        $mode  = intval($mode);
 
-        // use AND operator for advanced searches
-        $filter = is_array($value) ? '(&' : '(|';
+        // try to resolve field names into ldap attributes
+        $fieldmap = $this->fieldmap;
+        $attrs = array_map(function($f) use ($fieldmap) {
+            return array_key_exists($f, $fieldmap) ? $fieldmap[$f] : $f;
+        }, (array)$fields);
 
-        // set wildcards
-        $wp = $ws = '';
-        if (!empty($this->config['fuzzy_search']) && $mode != 1) {
-            $ws = '*';
-            if (!$mode) {
-                $wp = '*';
-            }
+        // compose a full-text-search-like filter
+        if (count($attrs) > 1 || $mode != 1) {
+            $filter = self::fulltext_search_filter($value, $attrs, $mode);
         }
-
-        foreach ((array)$fields as $idx => $field) {
-            $val   = is_array($value) ? $value[$idx] : $value;
-            $attrs = (array) $this->fieldmap[$field];
-
-            if (empty($attrs)) {
-                $filter .= "($field=$wp" . rcube_ldap_generic::quote_string($val) . "$ws)";
-            }
-            else {
-                if (count($attrs) > 1)
-                    $filter .= '(|';
-                foreach ($attrs as $f)
-                    $filter .= "($f=$wp" . rcube_ldap_generic::quote_string($val) . "$ws)";
-                if (count($attrs) > 1)
-                    $filter .= ')';
-            }
+        // direct search
+        else {
+            $field  = $attrs[0];
+            $filter = "($field=" . self::quote_string($value) . ")";
         }
-        $filter .= ')';
 
         // add required (non empty) fields filter
         $req_filter = '';
 
         foreach ((array)$required as $field) {
-            if (in_array($field, (array)$fields))  // required field is already in search filter
-                continue;
+            $attr = array_key_exists($field, $this->fieldmap) ? $this->fieldmap[$field] : $field;
 
-            $attrs = (array) $this->fieldmap[$field];
-
-            if (empty($attrs)) {
-                $req_filter .= "($field=*)";
-            }
-            else {
-                if (count($attrs) > 1)
-                    $req_filter .= '(|';
-                foreach ($attrs as $f)
-                    $req_filter .= "($f=*)";
-                if (count($attrs) > 1)
-                    $req_filter .= ')';
+            // only add if required field is not already in search filter
+            if (!in_array($attr, $attrs)) {
+                $req_filter .= "($attr=*)";
             }
         }
 
@@ -429,7 +404,7 @@ class kolab_auth_ldap extends rcube_ldap_generic
                 list($usr, $dom) = explode('@', $user);
 
                 // unrealm domain, user login can contain a domain alias
-                if ($dom != $domain && ($dc = $this->find_domain($dom))) {
+                if ($dom != $domain && ($dc = $this->domain_root_dn($dom))) {
                     // @FIXME: we should replace domain in $user, I suppose
                 }
             }
@@ -453,49 +428,6 @@ class kolab_auth_ldap extends rcube_ldap_generic
         $this->parse_replaces = $replaces;
 
         return strtr($str, $replaces);
-    }
-
-    /**
-     * Find root domain for specified domain
-     *
-     * @param string $domain Domain name
-     *
-     * @return string Domain DN string
-     */
-    function find_domain($domain)
-    {
-        if (empty($domain) || empty($this->config['domain_base_dn']) || empty($this->config['domain_filter'])) {
-            return null;
-        }
-
-        $base_dn   = $this->config['domain_base_dn'];
-        $filter    = $this->config['domain_filter'];
-        $name_attr = $this->config['domain_name_attribute'];
-
-        if (empty($name_attr)) {
-            $name_attr = 'associateddomain';
-        }
-
-        $filter = str_replace('%s', rcube_ldap_generic::quote_string($domain), $filter);
-        $result = parent::search($base_dn, $filter, 'sub', array($name_attr, 'inetdomainbasedn'));
-
-        if (!$result) {
-            return null;
-        }
-
-        $entries  = $result->entries(true);
-        $entry_dn = key($entries);
-        $entry    = $entries[$entry_dn];
-
-        if (is_array($entry)) {
-            if (!empty($entry['inetdomainbasedn'])) {
-                return $entry['inetdomainbasedn'];
-            }
-
-            $domain = is_array($entry[$name_attr]) ? $entry[$name_attr][0] : $entry[$name_attr];
-
-            return $domain ? 'dc=' . implode(',dc=', explode('.', $domain)) : null;
-        }
     }
 
     /**

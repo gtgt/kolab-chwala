@@ -122,12 +122,14 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function get_resource_uri()
     {
-        if (!empty($this->resource_uri))
+        if (!empty($this->resource_uri)) {
             return $this->resource_uri;
+        }
 
         // strip namespace prefix from folder name
-        $ns = $this->get_namespace();
+        $ns     = $this->get_namespace();
         $nsdata = $this->imap->get_namespace($ns);
+
         if (is_array($nsdata[0]) && strlen($nsdata[0][0]) && strpos($this->name, $nsdata[0][0]) === 0) {
             $subpath = substr($this->name, strlen($nsdata[0][0]));
             if ($ns == 'other') {
@@ -152,19 +154,24 @@ class kolab_storage_folder extends kolab_storage_folder_api
     public function get_uid()
     {
         // UID is defined in folder METADATA
-        $metakeys = array(kolab_storage::UID_KEY_SHARED, kolab_storage::UID_KEY_PRIVATE, kolab_storage::UID_KEY_CYRUS);
+        $metakeys = array(kolab_storage::UID_KEY_SHARED, kolab_storage::UID_KEY_CYRUS);
         $metadata = $this->get_metadata($metakeys);
-        foreach ($metakeys as $key) {
-            if (($uid = $metadata[$key])) {
+
+        if ($metadata !== null) {
+            foreach ($metakeys as $key) {
+                if ($uid = $metadata[$key]) {
+                    return $uid;
+                }
+            }
+
+            // generate a folder UID and set it to IMAP
+            $uid = rtrim(chunk_split(md5($this->name . $this->get_owner() . uniqid('-', true)), 12, '-'), '-');
+            if ($this->set_uid($uid)) {
                 return $uid;
             }
         }
 
-        // generate a folder UID and set it to IMAP
-        $uid = rtrim(chunk_split(md5($this->name . $this->get_owner() . uniqid('-', true)), 12, '-'), '-');
-        if ($this->set_uid($uid)) {
-            return $uid;
-        }
+        $this->check_error();
 
         // create hash from folder name if we can't write the UID metadata
         return md5($this->name . $this->get_owner());
@@ -178,9 +185,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
      */
     public function set_uid($uid)
     {
-        if (!($success = $this->set_metadata(array(kolab_storage::UID_KEY_SHARED => $uid)))) {
-            $success = $this->set_metadata(array(kolab_storage::UID_KEY_PRIVATE => $uid));
-        }
+        $success = $this->set_metadata(array(kolab_storage::UID_KEY_SHARED => $uid));
 
         $this->check_error();
         return $success;
@@ -601,10 +606,11 @@ class kolab_storage_folder extends kolab_storage_folder_api
     /**
      * Save an object in this folder.
      *
-     * @param array  $object    The array that holds the data of the object.
-     * @param string $type      The type of the kolab object.
-     * @param string $uid       The UID of the old object if it existed before
-     * @return boolean          True on success, false on error
+     * @param array  $object The array that holds the data of the object.
+     * @param string $type   The type of the kolab object.
+     * @param string $uid    The UID of the old object if it existed before
+     *
+     * @return mixed False on error or IMAP message UID on success
      */
     public function save(&$object, $type = null, $uid = null)
     {
@@ -616,7 +622,8 @@ class kolab_storage_folder extends kolab_storage_folder_api
             $type = $this->type;
 
         // copy attachments from old message
-        if (!empty($object['_msguid']) && ($old = $this->cache->get($object['_msguid'], $type, $object['_mailbox']))) {
+        $copyfrom = $object['_copyfrom'] ?: $object['_msguid'];
+        if (!empty($copyfrom) && ($old = $this->cache->get($copyfrom, $type, $object['_mailbox']))) {
             foreach ((array)$old['_attachments'] as $key => $att) {
                 if (!isset($object['_attachments'][$key])) {
                     $object['_attachments'][$key] = $old['_attachments'][$key];
@@ -628,7 +635,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
                 // load photo.attachment from old Kolab2 format to be directly embedded in xcard block
                 else if ($type == 'contact' && ($key == 'photo.attachment' || $key == 'kolab-picture.png') && $att['id']) {
                     if (!isset($object['photo']))
-                        $object['photo'] = $this->get_attachment($object['_msguid'], $att['id'], $object['_mailbox']);
+                        $object['photo'] = $this->get_attachment($copyfrom, $att['id'], $object['_mailbox']);
                     unset($object['_attachments'][$key]);
                 }
             }
@@ -679,7 +686,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
                     $ext = preg_match('/(\.[a-z0-9]{1,6})$/i', $attachment['name'], $m) ? $m[1] : null;
                     $basename = preg_replace('/[^a-z0-9_.-]/i', '', basename($attachment['name'], $ext));  // to 7bit ascii
                     if (!$basename) $basename = 'noname';
-                    $cid = $basename . '.' . microtime(true) . $ext;
+                    $cid = $basename . '.' . microtime(true) . $key . $ext;
 
                     $object['_attachments'][$cid] = $attachment;
                     unset($object['_attachments'][$key]);
@@ -1010,7 +1017,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
         foreach ((array)$object['_attachments'] as $key => $att) {
             if (empty($att['content']) && !empty($att['id'])) {
                 // @TODO: use IMAP CATENATE to skip attachment fetch+push operation
-                $msguid = !empty($object['_msguid']) ? $object['_msguid'] : $object['uid'];
+                $msguid = $object['_copyfrom'] ?: ($object['_msguid'] ?: $object['uid']);
                 if ($is_file) {
                     $att['path'] = tempnam($temp_dir, 'rcmAttmnt');
                     if (($fp = fopen($att['path'], 'w')) && $this->get_attachment($msguid, $att['id'], $object['_mailbox'], false, $fp, true)) {
@@ -1082,7 +1089,7 @@ class kolab_storage_folder extends kolab_storage_folder_api
             $body_file = tempnam($temp_dir, 'rcmMsg');
 
             if (PEAR::isError($mime_result = $mime->saveMessageBody($body_file))) {
-                self::raise_error(array('code' => 650, 'type' => 'php',
+                rcube::raise_error(array('code' => 650, 'type' => 'php',
                     'file' => __FILE__, 'line' => __LINE__,
                     'message' => "Could not create message: ".$mime_result->getMessage()),
                     true, false);

@@ -26,12 +26,22 @@ class kolab_format_task extends kolab_format_xcal
 {
     public $CTYPEv2 = 'application/x-vnd.kolab.task';
 
-    public $scheduling_properties = array('start', 'due', 'summary', 'status');
+    public static $scheduling_properties = array('start', 'due', 'summary', 'status');
 
     protected $objclass = 'Todo';
     protected $read_func = 'readTodo';
     protected $write_func = 'writeTodo';
 
+    /**
+     * Default constructor
+     */
+    function __construct($data = null, $version = 3.0)
+    {
+        parent::__construct(is_string($data) ? $data : null, $version);
+
+        // copy static property overriden by this class
+        $this->_scheduling_properties = self::$scheduling_properties;
+    }
 
     /**
      * Set properties to the kolabformat object
@@ -107,23 +117,39 @@ class kolab_format_task extends kolab_format_xcal
     }
 
     /**
+     * Return the reference date for recurrence and alarms
+     *
+     * @return mixed DateTime instance of null if no refdate is available
+     */
+    public function get_reference_date()
+    {
+        if ($this->data['due'] && $this->data['due'] instanceof DateTime) {
+            return $this->data['due'];
+        }
+
+        return self::php_datetime($this->obj->due()) ?: parent::get_reference_date();
+    }
+
+    /**
      * Callback for kolab_storage_cache to get object specific tags to cache
      *
      * @return array List of tags to save in cache
      */
-    public function get_tags()
+    public function get_tags($obj = null)
     {
-        $tags = parent::get_tags();
+        $tags = parent::get_tags($obj);
+        $object = $obj ?: $this->data;
 
-        if ($this->data['status'] == 'COMPLETED' || ($this->data['complete'] == 100 && empty($this->data['status'])))
+        if ($object['status'] == 'COMPLETED' || ($object['complete'] == 100 && empty($object['status'])))
             $tags[] = 'x-complete';
 
-        if ($this->data['priority'] == 1)
+        if ($object['priority'] == 1)
             $tags[] = 'x-flagged';
 
-        if ($this->data['parent_id'])
-            $tags[] = 'x-parent:' . $this->data['parent_id'];
+        if ($object['parent_id'])
+            $tags[] = 'x-parent:' . $object['parent_id'];
 
-        return $tags;
+        return array_unique($tags);
     }
+
 }
