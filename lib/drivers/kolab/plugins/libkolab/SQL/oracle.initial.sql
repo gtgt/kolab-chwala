@@ -12,7 +12,9 @@ CREATE TABLE "kolab_folders" (
     "resource" VARCHAR(255) NOT NULL,
     "type" VARCHAR(32) NOT NULL,
     "synclock" integer DEFAULT 0 NOT NULL,
-    "ctag" VARCHAR(40) DEFAULT NULL
+    "ctag" VARCHAR(40) DEFAULT NULL,
+    "changed" timestamp DEFAULT NULL,
+    "objectcount" number DEFAULT NULL
 );
 
 CREATE INDEX "kolab_folders_resource_idx" ON "kolab_folders" ("resource", "type");
@@ -181,4 +183,4 @@ CREATE TABLE "kolab_cache_freebusy" (
 CREATE INDEX "kolab_cache_fb_uid2msguid" ON "kolab_cache_freebusy" ("folder_id", "uid", "msguid");
 
 
-INSERT INTO "system" ("name", "value") VALUES ('libkolab-version', '2015011600');
+INSERT INTO "system" ("name", "value") VALUES ('libkolab-version', '2015020600');

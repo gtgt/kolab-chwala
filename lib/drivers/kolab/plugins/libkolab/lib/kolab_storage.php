@@ -32,7 +32,6 @@ class kolab_storage
     const NAME_KEY_SHARED   = '/shared/vendor/kolab/displayname';
     const NAME_KEY_PRIVATE  = '/private/vendor/kolab/displayname';
     const UID_KEY_SHARED    = '/shared/vendor/kolab/uniqueid';
-    const UID_KEY_PRIVATE   = '/private/vendor/kolab/uniqueid';
     const UID_KEY_CYRUS     = '/shared/vendor/cmu/cyrus-imapd/uniqueid';
 
     const ERROR_IMAP_CONN      = 1;
@@ -104,6 +103,15 @@ class kolab_storage
                 'code' => 900, 'type' => 'php',
                 'message' => "IMAP server doesn't support METADATA or ANNOTATEMORE"
             ), true);
+        }
+
+        // adjust some configurable settings
+        if ($event_scheduling_prop = $rcmail->config->get('kolab_event_scheduling_properties', null)) {
+            kolab_format_event::$scheduling_properties = (array)$event_scheduling_prop;
+        }
+        // adjust some configurable settings
+        if ($task_scheduling_prop = $rcmail->config->get('kolab_task_scheduling_properties', null)) {
+            kolab_format_task::$scheduling_properties = (array)$task_scheduling_prop;
         }
 
         return self::$ready;
@@ -253,6 +261,8 @@ class kolab_storage
      */
     public static function get_freebusy_server()
     {
+        self::setup();
+
         $url = 'https://' . $_SESSION['imap_host'] . '/freebusy';
         $url = self::$config->get('kolab_freebusy_server', $url);
         $url = rcube_utils::resolve_url($url);
@@ -262,10 +272,32 @@ class kolab_storage
 
     /**
      * Compose an URL to query the free/busy status for the given user
+     *
+     * @param string Email address of the user to get free/busy data for
+     * @param object DateTime Start of the query range (optional)
+     * @param object DateTime End of the query range (optional)
+     *
+     * @return string Fully qualified URL to query free/busy data
      */
-    public static function get_freebusy_url($email)
+    public static function get_freebusy_url($email, $start = null, $end = null)
     {
-        return self::get_freebusy_server() . '/' . $email . '.ifb';
+        $query = '';
+        $param = array();
+        $utc = new \DateTimeZone('UTC');
+
+        if ($start instanceof \DateTime) {
+            $start->setTimezone($utc);
+            $param['dtstart'] = $start->format('Ymd\THis\Z');
+        }
+        if ($end instanceof \DateTime) {
+            $end->setTimezone($utc);
+            $param['dtend'] = $end->format('Ymd\THis\Z');
+        }
+        if (!empty($param)) {
+            $query = '?' . http_build_query($param);
+        }
+
+        return self::get_freebusy_server() . '/' . $email . '.ifb' . $query;
     }
 
     /**

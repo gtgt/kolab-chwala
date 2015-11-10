@@ -23,5 +23,20 @@
 
 class kolab_storage_cache_freebusy extends kolab_storage_cache
 {
-        protected $extra_cols = array('dtstart','dtend');
+    protected $extra_cols = array('dtstart','dtend');
+
+    /**
+     * Helper method to convert the given Kolab object into a dataset to be written to cache
+     *
+     * @override
+     */
+    protected function _serialize($object)
+    {
+        $sql_data = parent::_serialize($object) + array('dtstart' => null, 'dtend' => null);
+
+        $sql_data['dtstart'] = $this->_convert_datetime($object['start']);
+        $sql_data['dtend']   = $this->_convert_datetime($object['end']);
+
+        return $sql_data;
+    }
 }

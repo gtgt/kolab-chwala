@@ -38,6 +38,7 @@ class kolab_storage_config
     private $folders;
     private $default;
     private $enabled;
+    private $tags;
 
 
     /**
@@ -175,7 +176,26 @@ class kolab_storage_config
             $object['type'] = $type;
         }
 
-        return $folder->save($object, self::FOLDER_TYPE . '.' . $object['type'], $object['uid']);
+        $status = $folder->save($object, self::FOLDER_TYPE . '.' . $object['type'], $object['uid']);
+
+        // on success, update cached tags list
+        if ($status && is_array($this->tags)) {
+            $found = false;
+            unset($object['_formatobj']); // we don't need it anymore
+
+            foreach ($this->tags as $idx => $tag) {
+                if ($tag['uid'] == $object['uid']) {
+                    $found = true;
+                    $this->tags[$idx] = $object;
+                }
+            }
+
+            if (!$found) {
+                $this->tags[] = $object;
+            }
+        }
+
+        return !empty($status);
     }
 
     /**
@@ -199,8 +219,19 @@ class kolab_storage_config
         }
 
         $folder = $this->find_folder($object);
+        $status = $folder->delete($uid);
 
-        return $folder->delete($uid);
+        // on success, update cached tags list
+        if ($status && is_array($this->tags)) {
+            foreach ($this->tags as $idx => $tag) {
+                if ($tag['uid'] == $uid) {
+                    unset($this->tags[$idx]);
+                    break;
+                }
+            }
+        }
+
+        return $status;
     }
 
     /**
@@ -243,6 +274,11 @@ class kolab_storage_config
 
         $rcube   = rcube::get_instance();
         $storage = $rcube->get_storage();
+        list($username, $domain) = explode('@', $rcube->get_user_name());
+
+        if (strlen($domain)) {
+            $domain = '@' . $domain;
+        }
 
         // modify folder spec. according to namespace
         $folder = $params['folder'];
@@ -252,21 +288,22 @@ class kolab_storage_config
             // Note: this assumes there's only one shared namespace root
             if ($ns = $storage->get_namespace('shared')) {
                 if ($prefix = $ns[0][0]) {
-                    $folder = 'shared' . substr($folder, strlen($prefix));
+                    $folder = substr($folder, strlen($prefix));
                 }
             }
         }
         else {
             if ($ns == 'other') {
                 // Note: this assumes there's only one other users namespace root
-                if ($ns = $storage->get_namespace('shared')) {
+                if ($ns = $storage->get_namespace('other')) {
                     if ($prefix = $ns[0][0]) {
-                        $folder = 'user' . substr($folder, strlen($prefix));
+                        list($otheruser, $path) = explode('/', substr($folder, strlen($prefix)), 2);
+                        $folder = 'user/' . $otheruser . $domain . '/' . $path;
                     }
                 }
             }
             else {
-                $folder = 'user' . '/' . $rcube->get_user_name() . '/' . $folder;
+                $folder = 'user/' . $username . $domain . '/' . $folder;
             }
         }
 
@@ -316,24 +353,17 @@ class kolab_storage_config
             $path = array_map('rawurldecode', $path);
 
             // resolve folder name
-            if ($ns == 'shared') {
-                $folder = implode('/', $path);
-                // Note: this assumes there's only one shared namespace root
-                if ($ns = $storage->get_namespace('shared')) {
-                    if ($prefix = $ns[0][0]) {
-                        $folder = $prefix . '/' . $folder;
-                    }
-                }
-            }
-            else if ($ns == 'user') {
+            if ($ns == 'user') {
                 $username = array_shift($path);
                 $folder   = implode('/', $path);
 
                 if ($username != $rcube->get_user_name()) {
+                    list($user, $domain) = explode('@', $username);
+
                     // Note: this assumes there's only one other users namespace root
                     if ($ns = $storage->get_namespace('other')) {
                         if ($prefix = $ns[0][0]) {
-                            $folder = $prefix . '/' . $username . '/' . $folder;
+                            $folder = $prefix . $user . '/' . $folder;
                         }
                     }
                 }
@@ -342,7 +372,13 @@ class kolab_storage_config
                 }
             }
             else {
-                return;
+                $folder = $ns . '/' . implode('/', $path);
+                // Note: this assumes there's only one shared namespace root
+                if ($ns = $storage->get_namespace('shared')) {
+                    if ($prefix = $ns[0][0]) {
+                        $folder = $prefix . $folder;
+                    }
+                }
             }
 
             return array(
@@ -613,11 +649,13 @@ class kolab_storage_config
     /**
      * Get tags (all or referring to specified object)
      *
-     * @param string $uid Optional object UID
+     * @param string $member Optional object UID or mail message-id
+     * @param int    $limit  Max. number of records (per-folder)
+     *                       Used when searching by member
      *
      * @return array List of Relation objects
      */
-    public function get_tags($uid = '*')
+    public function get_tags($member = '*', $limit = 0)
     {
         if (!isset($this->tags)) {
             $default = true;
@@ -627,9 +665,9 @@ class kolab_storage_config
             );
 
             // use faster method
-            if ($uid && $uid != '*') {
-                $filter[] = array('member', '=', $uid);
-                $tags = $this->get_objects($filter, $default);
+            if ($member && $member != '*') {
+                $filter[] = array('member', '=', $member);
+                $tags = $this->get_objects($filter, $default, $limit);
             }
             else {
                 $this->tags = $tags = $this->get_objects($filter, $default);
@@ -639,16 +677,30 @@ class kolab_storage_config
             $tags = $this->tags;
         }
 
-        if ($uid === '*') {
+        if ($member === '*') {
             return $tags;
         }
 
         $result = array();
-        $search = self::build_member_url($uid);
+
+        if ($member[0] == '<') {
+            $search_msg = urlencode($member);
+        }
+        else {
+            $search_uid = self::build_member_url($member);
+        }
 
         foreach ($tags as $tag) {
-            if (in_array($search, (array) $tag['members'])) {
+            if ($search_uid && in_array($search_uid, (array) $tag['members'])) {
                 $result[] = $tag;
+            }
+            else if ($search_msg) {
+                foreach ($tag['members'] as $m) {
+                    if (strpos($m, $search_msg) !== false) {
+                        $result[] = $tag;
+                        break;
+                    }
+                }
             }
         }
 
