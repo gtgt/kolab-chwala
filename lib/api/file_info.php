@@ -47,7 +47,14 @@ class file_api_file_info extends file_api_common
         if (rcube_utils::get_boolean((string) $this->args['viewer'])) {
             $this->file_viewer_info($this->args['file'], $info);
 
-            if ((intval($this->args['viewer']) & 4) && $this->rc->config->get('fileapi_manticore')) {
+            // check if file type is supported by webodf editor?
+            if ($this->rc->config->get('fileapi_manticore')) {
+                if (strtolower($info['type']) == 'application/vnd.oasis.opendocument.text') {
+                    $info['viewer']['manticore'] = true;
+                }
+            }
+
+            if ((intval($this->args['viewer']) & 4) && $info['viewer']['manticore']) {
                 $this->file_manticore_handler($this->args['file'], $info);
             }
         }
@@ -76,16 +83,10 @@ class file_api_file_info extends file_api_common
      */
     protected function file_manticore_handler($file, &$info)
     {
-        // check if file type is supported by webodf editor?
-        if (strtolower($info['type']) != 'application/vnd.oasis.opendocument.text') {
-            return;
-        }
-
         $manticore = new file_manticore($this->api);
 
         if ($uri = $manticore->viewer_uri($file)) {
-            $info['viewer']['href']      = $uri;
-            $info['viewer']['manticore'] = true;
+            $info['viewer']['href'] = $uri;
         }
     }
 }

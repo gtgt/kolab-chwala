@@ -90,7 +90,7 @@ class file_manticore
         $req = $this->get_request();
         $res = $req->session_create(array(
             'id'     => $id,
-            'title'  => $filename,
+            'title'  => '', // @TODO: maybe set to a file path without extension?
             'access' => array(
                 array(
                     'identity'   => $data['user'],
