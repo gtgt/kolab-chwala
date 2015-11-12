@@ -117,39 +117,19 @@ class file_manticore
      */
     public function session_file($id)
     {
-        $backend = $this->api->get_backend();
         $session = $this->session_info($id);
 
         if (empty($session)) {
             throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
         }
 
-        try {
-            return $backend->uri2path($session['uri']);
-        }
-        catch (Exception $e) {
-                // do nothing
-        }
-
-        foreach ($this->api->get_drivers(true) as $driver) {
-            try {
-                $path  = $driver->uri2path($session['uri']);
-                $title = $driver->title();
-
-                if ($title) {
-                    $path = $title . file_storage::SEPARATOR . $path;
-                }
-
-                return $path;
-            }
-            catch (Exception $e) {
-                // do nothing
-            }
-        }
+        $path = $this->uri2path($session['uri']);
 
         if (empty($path)) {
             throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
         }
+
+        return $path;
     }
 
     /**
@@ -165,6 +145,37 @@ class file_manticore
             $row['data'] = json_decode($row['data'], true);
             return $row;
         }
+    }
+
+    /**
+     * Find editing sessions for specified path
+     */
+    public function session_find($path)
+    {
+        // create an URI for specified path
+        list($driver, $path) = $this->api->get_driver($path);
+
+        $uri = trim($driver->path2uri($path), '/') . '/';
+
+        // get existing sessions
+        $db       = $this->rc->get_dbh();
+        $sessions = array();
+        $result   = $db->query("SELECT * FROM `{$this->table}`"
+            . " WHERE `uri` LIKE '" . $db->escape($uri) . "%'");
+
+        if ($row = $db->fetch_assoc($result)) {
+            if ($path = $this->uri2path($row['uri'])) {
+                $data = json_decode($row['data'], true);
+
+                $sessions[$row['id']] = array(
+                    'file'  => $path,
+                    'owner' => $data['user'],
+                    // @TODO: invitated?, last_modified?
+                );
+            }
+        }
+
+        return $sessions;
     }
 
     /**
@@ -200,6 +211,37 @@ class file_manticore
         $base_url = rtrim($this->rc->config->get('fileapi_manticore'), ' /');
 
         return $base_url . '/document/' . $id . '/' . $_SESSION['manticore_token'];
+    }
+
+    /**
+     * Get file path from the URI
+     */
+    protected function uri2path($uri)
+    {
+        $backend = $this->api->get_backend();
+
+        try {
+            return $backend->uri2path($uri);
+        }
+        catch (Exception $e) {
+                // do nothing
+        }
+
+        foreach ($this->api->get_drivers(true) as $driver) {
+            try {
+                $path  = $driver->uri2path($uri);
+                $title = $driver->title();
+
+                if ($title) {
+                    $path = $title . file_storage::SEPARATOR . $path;
+                }
+
+                return $path;
+            }
+            catch (Exception $e) {
+                // do nothing
+            }
+        }
     }
 
     /**

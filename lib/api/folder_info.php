@@ -22,7 +22,7 @@
  +--------------------------------------------------------------------------+
 */
 
-class file_api_folder_rights extends file_api_common
+class file_api_folder_info extends file_api_common
 {
     /**
      * Request handler
@@ -35,24 +35,27 @@ class file_api_folder_rights extends file_api_common
             throw new Exception("Missing folder name", file_api_core::ERROR_CODE);
         }
 
-        list($driver, $path) = $this->api->get_driver($this->args['folder']);
-
-        $rights = $driver->folder_rights($path);
-        $result = array();
-        $map    = array(
-            file_storage::ACL_READ  => 'read',
-            file_storage::ACL_WRITE => 'write',
+        $result = array(
+            'folder' => $this->args['folder'],
         );
 
-        foreach ($map as $key => $value) {
-            if ($rights & $key) {
-                $result[] = $value;
-            }
+        if (!empty($this->args['rights']) && rcube_utils::get_boolean((string) $this->args['rights'])) {
+            $result['rights'] = $this->folder_rights($this->args['folder']);
         }
 
-        return array(
-            'folder' => $this->args['folder'],
-            'rights' => $result,
-        );
+        if (!empty($this->args['sessions']) && rcube_utils::get_boolean((string) $this->args['sessions'])) {
+             $result['sessions'] = $this->folder_sessions($this->args['folder']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get editing sessions
+     */
+    protected function folder_sessions($folder)
+    {
+        $manticore = new file_manticore($this->api);
+        return $manticore->sessions_find($folder);
     }
 }
