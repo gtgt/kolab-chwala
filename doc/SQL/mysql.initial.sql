@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS `chwala_locks` (
 CREATE TABLE IF NOT EXISTS `chwala_sessions` (
     `id`      varchar(40) BINARY NOT NULL,
     `uri`     varchar(1024) BINARY NOT NULL,
-    `expires` datetime DEFAULT NULL,
     `data`    mediumtext,
     PRIMARY KEY (`id`),
     UNIQUE INDEX `uri_index` (`uri`(255)),

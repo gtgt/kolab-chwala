@@ -140,4 +140,27 @@ class file_api_common
 
         return $metadata;
     }
+
+    /**
+     * Get folder rights
+     */
+    protected function folder_rights($folder)
+    {
+        list($driver, $path) = $this->api->get_driver($folder);
+
+        $rights = $driver->folder_rights($path);
+        $result = array();
+        $map    = array(
+            file_storage::ACL_READ  => 'read',
+            file_storage::ACL_WRITE => 'write',
+        );
+
+        foreach ($map as $key => $value) {
+            if ($rights & $key) {
+                $result[] = $value;
+            }
+        }
+
+        return $result;
+    }
 }
