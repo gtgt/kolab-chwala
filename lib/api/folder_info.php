@@ -56,6 +56,6 @@ class file_api_folder_info extends file_api_common
     protected function folder_sessions($folder)
     {
         $manticore = new file_manticore($this->api);
-        return $manticore->sessions_find($folder);
+        return $manticore->session_find($folder);
     }
 }
