@@ -104,7 +104,9 @@ class file_api_document extends file_api_common
         list($driver, $path) = $this->api->get_driver($file);
 
         try {
-            $driver->file_get($path);
+            $params = array('force-type' => 'application/vnd.oasis.opendocument.text');
+
+            $driver->file_get($path, $params);
         }
         catch (Exception $e) {
             header("HTTP/1.0 " . file_api_core::ERROR_CODE . " " . $e->getMessage());

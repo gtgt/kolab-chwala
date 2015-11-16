@@ -167,11 +167,17 @@ class file_manticore
             if ($path = $this->uri2path($row['uri'])) {
                 $data = json_decode($row['data'], true);
 
-                $sessions[$row['id']] = array(
+                $session = array(
                     'file'  => $path,
                     'owner' => $data['user'],
                     // @TODO: invitated?, last_modified?
                 );
+
+                if ($data['user'] == $_SESSION['user']) {
+                    $session['is_owner'] = true;
+                }
+
+                $sessions[$row['id']] = $session;
             }
         }
 
