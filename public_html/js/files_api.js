@@ -26,6 +26,7 @@ function files_api()
   var ref = this;
 
   // default config
+  this.sessions = {};
   this.translations = {};
   this.env = {
     url: 'api/',
@@ -210,6 +211,49 @@ function files_api()
     return '?' + $.param(param) + querystring;
   };
 
+  // fill folder selector with options
+  this.folder_select_element = function(select, params)
+  {
+    var options = [],
+      selected = params && params.selected ? params.selected : this.env.folder;
+
+    if (params && params.empty)
+      options.push($('<option>').val('').text('---'));
+
+    $.each(this.env.folders, function(i, f) {
+      var n, name = escapeHTML(f.name);
+
+      // skip read-only folders
+      if (params && params.writable && (f.readonly || f.virtual)) {
+        var folder, found = false, prefix = i + ref.env.directory_separator;
+
+        // for virtual folders check if there's any writable subfolder
+        for (n in ref.env.folders) {
+          if (n.indexOf(prefix) === 0) {
+            folder = ref.env.folders[n];
+            if (!folder.virtual && !folder.readonly) {
+              found = true;
+              break;
+            }
+          }
+        }
+
+        if (!found)
+          return;
+      }
+
+      for (n=0; n<f.depth; n++)
+        name = '&nbsp;&nbsp;&nbsp;' + name;
+
+      options.push($('<option>').val(i).html(name));
+    });
+
+    select.empty().append(options);
+
+    if (selected)
+      select.val(selected);
+  };
+
   // Folder list parser, converts it into structure
   this.folder_list_parse = function(list, num, subscribed)
   {
@@ -336,6 +380,21 @@ function files_api()
           $('#' + folders[i].id + ' span.branch').html(html);
       }
     }
+  };
+
+  // Get editing sessions on the specified file
+  this.file_sessions = function(file)
+  {
+    var sessions = [], folder = this.file_path(file);
+
+    $.each(this.sessions[folder] || {}, function(session_id, session) {
+      if (session.file == file) {
+        session.id = session_id;
+        sessions.push(session);
+      }
+    });
+
+    return sessions;
   };
 
   // convert content-type string into class name

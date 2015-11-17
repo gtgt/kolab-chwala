@@ -766,7 +766,7 @@ class kolab_file_storage implements file_storage
         // Update object
         $file['_attachments'] = array(
             0 => array(
-                'name'     => $file['name'],
+                'name'     => $new_name,
                 'path'     => $file_path,
                 'mimetype' => $file['type'],
                 'size'     => $file['size'],
