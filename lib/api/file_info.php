@@ -45,7 +45,7 @@ class file_api_file_info extends file_api_common
         // 4 - Manticore (WebODF collaborative editor)
 
         if (rcube_utils::get_boolean((string) $this->args['viewer'])) {
-            $this->file_viewer_info($this->args['file'], $info);
+            $this->file_viewer_info($info);
 
             // check if file type is supported by webodf editor?
             if ($this->rc->config->get('fileapi_manticore')) {
@@ -55,7 +55,7 @@ class file_api_file_info extends file_api_common
             }
 
             if ((intval($this->args['viewer']) & 4) && $info['viewer']['manticore']) {
-                $this->file_manticore_handler($this->args['file'], $info);
+                $this->file_manticore_handler($info);
             }
         }
 
@@ -65,9 +65,12 @@ class file_api_file_info extends file_api_common
     /**
      * Merge file viewer data into file info
      */
-    protected function file_viewer_info($file, &$info)
+    protected function file_viewer_info(&$info)
     {
-        if ($viewer = $this->find_viewer($info['type'])) {
+        $file   = $this->args['file'];
+        $viewer = $this->find_viewer($info['type']);
+
+        if ($viewer) {
             $info['viewer'] = array();
             if ($frame = $viewer->frame($file, $info['type'])) {
                 $info['viewer']['frame'] = $frame;
@@ -81,11 +84,13 @@ class file_api_file_info extends file_api_common
     /**
      * Merge manticore session data into file info
      */
-    protected function file_manticore_handler($file, &$info)
+    protected function file_manticore_handler(&$info)
     {
         $manticore = new file_manticore($this->api);
+        $file      = $this->args['file'];
+        $session   = $this->args['session'];
 
-        if ($uri = $manticore->viewer_uri($file)) {
+        if ($uri = $manticore->viewer_uri($file, $session)) {
             $info['viewer']['href'] = $uri;
         }
     }

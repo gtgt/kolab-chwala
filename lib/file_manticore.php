@@ -45,66 +45,83 @@ class file_manticore
     }
 
     /**
-     * Return viewer URI for specified file. This creates
-     * a new collaborative editing session when needed
+     * Return viewer URI for specified file/session. This creates
+     * a new collaborative editing session when needed.
      *
-     * @param string $file File path
+     * @param string $file       File path
+     * @param string $session_id Optional session ID to join to
      *
      * @return string Manticore URI
      * @throws Exception
      */
-    public function viewer_uri($file)
+    public function viewer_uri($file, $session_id = null)
     {
         list($driver, $path) = $this->api->get_driver($file);
 
         $backend = $this->api->get_backend();
         $uri     = $driver->path2uri($path);
-        $id      = rcube_utils::bin2ascii(md5(time() . $uri, true));
-        $data    = array(
-            'user' => $_SESSION['user'],
-        );
 
-        // @TODO: check if session exists and is valid (?)
+        if ($session_id) {
+            $session = $this->session_info($session_id);
 
-        // we'll store user credentials if the file comes from
-        // an external source that requires authentication
-        if ($backend != $driver) {
-            $auth = $driver->auth_info();
-            $auth['password']  = $this->rc->encrypt($auth['password']);
-            $data['auth_info'] = $auth;
+            if (empty($session)) {
+                throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
+            }
+
+            // check session membership
+            if ($session['data']['user'] != $_SESSION['user']) {
+                throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
+            }
+
+            // @TODO: check if session exists in Manticore?
+            // @TOOD: joining sessions of other users
         }
+        else {
+            $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
+            $data       = array(
+                'user' => $_SESSION['user'],
+            );
 
-        // Do this before starting the session in Manticore,
-        // it will immediately call api/document to get the file body
-        $res = $this->session_create($id, $uri, $data);
+            // we'll store user credentials if the file comes from
+            // an external source that requires authentication
+            if ($backend != $driver) {
+                $auth = $driver->auth_info();
+                $auth['password']  = $this->rc->encrypt($auth['password']);
+                $data['auth_info'] = $auth;
+            }
 
-        if (!$res) {
-            throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
-        }
+            // Do this before starting the session in Manticore,
+            // it will immediately call api/document to get the file body
+            $res = $this->session_create($session_id, $uri, $data);
 
-        // get filename
-        $path     = explode(file_storage::SEPARATOR, $path);
-        $filename = $path[count($path)-1];
+            if (!$res) {
+                throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
+            }
 
-        // create the session in Manticore
-        $req = $this->get_request();
-        $res = $req->session_create(array(
-            'id'     => $id,
-            'title'  => '', // @TODO: maybe set to a file path without extension?
-            'access' => array(
-                array(
-                    'identity'   => $data['user'],
-                    'permission' => 'write',
+            // get filename
+            $path     = explode(file_storage::SEPARATOR, $path);
+            $filename = $path[count($path)-1];
+
+            // create the session in Manticore
+            $req = $this->get_request();
+            $res = $req->session_create(array(
+                'id'     => $session_id,
+                'title'  => '', // @TODO: maybe set to a file path without extension?
+                'access' => array(
+                    array(
+                        'identity'   => $data['user'],
+                        'permission' => 'write',
+                    ),
                 ),
-            ),
-        ));
+            ));
 
-        if (!$res) {
-            $this->session_delete($id);
-            throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
+            if (!$res) {
+                $this->session_delete($session_id);
+                throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
+            }
         }
 
-        return $this->frame_uri($id);
+        return $this->frame_uri($session_id);
     }
 
     /**
