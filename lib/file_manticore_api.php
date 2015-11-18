@@ -191,11 +191,11 @@ class file_manticore_api
      *
      * @return bool True on success, False on failure
      */
-    public function session_delete($id)
+    public function document_delete($id)
     {
         $res = $this->delete('api/documents/' . $id);
 
-        return $res->get_error_code() == 200;
+        return $res->get_error_code() == 204;
     }
 
     /**
@@ -205,7 +205,7 @@ class file_manticore_api
      *
      * @return bool True on success, False on failure
      */
-    public function session_create($params)
+    public function document_create($params)
     {
         $res = $this->post('api/documents', $params);
 
