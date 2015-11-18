@@ -259,11 +259,13 @@ class file_api extends file_api_core
 
         // handle request
         if ($request && preg_match('/^[a-z0-9_-]+$/', $request)) {
-            // request name aliases for backward compatibility
             $aliases = array(
+                // request name aliases for backward compatibility
                 'lock'          => 'lock_create',
                 'unlock'        => 'lock_delete',
                 'folder_rename' => 'folder_move',
+                // document actions
+                'document_delete' => 'document',
             );
 
             $request = $aliases[$request] ?: $request;

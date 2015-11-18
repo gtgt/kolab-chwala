@@ -48,13 +48,13 @@ class file_manticore
      * Return viewer URI for specified file/session. This creates
      * a new collaborative editing session when needed.
      *
-     * @param string $file       File path
-     * @param string $session_id Optional session ID to join to
+     * @param string $file        File path
+     * @param string &$session_id Optional session ID to join to
      *
      * @return string Manticore URI
      * @throws Exception
      */
-    public function viewer_uri($file, $session_id = null)
+    public function session_start($file, &$session_id = null)
     {
         list($driver, $path) = $this->api->get_driver($file);
 
@@ -69,7 +69,7 @@ class file_manticore
             }
 
             // check session membership
-            if ($session['data']['user'] != $_SESSION['user']) {
+            if ($session['owner'] != $_SESSION['user']) {
                 throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
             }
 
@@ -78,9 +78,8 @@ class file_manticore
         }
         else {
             $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
-            $data       = array(
-                'user' => $_SESSION['user'],
-            );
+            $data       = array();
+            $owner      = $_SESSION['user'];
 
             // we'll store user credentials if the file comes from
             // an external source that requires authentication
@@ -90,33 +89,9 @@ class file_manticore
                 $data['auth_info'] = $auth;
             }
 
-            // Do this before starting the session in Manticore,
-            // it will immediately call api/document to get the file body
-            $res = $this->session_create($session_id, $uri, $data);
+            $res = $this->session_create($session_id, $uri, $owner, $data);
 
             if (!$res) {
-                throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
-            }
-
-            // get filename
-            $path     = explode(file_storage::SEPARATOR, $path);
-            $filename = $path[count($path)-1];
-
-            // create the session in Manticore
-            $req = $this->get_request();
-            $res = $req->session_create(array(
-                'id'     => $session_id,
-                'title'  => '', // @TODO: maybe set to a file path without extension?
-                'access' => array(
-                    array(
-                        'identity'   => $data['user'],
-                        'permission' => 'write',
-                    ),
-                ),
-            ));
-
-            if (!$res) {
-                $this->session_delete($session_id);
                 throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
             }
         }
@@ -146,6 +121,8 @@ class file_manticore
             throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
         }
 
+        // @TODO: check permissions to the session
+
         return $path;
     }
 
@@ -159,8 +136,7 @@ class file_manticore
             . " WHERE `id` = ?", $id);
 
         if ($row = $db->fetch_assoc($result)) {
-            $row['data'] = json_decode($row['data'], true);
-            return $row;
+            return $this->session_info_parse($row);
         }
     }
 
@@ -175,26 +151,15 @@ class file_manticore
         $uri = trim($driver->path2uri($path), '/') . '/';
 
         // get existing sessions
-        $db       = $this->rc->get_dbh();
         $sessions = array();
+        $filter   = array('file', 'owner', 'is_owner');
+        $db       = $this->rc->get_dbh();
         $result   = $db->query("SELECT * FROM `{$this->table}`"
             . " WHERE `uri` LIKE '" . $db->escape($uri) . "%'");
 
         if ($row = $db->fetch_assoc($result)) {
             if ($path = $this->uri2path($row['uri'])) {
-                $data = json_decode($row['data'], true);
-
-                $session = array(
-                    'file'  => $path,
-                    'owner' => $data['user'],
-                    // @TODO: invitated?, last_modified?
-                );
-
-                if ($data['user'] == $_SESSION['user']) {
-                    $session['is_owner'] = true;
-                }
-
-                $sessions[$row['id']] = $session;
+                $sessions[$row['id']] = $this->session_info_parse($row, $path, $filter);
             }
         }
 
@@ -202,28 +167,100 @@ class file_manticore
     }
 
     /**
-     * Create editing session
+     * Delete editing session (only owner can do that)
+     *
+     * @param string $id    Session identifier
+     * @param bool   $local Remove session only from local database
      */
-    protected function session_create($id, $uri, $data)
-    {
-        $db     = $this->rc->get_dbh();
-        $result = $db->query("INSERT INTO `{$this->table}`"
-            . " (`id`, `uri`, `data`) VALUES (?, ?, ?)",
-            $id, $uri, json_encode($data));
-
-        return $db->affected_rows($result) > 0;
-    }
-
-    /**
-     * Delete editing session
-     */
-    protected function session_delete($id)
+    public function session_delete($id, $local = false)
     {
         $db     = $this->rc->get_dbh();
         $result = $db->query("DELETE FROM `{$this->table}`"
-            . " WHERE `id` = ?", $id);
+            . " WHERE `id` = ? AND `owner` = ?",
+            $id, $_SESSION['user']);
 
-        return $db->affected_rows($result) > 0;
+        $success = $db->affected_rows($result) > 0;
+
+        // Send document delete to Manticore
+        if ($success && !$local) {
+            $req = $this->get_request();
+            $res = $req->document_delete($id);
+        }
+
+        return $success;
+    }
+
+    /**
+     * Create editing session
+     */
+    protected function session_create($id, $uri, $owner, $data)
+    {
+        // Do this before starting the session in Manticore,
+        // it will immediately call api/document to get the file body
+        $db     = $this->rc->get_dbh();
+        $result = $db->query("INSERT INTO `{$this->table}`"
+            . " (`id`, `uri`, `owner`, `data`) VALUES (?, ?, ?, ?)",
+            $id, $uri, $owner, json_encode($data));
+
+        $success = $db->affected_rows($result) > 0;
+
+        // create the session in Manticore
+        if ($success) {
+            $req = $this->get_request();
+            $res = $req->document_create(array(
+                'id'     => $id,
+                'title'  => '', // @TODO: maybe set to a file path without extension?
+                'access' => array(
+                    array(
+                        'identity'   => $owner,
+                        'permission' => 'write',
+                    ),
+                ),
+            ));
+
+            if (!$res) {
+                $this->session_delete($id, true);
+                return false;
+            }
+        }
+
+        return $success;
+    }
+
+    /**
+     * Parse session info data
+     */
+    protected function session_info_parse($record, $path = null, $filter = array())
+    {
+/*
+        if (is_string($data) && !empty($data)) {
+            $data = json_decode($data, true);
+        }
+*/
+        $session = array();
+        $fields  = array('id', 'uri', 'owner');
+
+        foreach ($fields as $field) {
+            if (isset($record[$field])) {
+                $session[$field] = $record[$field];
+            }
+        }
+
+        if ($path) {
+            $session['file'] = $path;
+        }
+
+        // @TODO: is_invited?, last_modified?
+
+        if ($session['owner'] == $_SESSION['user']) {
+            $session['is_owner'] = true;
+        }
+
+        if (!empty($filter)) {
+            $session = array_intersect_key($session, array_flip($filter));
+        }
+
+        return $session;
     }
 
     /**

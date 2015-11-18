@@ -29,20 +29,34 @@ class file_api_document extends file_api_common
      */
     public function handle()
     {
-        if (empty($_GET['id'])) {
-            throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
-        }
-
-        $method = $_SERVER['REQUEST_METHOD'];
+        $method     = $_SERVER['REQUEST_METHOD'];
+        $this->args = $_GET;
 
         if ($method == 'POST' && !empty($_SERVER['HTTP_X_HTTP_METHOD'])) {
             $method = $_SERVER['HTTP_X_HTTP_METHOD'];
         }
 
-        $file = $this->get_file_path($_GET['id']);
-
+        // Document content actions for Manticore
         if ($method == 'PUT' || $method == 'GET') {
+            if (empty($this->args['id'])) {
+                throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
+            }
+
+            $file = $this->get_file_path($this->args['id']);
+
             return $this->{'document_' . strtolower($method)}($file);
+        }
+        // Sessions and invitations management
+        else if ($method == 'POST' && $_GET['method'] == 'document_delete') {
+            $post = file_get_contents('php://input');
+            $this->args += (array) json_decode($post, true);
+            unset($post);
+
+            if (empty($this->args['id'])) {
+                throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
+            }
+ 
+            return $this->document_delete($this->args['id']);
         }
     }
 
@@ -54,6 +68,18 @@ class file_api_document extends file_api_common
         $manticore = new file_manticore($this->api);
 
         return $manticore->session_file($id);
+    }
+
+    /**
+     * Close (delete) manticore session
+     */
+    protected function document_delete($id)
+    {
+        $manticore = new file_manticore($this->api);
+
+        if (!$manticore->session_delete($id)) {
+            throw new Exception("Failed deleting the document session.", file_api_core::ERROR_CODE);
+        }
     }
 
     /**

@@ -14,10 +14,11 @@ CREATE TABLE IF NOT EXISTS `chwala_locks` (
 CREATE TABLE IF NOT EXISTS `chwala_sessions` (
     `id`      varchar(40) BINARY NOT NULL,
     `uri`     varchar(1024) BINARY NOT NULL,
+    `owner`   varchar(255) BINARY NOT NULL,
     `data`    mediumtext,
     PRIMARY KEY (`id`),
-    UNIQUE INDEX `uri_index` (`uri`(255)),
-    INDEX `expires_index` (`expires`)
+    INDEX `uri_index` (`uri`(255)),
+    INDEX `owner` (`owner`)
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
 
 INSERT INTO `system` (`name`, `value`) VALUES ('chwala-version', '2015110400');
