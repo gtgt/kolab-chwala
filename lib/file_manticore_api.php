@@ -47,6 +47,10 @@ class file_manticore_api
 
     const ACCEPT_HEADER = "application/json,text/javascript,*/*";
 
+    const ACCESS_WRITE = 'write';
+    const ACCESS_READ  = 'read';
+    const ACCESS_DENY  = 'deny';
+
 
     /**
      * Class constructor.
@@ -214,6 +218,32 @@ class file_manticore_api
     }
 
     /**
+     * Add document editor (update 'access' array)
+     *
+     * @param array $session_id Session identifier
+     * @param array $identity   User identifier
+     *
+     * @return bool True on success, False on failure
+     */
+    public function editor_add($session_id, $idenity, $permission)
+    {
+        $res = $this->get("api/documents/$session_id/access");
+
+rcube::console($req);
+        if ($res->get_error_code() != 200) {
+            return false;
+        }
+
+        // @todo add editor to the 'access' array
+        
+
+        $res = $this->put("api/documents/$session_id/access", $params);
+
+rcube::console($req);
+        return $res->get_error_code() == 200;
+    }
+
+    /**
      * API's GET request.
      *
      * @param string $action Action name
@@ -252,6 +282,28 @@ class file_manticore_api
         }
 
         $this->request->setMethod(HTTP_Request2::METHOD_POST);
+        $this->request->setBody(json_encode($post));
+
+        return $this->get_response($url);
+    }
+
+    /**
+     * API's PUT request.
+     *
+     * @param string $action Action name
+     * @param array  $post   POST arguments
+     *
+     * @return kolab_client_api_result Response
+     */
+    public function put($action, $post = array())
+    {
+        $url = $this->build_url($action);
+
+        if ($this->debug) {
+            rcube::write_log('manticore', "PUT: $url " . json_encode($post));
+        }
+
+        $this->request->setMethod(HTTP_Request2::METHOD_PUT);
         $this->request->setBody(json_encode($post));
 
         return $this->get_response($url);

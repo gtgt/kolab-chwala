@@ -264,9 +264,12 @@ class file_api extends file_api_core
                 'lock'          => 'lock_create',
                 'unlock'        => 'lock_delete',
                 'folder_rename' => 'folder_move',
-                // document actions
-                'document_delete' => 'document',
             );
+
+            // Redirect all document_* actions into 'document' action
+            if (strpos($request, 'document_') === 0) {
+                $request = 'document';
+            }
 
             $request = $aliases[$request] ?: $request;
 

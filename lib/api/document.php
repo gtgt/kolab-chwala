@@ -36,8 +36,33 @@ class file_api_document extends file_api_common
             $method = $_SERVER['HTTP_X_HTTP_METHOD'];
         }
 
+        // Sessions and invitations management
+        if (strpos($this->args['method'], 'document_') === 0) {
+            if ($method == 'POST') {
+                $post = file_get_contents('php://input');
+                $this->args += (array) json_decode($post, true);
+                unset($post);
+            }
+
+            if (empty($this->args['id'])) {
+                throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
+            }
+ 
+            switch ($this->args['method']) {
+                case 'document_delete':
+                    return $this->document_delete($this->args['id']);
+
+                case 'document_invite':
+                    return $this->document_invite($this->args['id']);
+
+//                case 'document_request':
+//                case 'document_decline':
+//                case 'document_accept':
+//                case 'document_remove':
+            }
+        }
         // Document content actions for Manticore
-        if ($method == 'PUT' || $method == 'GET') {
+        else if ($method == 'PUT' || $method == 'GET') {
             if (empty($this->args['id'])) {
                 throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
             }
@@ -46,18 +71,8 @@ class file_api_document extends file_api_common
 
             return $this->{'document_' . strtolower($method)}($file);
         }
-        // Sessions and invitations management
-        else if ($method == 'POST' && $_GET['method'] == 'document_delete') {
-            $post = file_get_contents('php://input');
-            $this->args += (array) json_decode($post, true);
-            unset($post);
 
-            if (empty($this->args['id'])) {
-                throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
-            }
- 
-            return $this->document_delete($this->args['id']);
-        }
+        throw new Exception("Unknown method", file_api_core::ERROR_INVALID);
     }
 
     /**
@@ -80,6 +95,36 @@ class file_api_document extends file_api_common
         if (!$manticore->session_delete($id)) {
             throw new Exception("Failed deleting the document session.", file_api_core::ERROR_CODE);
         }
+    }
+
+    /**
+     * Invite/add a session participant
+     */
+    protected function document_invite($id)
+    {
+        $manticore = new file_manticore($this->api);
+        $users     = $this->args['users'];
+
+        if (empty($users)) {
+            throw new Exception("Invalid arguments.", file_api_core::ERROR_CODE);
+        }
+
+        foreach ((array) $users as $user) {
+            if (empty($user['user']) || !$manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED)) {
+                throw new Exception("Failed adding a session participant.", file_api_core::ERROR_CODE);
+            }
+
+            $result = array(
+                'session_id' => $id,
+                'user'       => $user['user'],
+//                'name' => $user['name'],
+                'status'     => file_manticore::STATUS_INVITED,
+            );
+        }
+
+        return array(
+            'list' => $result,
+        );
     }
 
     /**

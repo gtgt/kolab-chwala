@@ -30,7 +30,13 @@ class file_manticore
     protected $api;
     protected $rc;
     protected $request;
-    protected $table = 'chwala_sessions';
+    protected $sessions_table    = 'chwala_sessions';
+    protected $invitations_table = 'chwala_invitations';
+
+    const STATUS_INVITED   = 'invited';
+    const STATUS_REQUESTED = 'requested';
+    const STATUS_ACCEPTED  = 'accepted';
+    const STATUS_DECLINED  = 'declined';
 
 
     /**
@@ -42,6 +48,10 @@ class file_manticore
     {
         $this->rc  = rcube::get_instance();
         $this->api = $api;
+
+        $db = $this->rc->get_dbh();
+        $this->sessions_table    = $db->table_name($this->sessions_table);
+        $this->invitations_table = $db->table_name($this->invitations_table);
     }
 
     /**
@@ -65,16 +75,26 @@ class file_manticore
             $session = $this->session_info($session_id);
 
             if (empty($session)) {
-                throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
+                throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
             }
 
-            // check session membership
+            // check session ownership
             if ($session['owner'] != $_SESSION['user']) {
-                throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
+                // check if the user was invited
+                $invitations = $this->invitations_list($session_id);
+                $states      = array(self::STATUS_DECLINED, self::STATUS_REQUESTED);
+
+                if (empty($invitations) || in_array($invitations[0]['status'], $states)) {
+                    throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
+                }
+
+                // automatically accept the invitation, if not done yet
+                if ($invitations[0]['status'] == self::STATUS_INVITED) {
+                    $this->invitation_update($session_id, $_SESSION['user'], self::STATUS_ACCEPTED);
+                }
             }
 
-            // @TODO: check if session exists in Manticore?
-            // @TOOD: joining sessions of other users
+            // @TODO: make sure the session exists in Manticore?
         }
         else {
             $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
@@ -112,13 +132,13 @@ class file_manticore
         $session = $this->session_info($id);
 
         if (empty($session)) {
-            throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
+            throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
         }
 
         $path = $this->uri2path($session['uri']);
 
         if (empty($path)) {
-            throw new Exception("Document session ID not found.", file_api_core::ERROR_CODE);
+            throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
         }
 
         // @TODO: check permissions to the session
@@ -128,22 +148,31 @@ class file_manticore
 
     /**
      * Get editing session info
+     *
+     * @param string $id               Session identifier
+     * @param bool   $with_invitations Return invitations list
      */
-    public function session_info($id)
+    public function session_info($id, $with_invitations = false)
     {
         $db     = $this->rc->get_dbh();
-        $result = $db->query("SELECT * FROM `{$this->table}`"
+        $result = $db->query("SELECT * FROM `{$this->sessions_table}`"
             . " WHERE `id` = ?", $id);
 
         if ($row = $db->fetch_assoc($result)) {
-            return $this->session_info_parse($row);
+            $session = $this->session_info_parse($row);
+
+            if ($with_invitations && $session['is_owner']) {
+                $session['invitations'] = $this->invitations_find(array('session_id' => $id));
+            }
+
+            return $session;
         }
     }
 
     /**
      * Find editing sessions for specified path
      */
-    public function session_find($path)
+    public function session_find($path, $invitations = true)
     {
         // create an URI for specified path
         list($driver, $path) = $this->api->get_driver($path);
@@ -154,12 +183,24 @@ class file_manticore
         $sessions = array();
         $filter   = array('file', 'owner', 'is_owner');
         $db       = $this->rc->get_dbh();
-        $result   = $db->query("SELECT * FROM `{$this->table}`"
+        $result   = $db->query("SELECT * FROM `{$this->sessions_table}`"
             . " WHERE `uri` LIKE '" . $db->escape($uri) . "%'");
 
-        if ($row = $db->fetch_assoc($result)) {
+        while ($row = $db->fetch_assoc($result)) {
             if ($path = $this->uri2path($row['uri'])) {
                 $sessions[$row['id']] = $this->session_info_parse($row, $path, $filter);
+            }
+        }
+
+        // set 'is_invited' flag
+        if ($invitations && !empty($sessions)) {
+            $invitations = $this->invitations_list();
+            $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED);
+
+            foreach ($invitations as $invitation) {
+                if (!empty($sessions[$invitation['session_id']]) && in_array($invitation['status'], $states)) {
+                    $sessions[$invitation['session_id']]['is_invited'] = true;
+                }
             }
         }
 
@@ -175,7 +216,7 @@ class file_manticore
     public function session_delete($id, $local = false)
     {
         $db     = $this->rc->get_dbh();
-        $result = $db->query("DELETE FROM `{$this->table}`"
+        $result = $db->query("DELETE FROM `{$this->sessions_table}`"
             . " WHERE `id` = ? AND `owner` = ?",
             $id, $_SESSION['user']);
 
@@ -198,7 +239,7 @@ class file_manticore
         // Do this before starting the session in Manticore,
         // it will immediately call api/document to get the file body
         $db     = $this->rc->get_dbh();
-        $result = $db->query("INSERT INTO `{$this->table}`"
+        $result = $db->query("INSERT INTO `{$this->sessions_table}`"
             . " (`id`, `uri`, `owner`, `data`) VALUES (?, ?, ?, ?)",
             $id, $uri, $owner, json_encode($data));
 
@@ -213,7 +254,7 @@ class file_manticore
                 'access' => array(
                     array(
                         'identity'   => $owner,
-                        'permission' => 'write',
+                        'permission' => file_manticore_api::ACCESS_WRITE,
                     ),
                 ),
             ));
@@ -225,6 +266,172 @@ class file_manticore
         }
 
         return $success;
+    }
+
+    /**
+     * Find invitations for current user
+     *
+     *
+     *
+     * @return array Invitations list
+     */
+    public function invitations_list($session_id = null)
+    {
+        $invitations = array();
+        $db          = $this->rc->get_dbh();
+        $result      = $db->query("SELECT * FROM `{$this->invitations_table}`"
+            . " WHERE `user`= ?"
+            . ($session_id ? " AND `session_id` = " . $db->quote($session_id) : "")
+            . " ORDER BY `changed`", $_SESSION['user']);
+
+        while ($row = $db->fetch_assoc($result)) {
+            $invitations[] = $row;
+        }
+
+        return $invitations;
+    }
+
+    /**
+     * Find invitations for specified session_id
+     */
+    public function invitations_find($filter)
+    {
+        $invitations = array();
+        $db          = $this->rc->get_dbh();
+
+        foreach ($filter as $column => $value) {
+            $filter[$column] = "`$column` = " . $db->quote($value);
+        }
+
+        $where  = implode(' AND ', $filter);
+        $result = $db->query("SELECT * FROM `{$this->invitations_table}`"
+            . " WHERE $where ORDER BY `changed`");
+
+        while ($row = $db->fetch_assoc($result)) {
+            $invitations[] = $row;
+        }
+
+        return $invitations;
+    }
+
+    /**
+     * Create an invitation
+     *
+     * @param string $session_id Document session identifier
+     * @param string $user       User identifier
+     * @param string $status     Invitation status (invited, requested)
+     *
+     * @throws Exception
+     */
+    public function invitation_create($session_id, $user, $status = 'invited')
+    {
+        if ($status != self::STATUS_INVITED && $status != self::STATUS_REQUESTED) {
+            throw new Exception("Invalid invitation status.", file_api_core::ERROR_CODE);
+        }
+
+        // get session information
+        $session = $this->session_info($session_id);
+
+        if (empty($session)) {
+            throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
+        }
+
+        // check session ownership, only owner can create 'new' invitations
+        if ($status == self::STATUS_INVITED && $session['owner'] != $_SESSION['user']) {
+            throw new Exception("No permission to create an invitation.", file_api_core::ERROR_CODE);
+        }
+
+        if ($session['owner'] == $user) {
+            throw new Exception("Not possible to create an invitation for the session creator.", file_api_core::ERROR_CODE);
+        }
+
+        // Update Manticore 'access' array
+        if ($status == self::STATUS_INVITED) {
+            $req = $this->get_request();
+            $res = $req->editor_add($session_id, $user, file_manticore_api::ACCESS_WRITE);
+
+            if (!$res) {
+                throw new Exception("Failed to create an invitation.", file_api_core::ERROR_CODE);
+            }
+        }
+
+        // insert invitation
+        $db     = $this->rc->get_dbh();
+        $result = $db->query("INSERT INTO `{$this->invitations_table}`"
+            . " (`session_id`, `user`, `status`, `changed`)"
+            . " VALUES (?, ?, ?, " . $db->now() . ")",
+            $session_id, $user, $status);
+
+        if (!$db->affected_rows($result)) {
+            throw new Exception("Failed to create an invitation.", file_api_core::ERROR_CODE);
+        }
+    }
+
+    /**
+     * Delete an invitation (only session owner can do that)
+     *
+     * @param string $session_id Session identifier
+     * @param string $user       User identifier
+     *
+     * @throws Exception
+     */
+    public function invitation_delete($session_id, $user)
+    {
+        $db     = $this->rc->get_dbh();
+        $result = $db->query("DELETE FROM `{$this->invitations_table}`"
+            . " WHERE `session_id` = ? AND `user` = ?"
+                . " AND EXISTS (SELECT 1 FROM `{$this->sessions_table}` WHERE `id` = ? AND `owner` = ?)",
+            $session_id, $user, $session_id, $_SESSION['user']);
+
+        if (!$db->affected_rows($result)) {
+            throw new Exception("Failed to delete an invitation.", file_api_core::ERROR_CODE);
+        }
+
+        // Update Manticore 'access' array
+        // @todo
+    }
+
+    /**
+     * Update an invitation status
+     *
+     * @param string $session_id Session identifier
+     * @param string $user       User identifier
+     * @param string $status     Invitation status (accepted, declined)
+     *
+     * @throws Exception
+     */
+    public function invitation_update($session_id, $user, $status)
+    {
+        if ($status != self::STATUS_ACCEPTED && $status != self::STATUS_DECLINED) {
+            throw new Exception("Invalid invitation status.", file_api_core::ERROR_CODE);
+        }
+
+        // get session information
+        $session = $this->session_info($session_id);
+
+        if (empty($session)) {
+            throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
+        }
+
+        // check session ownership
+        if ($user != $_SESSION['user'] && $session['owner'] != $_SESSION['user']) {
+            throw new Exception("No permission to update an invitation.", file_api_core::ERROR_CODE);
+        }
+
+        $db     = $this->rc->get_dbh();
+        $result = $db->query("UPDATE `{$this->invitations_table}`"
+            . " SET `status` = ?, `changed` = " . $db->now()
+            . " WHERE `session_id` = ? AND `user` = ?",
+            $status, $session_id, $user);
+
+        if (!$db->affected_rows($result)) {
+            throw new Exception("Failed to update an invitation status.", file_api_core::ERROR_CODE);
+        }
+
+        // Update Manticore 'access' array if an owner accepted an invitation request
+        if ($status == self::STATUS_ACCEPTED && $_SESSION['user'] == $session['owner']) {
+            // @todo
+        }
     }
 
     /**
