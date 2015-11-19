@@ -21,4 +21,15 @@ CREATE TABLE IF NOT EXISTS `chwala_sessions` (
     INDEX `owner` (`owner`)
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
 
+CREATE TABLE IF NOT EXISTS `chwala_invitations` (
+    `session_id` varchar(40) BINARY NOT NULL,
+    `user`       varchar(255) BINARY NOT NULL,
+    `status`     varchar(16) NOT NULL,
+    `changed`    datetime DEFAULT NULL,
+    CONSTRAINT `session_id_fk_chwala_invitations` FOREIGN KEY (`session_id`)
+       REFERENCES `chwala_sessions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX `session_id` (`session_id`),
+    UNIQUE INDEX `user_session_id` (`user`, `session_id`)
+) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
+
 INSERT INTO `system` (`name`, `value`) VALUES ('chwala-version', '2015110400');

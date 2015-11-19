@@ -92,7 +92,7 @@ class file_api_file_info extends file_api_common
 
         if ($uri = $manticore->session_start($file, $session)) {
             $info['viewer']['href'] = $uri;
-            $info['session']        = $manticore->session_info($session);
+            $info['session']        = $manticore->session_info($session, true);
         }
     }
 }

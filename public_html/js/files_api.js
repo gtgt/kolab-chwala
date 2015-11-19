@@ -120,7 +120,7 @@ function files_api()
   this.request = function(action, data, func)
   {
     // Use POST for modification actions with probable big request size
-    var method = /(create|delete|move|copy|update|auth)/.test(action) ? 'post' : 'get';
+    var method = /_(create|delete|move|copy|update|auth|subscribe|unsubscribe|invite|decline|request|accept|remove)$/.test(action) ? 'post' : 'get';
     return this[method](action, data, func);
   };
 
@@ -614,6 +614,29 @@ function files_api()
       return '-';
 
     return (new Date(1970, 1, 1, 0, 0, s, 0)).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
+  };
+
+  // same as str.split(delimiter) but it ignores delimiters within quoted strings
+  this.explode_quoted_string = function(str, delimiter)
+  {
+    var result = [],
+      strlen = str.length,
+      q, p, i, chr, last;
+
+    for (q = p = i = 0; i < strlen; i++) {
+      chr = str.charAt(i);
+      if (chr == '"' && last != '\\') {
+        q = !q;
+      }
+      else if (!q && chr == delimiter) {
+        result.push(str.substring(p, i));
+        p = i + 1;
+      }
+      last = chr;
+    }
+
+    result.push(str.substr(p));
+    return result;
   };
 };
 
