@@ -38,7 +38,7 @@ class file_api_document extends file_api_common
 
         // Sessions and invitations management
         if (strpos($this->args['method'], 'document_') === 0) {
-            if ($method == 'POST') {
+            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $post = file_get_contents('php://input');
                 $this->args += (array) json_decode($post, true);
                 unset($post);
@@ -110,16 +110,16 @@ class file_api_document extends file_api_common
         }
 
         foreach ((array) $users as $user) {
-            if (empty($user['user']) || !$manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED)) {
-                throw new Exception("Failed adding a session participant.", file_api_core::ERROR_CODE);
-            }
+            if (!empty($user['user'])) {
+                $manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED);
 
-            $result = array(
-                'session_id' => $id,
-                'user'       => $user['user'],
-//                'name' => $user['name'],
-                'status'     => file_manticore::STATUS_INVITED,
-            );
+                $result[] = array(
+                    'session_id' => $id,
+                    'user'       => $user['user'],
+//                    'name' => $user['name'],
+                    'status'     => file_manticore::STATUS_INVITED,
+                );
+            }
         }
 
         return array(

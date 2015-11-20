@@ -97,6 +97,10 @@ class file_manticore
             // @TODO: make sure the session exists in Manticore?
         }
         else {
+            // @TODO: to prevent from creating a new sessions for the same file+user
+            // (e.g. when user uses F5 to refresh the page), we should check
+            // if such a session exist
+
             $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
             $data       = array();
             $owner      = $_SESSION['user'];
@@ -533,8 +537,8 @@ class file_manticore
 
             // Use stored session token, check if it's still valid
             if ($_SESSION['manticore_token']) {
-                $is_valid = $this->request->set_session_token($_SESSION['manticore_token'], true);
 
+                $is_valid = $this->request->set_session_token($_SESSION['manticore_token'], true);
                 if ($is_valid) {
                     return $this->request;
                 }

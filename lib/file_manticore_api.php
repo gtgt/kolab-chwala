@@ -213,7 +213,7 @@ class file_manticore_api
     {
         $res = $this->post('api/documents', $params);
 
-        // @TODO: 422?
+        // @FIXME: 422?
         return $res->get_error_code() == 201 || $res->get_error_code() == 422;
     }
 
@@ -225,21 +225,32 @@ class file_manticore_api
      *
      * @return bool True on success, False on failure
      */
-    public function editor_add($session_id, $idenity, $permission)
+    public function editor_add($session_id, $identity, $permission)
     {
         $res = $this->get("api/documents/$session_id/access");
 
-rcube::console($req);
         if ($res->get_error_code() != 200) {
             return false;
         }
 
+        $access = $res->get();
+
+        // sanity check, this should never be empty
+        if (empty($access)) {
+            return false;
+        }
+
         // @todo add editor to the 'access' array
-        
+        foreach ($access as $entry) {
+            if ($entry['identity'] == $identity) {
+                return true;
+            }
+        }
 
-        $res = $this->put("api/documents/$session_id/access", $params);
+        $access[] = array('identity' => $identity, 'permission' => $permission);
 
-rcube::console($req);
+        $res = $this->put("api/documents/$session_id/access", $access);
+
         return $res->get_error_code() == 200;
     }
 
