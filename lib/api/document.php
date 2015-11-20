@@ -58,7 +58,8 @@ class file_api_document extends file_api_common
 //                case 'document_request':
 //                case 'document_decline':
 //                case 'document_accept':
-//                case 'document_remove':
+                case 'document_remove':
+                    return $this->document_remove($this->args['id']);
             }
         }
         // Document content actions for Manticore
@@ -98,7 +99,7 @@ class file_api_document extends file_api_common
     }
 
     /**
-     * Invite/add a session participant
+     * Invite/add a session participant(s)
      */
     protected function document_invite($id)
     {
@@ -120,6 +121,28 @@ class file_api_document extends file_api_common
                     'status'     => file_manticore::STATUS_INVITED,
                 );
             }
+        }
+
+        return array(
+            'list' => $result,
+        );
+    }
+
+    /**
+     * Remove a session participant(s)
+     */
+    protected function document_remove($id)
+    {
+        $manticore = new file_manticore($this->api);
+        $users     = $this->args['users'];
+
+        if (empty($users)) {
+            throw new Exception("Invalid arguments.", file_api_core::ERROR_CODE);
+        }
+
+        foreach ((array) $users as $user) {
+            $manticore->invitation_delete($id, $user);
+            $result[] = $user;
         }
 
         return array(

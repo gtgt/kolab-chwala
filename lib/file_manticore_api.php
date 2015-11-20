@@ -240,7 +240,7 @@ class file_manticore_api
             return false;
         }
 
-        // @todo add editor to the 'access' array
+        // add editor to the 'access' array
         foreach ($access as $entry) {
             if ($entry['identity'] == $identity) {
                 return true;
@@ -248,6 +248,41 @@ class file_manticore_api
         }
 
         $access[] = array('identity' => $identity, 'permission' => $permission);
+
+        $res = $this->put("api/documents/$session_id/access", $access);
+
+        return $res->get_error_code() == 200;
+    }
+
+    /**
+     * Remove document editor (update 'access' array)
+     *
+     * @param array $session_id Session identifier
+     * @param array $identity   User identifier
+     *
+     * @return bool True on success, False on failure
+     */
+    public function editor_delete($session_id, $identity)
+    {
+        $res = $this->get("api/documents/$session_id/access");
+
+        if ($res->get_error_code() != 200) {
+            return false;
+        }
+
+        $access = $res->get();
+        $found  = true;
+
+        // remove editor from the 'access' array
+        foreach ((array) $access as $idx => $entry) {
+            if ($entry['identity'] == $identity) {
+                unset($access[$idx]);
+            }
+        }
+
+        if (!$found) {
+            return false;
+        }
 
         $res = $this->put("api/documents/$session_id/access", $access);
 

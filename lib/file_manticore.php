@@ -94,6 +94,9 @@ class file_manticore
                 }
             }
 
+            // authenticate to Manticore, we need auth token for frame_uri
+            $req = $this->get_request();
+
             // @TODO: make sure the session exists in Manticore?
         }
         else {
@@ -392,7 +395,12 @@ class file_manticore
         }
 
         // Update Manticore 'access' array
-        // @todo
+        $req = $this->get_request();
+        $res = $req->editor_delete($session_id, $user);
+
+        if (!$res) {
+            throw new Exception("Failed to remove an invitation.", file_api_core::ERROR_CODE);
+        }
     }
 
     /**
@@ -537,8 +545,8 @@ class file_manticore
 
             // Use stored session token, check if it's still valid
             if ($_SESSION['manticore_token']) {
-
                 $is_valid = $this->request->set_session_token($_SESSION['manticore_token'], true);
+
                 if ($is_valid) {
                     return $this->request;
                 }
