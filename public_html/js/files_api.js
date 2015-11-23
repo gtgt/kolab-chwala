@@ -1,8 +1,8 @@
-/*
+/**
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2012-2013, Kolab Systems AG                                |
+ | Copyright (C) 2012-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -90,7 +90,7 @@ function files_api()
     return $.ajax({
       type: 'POST', url: url, data: JSON.stringify(data), dataType: 'json',
       contentType: 'application/json; charset=utf-8',
-      success: function(response) { ref[func](response); },
+      success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
@@ -109,7 +109,7 @@ function files_api()
 
     return $.ajax({
       type: 'GET', url: url, data: data, dataType: 'json',
-      success: function(response) { ref[func](response); },
+      success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
       error: function(o, status, err) { ref.http_error(o, status, err); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
@@ -650,30 +650,21 @@ function files_api()
  *    members_list - collaborators list
  *    photo_url - <img> src for a collaborator
  *    photo_default_url - default image of a collaborator
- *    set_busy, display_message, hide_message, gettext - methods
+ *
+ *    set_busy, display_message, hide_message, gettext - common methods
+ *
+ *    api - Chwala files_api instance
+ *    interval - how often to check for invitations in seconds (default: 60)
+ *    owner - user identifier
+ *    invitationMore - add "more" link into invitation notices
  */
 function manticore_api(conf)
 {
-  var domain,
+  var domain, manticore,
     locks = {},
     callbacks = {},
     members = {},
-    self = this,
-    manticore = conf.iframe.contentWindow;
-
-  if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
-    domain = RegExp.$1;
-
-  // Register 'message' event to receive messages from Manticore iframe
-  window.addEventListener('message', function(event) {
-    if (event.source == manticore && event.origin == domain) {
-      self.message_handler(event.data);
-    }
-  });
-
-  // Bind for document title changes
-  if (conf.title_input)
-    $(conf.title_input).change(function() { self.set_title($(this).val()); });
+    self = this;
 
   // Sets state
   this.set_busy = function(state, message)
@@ -683,13 +674,13 @@ function manticore_api(conf)
   };
 
   // Displays error/notification message
-  this.display_message = function(label, type)
+  this.display_message = function(label, type, is_txt)
   {
     if (conf.display_message)
-      return conf.display_message(label, type);
+      return conf.display_message(label, type, is_txt, 10);
 
     if (type == 'error')
-      alert(this.gettext(label));
+      alert(is_txt ? label : this.gettext(label));
   };
 
   // Hides the error/notification message
@@ -707,9 +698,6 @@ function manticore_api(conf)
 
     return label;
   };
-
-  // Display loading message
-  this.init_lock = this.set_busy(true, 'loading');
 
   // Handle messages from Manticore
   this.message_handler = function(data)
@@ -878,6 +866,84 @@ function manticore_api(conf)
 
     return img;
   };
+
+  // track changes in invitations
+  this.track_invitations = function()
+  {
+    conf.api.request('invitations', {timestamp: this.invitations_timestamp || -1}, this.parse_invitations);
+    this.invitations_timeout = setTimeout(function() { self.track_invitations(); }, (conf.interval || 60) * 1000);
+  };
+
+  // parse 'invitations' response
+  this.parse_invitations = function(response)
+  {
+    if (!conf.api.response(response) || !response.result)
+      return;
+
+    var invitation_change = function(invitation, suffix) {
+      var msg = self.gettext(invitation.status + 'notice' + (suffix || ''));
+
+      msg = msg.replace('$user', invitation.user).replace('$file', invitation.filename);
+
+      if (conf.invitationMore)
+        msg = $('<div>').append($('<span>').text(msg))
+          .append($('<a>').text(self.gettext('more')).attr('id', invitation.id)).html();
+
+      self.display_message(msg, 'notice', true);
+
+      if (conf.invitationChange)
+        conf.invitationChange(invitation);
+    }
+
+    $.each(response.result.list || [], function(i, invitation) {
+      invitation.id = 'i' + (response.result.timestamp + i);
+      invitation.is_session_owner = invitation.user == conf.owner;
+
+      // display notifications
+      if (invitation.is_session_owner) {
+        // @todo: add Accept, Decline buttons for 'invited' invitations
+        if (invitation.status == 'invited' || invitation.status == 'declined') {
+          invitation_change(invitation);
+        }
+      }
+      else {
+        // @todo: add Accept, Decline buttons for 'requested' invitations
+        if (invitation.status == 'accepted' || invitation.status == 'declined' || invitation.status == 'requested') {
+          invitation_change(invitation, 'owner');
+        }
+      }
+    });
+
+    self.invitations_timestamp = response.result.timestamp;
+  };
+
+  if (!conf)
+    conf = {};
+
+  // Got Manticore iframe, use Client API
+  if (conf.iframe) {
+    manticore = conf.iframe.contentWindow;
+
+    if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
+      domain = RegExp.$1;
+
+    // Register 'message' event to receive messages from Manticore iframe
+    window.addEventListener('message', function(event) {
+      if (event.source == manticore && event.origin == domain) {
+        self.message_handler(event.data);
+      }
+    });
+
+    // Bind for document title changes
+    if (conf.title_input)
+      $(conf.title_input).change(function() { self.set_title($(this).val()); });
+
+    // Display loading message
+    this.init_lock = this.set_busy(true, 'loading');
+  }
+
+  if (conf.api)
+    this.track_invitations();
 };
 
 // Add escape() method to RegExp object

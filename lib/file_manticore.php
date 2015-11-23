@@ -81,7 +81,7 @@ class file_manticore
             // check session ownership
             if ($session['owner'] != $_SESSION['user']) {
                 // check if the user was invited
-                $invitations = $this->invitations_list($session_id);
+                $invitations = $this->invitations_find(array('session_id' => $session_id, 'user' => $_SESSION['user']));
                 $states      = array(self::STATUS_DECLINED, self::STATUS_REQUESTED);
 
                 if (empty($invitations) || in_array($invitations[0]['status'], $states)) {
@@ -201,7 +201,7 @@ class file_manticore
 
         // set 'is_invited' flag
         if ($invitations && !empty($sessions)) {
-            $invitations = $this->invitations_list();
+            $invitations = $this->invitations_find(array('user' => $_SESSION['user']));
             $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED);
 
             foreach ($invitations as $invitation) {
@@ -276,45 +276,102 @@ class file_manticore
     }
 
     /**
-     * Find invitations for current user
+     * Find invitations for current user. This will return all
+     * invitations related to the user including his sessions.
      *
-     *
+     * @param array $filter Search filter (see self::invitations_find())
      *
      * @return array Invitations list
      */
-    public function invitations_list($session_id = null)
+    public function invitations_list($filter = array())
     {
-        $invitations = array();
-        $db          = $this->rc->get_dbh();
-        $result      = $db->query("SELECT * FROM `{$this->invitations_table}`"
-            . " WHERE `user`= ?"
-            . ($session_id ? " AND `session_id` = " . $db->quote($session_id) : "")
-            . " ORDER BY `changed`", $_SESSION['user']);
+        $filter['user'] = $_SESSION['user'];
 
-        while ($row = $db->fetch_assoc($result)) {
-            $invitations[] = $row;
+        // list of invitations to the user or requested by him
+        $result = $this->invitations_find($filter, true);
+
+        unset($filter['user']);
+        $filter['owner'] = $_SESSION['user'];
+
+        // other invitations that belong to the sessions owned by the user
+        if ($other = $this->invitations_find($filter, true)) {
+            $result = array_merge($result, $other);
         }
 
-        return $invitations;
+        return $result;
     }
 
     /**
-     * Find invitations for specified session_id
+     * Find invitations for specified filter
+     *
+     * @param array $filter Search filter (see self::invitations_find())
+     *                      - session_id: session identifier
+     *                      - timestamp: "changed > ?" filter
+     *                      - user: Invitation user identifier
+     *                      - owner: Session owner identifier
+     * @param bool $extended Return session file names
+     *
+     * @return array Invitations list
      */
-    public function invitations_find($filter)
+    public function invitations_find($filter, $extended = false)
     {
-        $invitations = array();
-        $db          = $this->rc->get_dbh();
+        $db     = $this->rc->get_dbh();
+        $query  = '';
+        $select = "i.*";
 
         foreach ($filter as $column => $value) {
-            $filter[$column] = "`$column` = " . $db->quote($value);
+            if ($column == 'timestamp') {
+                $where[] = "i.`changed` > " . $db->fromunixtime($value);
+            }
+            else if ($column == 'owner') {
+                $join[] = "`{$this->sessions_table}` s ON (i.`session_id` = s.`id`)";
+                $where[] = "s.`owner` = " . $db->quote($value);
+            }
+            else {
+                $where[] = "i.`$column` = " . $db->quote($value);
+            }
         }
 
-        $where  = implode(' AND ', $filter);
-        $result = $db->query("SELECT * FROM `{$this->invitations_table}`"
-            . " WHERE $where ORDER BY `changed`");
+        if ($extended) {
+            $select .= ", s.`uri`";
+            $join[]  = "`{$this->sessions_table}` s ON (i.`session_id` = s.`id`)";
+        }
+
+        if (!empty($join)) {
+            $query .= ' JOIN ' . implode(' JOIN ', array_unique($join));
+        }
+
+        if (!empty($where)) {
+            $query .= ' WHERE ' . implode(' AND ', array_unique($where));
+        }
+
+        $result = $db->query("SELECT $select FROM `{$this->invitations_table}` i"
+            . "$query ORDER BY `changed`");
+
+        if ($db->is_error($result)) {
+            throw new Exception("Internal error.", file_api_core::ERROR_CODE);
+        }
+
+        $invitations = array();
 
         while ($row = $db->fetch_assoc($result)) {
+            if ($extended) {
+                try {
+                    // add unix-timestamp of the `changed` date to the result
+                    $dt = new DateTime($row['changed']);
+                    $row['timestamp'] = $dt->format('U');
+                }
+                catch(Exception $e) { }
+
+                // add filename to the result
+                $filename = parse_url($row['uri'], PHP_URL_PATH);
+                $filename = pathinfo($filename, PATHINFO_BASENAME);
+                $filename = rawurldecode($filename);
+
+                $row['filename'] = $filename;
+                unset($row['uri']);
+            }
+
             $invitations[] = $row;
         }
 

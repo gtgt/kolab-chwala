@@ -36,8 +36,12 @@ class file_api_document extends file_api_common
             $method = $_SERVER['HTTP_X_HTTP_METHOD'];
         }
 
-        // Sessions and invitations management
-        if (strpos($this->args['method'], 'document_') === 0) {
+        // Invitation notifications
+        if ($this->args['method'] == 'invitations') {
+            return $this->invitations();
+        }
+        // Session and invitations management
+        else if (strpos($this->args['method'], 'document_') === 0) {
             if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $post = file_get_contents('php://input');
                 $this->args += (array) json_decode($post, true);
@@ -84,6 +88,33 @@ class file_api_document extends file_api_common
         $manticore = new file_manticore($this->api);
 
         return $manticore->session_file($id);
+    }
+
+    /**
+     * Get invitations list
+     */
+    protected function invitations()
+    {
+        $timestamp = time();
+
+        // Initial tracking request, return just the current timestamp
+        if ($this->args['timestamp'] == -1) {
+            return array('timestamp' => $timestamp);
+        }
+
+        $manticore = new file_manticore($this->api);
+        $filter    = array();
+
+        if ($this->args['timestamp']) {
+            $filter['timestamp'] = $this->args['timestamp'];
+        }
+
+        $list = $manticore->invitations_list($filter);
+
+        return array(
+            'list'      => $list,
+            'timestamp' => $timestamp,
+        );
     }
 
     /**

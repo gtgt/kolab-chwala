@@ -267,7 +267,7 @@ class file_api extends file_api_core
             );
 
             // Redirect all document_* actions into 'document' action
-            if (strpos($request, 'document_') === 0) {
+            if (preg_match('/^(invitations|document_[a-z]+)$/', $request)) {
                 $request = 'document';
             }
 
