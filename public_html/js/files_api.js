@@ -657,6 +657,7 @@ function files_api()
  *    interval - how often to check for invitations in seconds (default: 60)
  *    owner - user identifier
  *    invitationMore - add "more" link into invitation notices
+ *    invitationChange - method to handle invitation state updates
  */
 function manticore_api(conf)
 {
@@ -880,13 +881,12 @@ function manticore_api(conf)
     if (!conf.api.response(response) || !response.result)
       return;
 
-    var invitation_change = function(invitation, suffix) {
-      var msg = self.gettext(invitation.status + 'notice' + (suffix || ''));
-
-      msg = msg.replace('$user', invitation.user).replace('$file', invitation.filename);
+    var invitation_change = function(invitation) {
+      var msg = self.invitation_msg(invitation);
 
       if (conf.invitationMore)
-        msg = $('<div>').append($('<span>').text(msg))
+        msg = $('<div>')
+          .append($('<span>').text(msg + ' '))
           .append($('<a>').text(self.gettext('more')).attr('id', invitation.id)).html();
 
       self.display_message(msg, 'notice', true);
@@ -897,25 +897,77 @@ function manticore_api(conf)
 
     $.each(response.result.list || [], function(i, invitation) {
       invitation.id = 'i' + (response.result.timestamp + i);
-      invitation.is_session_owner = invitation.user == conf.owner;
+      invitation.is_session_owner = invitation.user != conf.owner;
 
       // display notifications
-      if (invitation.is_session_owner) {
-        // @todo: add Accept, Decline buttons for 'invited' invitations
-        if (invitation.status == 'invited' || invitation.status == 'declined') {
+      if (!invitation.is_session_owner) {
+        if (invitation.status == 'invited' || invitation.status == 'declined-owner' || invitation.status == 'accepted-owner') {
           invitation_change(invitation);
         }
       }
       else {
-        // @todo: add Accept, Decline buttons for 'requested' invitations
         if (invitation.status == 'accepted' || invitation.status == 'declined' || invitation.status == 'requested') {
-          invitation_change(invitation, 'owner');
+          invitation_change(invitation);
         }
       }
     });
 
     self.invitations_timestamp = response.result.timestamp;
   };
+
+  this.invitation_msg = function(invitation)
+  {
+    return self.gettext(invitation.status.replace('-', '') + 'notice')
+      .replace('$user', invitation.user)
+      .replace('$file', invitation.filename)
+      .replace('$owner', invitation.owner);
+  };
+
+  // Request access to the editing session
+  this.invitation_request = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationrequesting');
+    conf.api.request('document_request', params, function(response) {
+      self.invitation_response(response, invitation, 'requested');
+    });
+  };
+
+  // Accept an invitations to the editing session
+  this.invitation_accept = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationaccepting');
+    conf.api.request('document_accept', params, function(response) {
+      self.invitation_response(response, invitation, 'accepted');
+    });
+  };
+
+  // Decline an invitations to the editing session
+  this.invitation_decline = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationdeclining');
+    conf.api.request('document_decline', params, function(response) {
+      self.invitation_response(response, invitation, 'declined');
+    });
+  };
+
+  // document_decline response handler
+  this.invitation_response = function(response, invitation, status)
+  {
+    if (!conf.api.response(response))
+      return;
+
+    invitation.status = status;
+
+    if (conf.invitationSaved)
+      conf.invitationSaved(invitation);
+  };
+
 
   if (!conf)
     conf = {};

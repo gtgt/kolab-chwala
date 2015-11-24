@@ -54,16 +54,12 @@ class file_api_document extends file_api_common
  
             switch ($this->args['method']) {
                 case 'document_delete':
-                    return $this->document_delete($this->args['id']);
-
                 case 'document_invite':
-                    return $this->document_invite($this->args['id']);
-
-//                case 'document_request':
-//                case 'document_decline':
-//                case 'document_accept':
-                case 'document_remove':
-                    return $this->document_remove($this->args['id']);
+                case 'document_request':
+                case 'document_decline':
+                case 'document_accept':
+                case 'document_cancel':
+                    return $this->{$this->args['method']}($this->args['id']);
             }
         }
         // Document content actions for Manticore
@@ -160,9 +156,36 @@ class file_api_document extends file_api_common
     }
 
     /**
-     * Remove a session participant(s)
+     * Request an invitation to a session
      */
-    protected function document_remove($id)
+    protected function document_request($id)
+    {
+        $manticore = new file_manticore($this->api);
+        $manticore->invitation_create($id, null, file_manticore::STATUS_REQUESTED);
+    }
+
+    /**
+     * Decline an invitation to a session
+     */
+    protected function document_decline($id)
+    {
+        $manticore = new file_manticore($this->api);
+        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_DECLINED);
+    }
+
+    /**
+     * Accept an invitation to a session
+     */
+    protected function document_accept($id)
+    {
+        $manticore = new file_manticore($this->api);
+        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_ACCEPTED);
+    }
+
+    /**
+     * Remove a session participant(s) - cancel invitations
+     */
+    protected function document_cancel($id)
     {
         $manticore = new file_manticore($this->api);
         $users     = $this->args['users'];

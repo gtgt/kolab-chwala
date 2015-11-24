@@ -37,6 +37,8 @@ class file_manticore
     const STATUS_REQUESTED = 'requested';
     const STATUS_ACCEPTED  = 'accepted';
     const STATUS_DECLINED  = 'declined';
+    const STATUS_DECLINED_OWNER = 'declined-owner'; // same as 'declined' but done by the session owner
+    const STATUS_ACCEPTED_OWNER = 'accepted-owner'; // same as 'accepted' but done by the session owner
 
 
     /**
@@ -82,9 +84,9 @@ class file_manticore
             if ($session['owner'] != $_SESSION['user']) {
                 // check if the user was invited
                 $invitations = $this->invitations_find(array('session_id' => $session_id, 'user' => $_SESSION['user']));
-                $states      = array(self::STATUS_DECLINED, self::STATUS_REQUESTED);
+                $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED, self::STATUS_ACCEPTED_OWNER);
 
-                if (empty($invitations) || in_array($invitations[0]['status'], $states)) {
+                if (empty($invitations) || !in_array($invitations[0]['status'], $states)) {
                     throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
                 }
 
@@ -202,7 +204,7 @@ class file_manticore
         // set 'is_invited' flag
         if ($invitations && !empty($sessions)) {
             $invitations = $this->invitations_find(array('user' => $_SESSION['user']));
-            $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED);
+            $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED, self::STATUS_ACCEPTED_OWNER);
 
             foreach ($invitations as $invitation) {
                 if (!empty($sessions[$invitation['session_id']]) && in_array($invitation['status'], $states)) {
@@ -333,7 +335,7 @@ class file_manticore
         }
 
         if ($extended) {
-            $select .= ", s.`uri`";
+            $select .= ", s.`uri`, s.`owner`";
             $join[]  = "`{$this->sessions_table}` s ON (i.`session_id` = s.`id`)";
         }
 
@@ -382,13 +384,17 @@ class file_manticore
      * Create an invitation
      *
      * @param string $session_id Document session identifier
-     * @param string $user       User identifier
+     * @param string $user       User identifier (use null for current user)
      * @param string $status     Invitation status (invited, requested)
      *
      * @throws Exception
      */
     public function invitation_create($session_id, $user, $status = 'invited')
     {
+        if (empty($user)) {
+            $user = $_SESSION['user'];
+        }
+
         if ($status != self::STATUS_INVITED && $status != self::STATUS_REQUESTED) {
             throw new Exception("Invalid invitation status.", file_api_core::ERROR_CODE);
         }
@@ -464,13 +470,17 @@ class file_manticore
      * Update an invitation status
      *
      * @param string $session_id Session identifier
-     * @param string $user       User identifier
+     * @param string $user       User identifier (use null for current user)
      * @param string $status     Invitation status (accepted, declined)
      *
      * @throws Exception
      */
     public function invitation_update($session_id, $user, $status)
     {
+        if (empty($user)) {
+            $user = $_SESSION['user'];
+        }
+
         if ($status != self::STATUS_ACCEPTED && $status != self::STATUS_DECLINED) {
             throw new Exception("Invalid invitation status.", file_api_core::ERROR_CODE);
         }
@@ -487,6 +497,10 @@ class file_manticore
             throw new Exception("No permission to update an invitation.", file_api_core::ERROR_CODE);
         }
 
+        if ($session['owner'] == $_SESSION['user']) {
+            $status = '-owner';
+        }
+
         $db     = $this->rc->get_dbh();
         $result = $db->query("UPDATE `{$this->invitations_table}`"
             . " SET `status` = ?, `changed` = " . $db->now()
@@ -498,7 +512,7 @@ class file_manticore
         }
 
         // Update Manticore 'access' array if an owner accepted an invitation request
-        if ($status == self::STATUS_ACCEPTED && $_SESSION['user'] == $session['owner']) {
+        if ($status == self::STATUS_ACCEPTED_OWNER) {
             // @todo
         }
     }
