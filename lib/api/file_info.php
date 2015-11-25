@@ -31,6 +31,15 @@ class file_api_file_info extends file_api_common
     {
         parent::handle();
 
+        $manticore = $this->rc->config->get('fileapi_manticore');
+
+        // support file_info by session ID
+        if ((!isset($this->args['file']) || $this->args['file'] === '')
+            && $manticore && !empty($this->args['session'])
+        ) {
+            $this->args['file'] = $this->file_manticore_file($this->args['session']);
+        }
+
         if (!isset($this->args['file']) || $this->args['file'] === '') {
             throw new Exception("Missing file name", file_api_core::ERROR_CODE);
         }
@@ -38,6 +47,7 @@ class file_api_file_info extends file_api_common
         list($driver, $path) = $this->api->get_driver($this->args['file']);
 
         $info = $driver->file_info($path);
+        $info['file'] = $this->args['file'];
 
         // Possible 'viewer' types are defined in files_api.js:file_type_supported()
         // 1 - Native browser support
@@ -48,7 +58,7 @@ class file_api_file_info extends file_api_common
             $this->file_viewer_info($info);
 
             // check if file type is supported by webodf editor?
-            if ($this->rc->config->get('fileapi_manticore')) {
+            if ($manticore) {
                 if (strtolower($info['type']) == 'application/vnd.oasis.opendocument.text') {
                     $info['viewer']['manticore'] = true;
                 }
@@ -94,5 +104,15 @@ class file_api_file_info extends file_api_common
             $info['viewer']['href'] = $uri;
             $info['session']        = $manticore->session_info($session, true);
         }
+    }
+
+    /**
+     * Get file from manticore session
+     */
+    protected function file_manticore_file($session_id)
+    {
+        $manticore = new file_manticore($this->api);
+
+        return $manticore->session_file($session_id);
     }
 }
