@@ -675,10 +675,10 @@ function manticore_api(conf)
   };
 
   // Displays error/notification message
-  this.display_message = function(label, type, is_txt)
+  this.display_message = function(label, type, is_txt, timeout)
   {
     if (conf.display_message)
-      return conf.display_message(label, type, is_txt, 10);
+      return conf.display_message(label, type, is_txt, timeout);
 
     if (type == 'error')
       alert(is_txt ? label : this.gettext(label));
@@ -889,7 +889,7 @@ function manticore_api(conf)
           .append($('<span>').text(msg + ' '))
           .append($('<a>').text(self.gettext('more')).attr('id', invitation.id)).html();
 
-      self.display_message(msg, 'notice', true);
+      self.display_message(msg, 'notice', true, 30);
 
       if (conf.invitationChange)
         conf.invitationChange(invitation);
@@ -918,9 +918,9 @@ function manticore_api(conf)
   this.invitation_msg = function(invitation)
   {
     return self.gettext(invitation.status.replace('-', '') + 'notice')
-      .replace('$user', invitation.user)
-      .replace('$file', invitation.filename)
-      .replace('$owner', invitation.owner);
+      .replace('$user', invitation.user_name ? invitation.user_name : invitation.user)
+      .replace('$owner', invitation.owner_name ? invitation.owner_name : invitation.owner)
+      .replace('$file', invitation.filename);
   };
 
   // Request access to the editing session

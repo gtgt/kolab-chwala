@@ -39,6 +39,7 @@ class file_api_core extends file_locale
 
     protected $app_name = 'Kolab File API';
     protected $drivers  = array();
+    protected $icache   = array();
     protected $backend;
 
     /**
@@ -245,6 +246,32 @@ class file_api_core extends file_locale
         }
 
         return $caps;
+    }
+
+    /**
+     * Get user name from user identifier (email address) using LDAP lookup
+     *
+     * @param string $email User identifier
+     *
+     * @return string User name
+     */
+    public function resolve_user($email)
+    {
+        $key = "user:$email";
+
+        // @todo: Move this into drivers
+        if ($this->icache[$key] === null
+            && class_exists('kolab_storage', false)
+            && ($ldap = kolab_storage::ldap())
+        ) {
+            $user = $ldap->get_user_record($email, $_SESSION['imap_host']);
+
+            $this->icache[$key] = $user ?: false;
+        }
+
+        if ($this->icache[$key]) {
+            return $this->icache[$key]['displayname'] ?: $this->icache[$key]['name'];
+        }
     }
 
     /**

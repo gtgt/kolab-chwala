@@ -260,12 +260,16 @@ class file_manticore
      */
     protected function session_create($id, $uri, $owner, $data)
     {
+        // get user name
+        $owner_name = $this->api->resolve_user($owner) ?: '';
+
         // Do this before starting the session in Manticore,
         // it will immediately call api/document to get the file body
         $db     = $this->rc->get_dbh();
         $result = $db->query("INSERT INTO `{$this->sessions_table}`"
-            . " (`id`, `uri`, `owner`, `data`) VALUES (?, ?, ?, ?)",
-            $id, $uri, $owner, json_encode($data));
+            . " (`id`, `uri`, `owner`, `owner_name`, `data`)"
+            . " VALUES (?, ?, ?, ?, ?)",
+            $id, $uri, $owner, $owner_name, json_encode($data));
 
         $success = $db->affected_rows($result) > 0;
 
@@ -350,7 +354,7 @@ class file_manticore
         }
 
         if ($extended) {
-            $select .= ", s.`uri`, s.`owner`";
+            $select .= ", s.`uri`, s.`owner`, s.`owner_name`";
             $join[]  = "`{$this->sessions_table}` s ON (i.`session_id` = s.`id`)";
         }
 
@@ -401,10 +405,12 @@ class file_manticore
      * @param string $session_id Document session identifier
      * @param string $user       User identifier (use null for current user)
      * @param string $status     Invitation status (invited, requested)
+     * @param string $comment    Invitation description/comment
+     * @param string &$user_name Optional user name
      *
      * @throws Exception
      */
-    public function invitation_create($session_id, $user, $status = 'invited')
+    public function invitation_create($session_id, $user, $status = 'invited', $comment = '', &$user_name = '')
     {
         if (empty($user)) {
             $user = $this->user;
@@ -440,12 +446,15 @@ class file_manticore
             }
         }
 
+        // get user name
+        $user_name = $this->api->resolve_user($user) ?: '';
+
         // insert invitation
         $db     = $this->rc->get_dbh();
         $result = $db->query("INSERT INTO `{$this->invitations_table}`"
-            . " (`session_id`, `user`, `status`, `changed`)"
-            . " VALUES (?, ?, ?, " . $db->now() . ")",
-            $session_id, $user, $status);
+            . " (`session_id`, `user`, `user_name`, `status`, `comment`, `changed`)"
+            . " VALUES (?, ?, ?, ?, ?, " . $db->now() . ")",
+            $session_id, $user, $user_name, $status, $comment ?: '');
 
         if (!$db->affected_rows($result)) {
             throw new Exception("Failed to create an invitation.", file_api_core::ERROR_CODE);
@@ -487,10 +496,11 @@ class file_manticore
      * @param string $session_id Session identifier
      * @param string $user       User identifier (use null for current user)
      * @param string $status     Invitation status (accepted, declined)
+     * @param string $comment    Invitation description/comment
      *
      * @throws Exception
      */
-    public function invitation_update($session_id, $user, $status)
+    public function invitation_update($session_id, $user, $status, $comment = '')
     {
         if (empty($user)) {
             $user = $this->user;
@@ -518,9 +528,9 @@ class file_manticore
 
         $db     = $this->rc->get_dbh();
         $result = $db->query("UPDATE `{$this->invitations_table}`"
-            . " SET `status` = ?, `changed` = " . $db->now()
+            . " SET `status` = ?, `comment` = ?, `changed` = " . $db->now()
             . " WHERE `session_id` = ? AND `user` = ?",
-            $status, $session_id, $user);
+            $status, $comment ?: '', $session_id, $user);
 
         if (!$db->affected_rows($result)) {
             throw new Exception("Failed to update an invitation status.", file_api_core::ERROR_CODE);
@@ -528,7 +538,12 @@ class file_manticore
 
         // Update Manticore 'access' array if an owner accepted an invitation request
         if ($status == self::STATUS_ACCEPTED_OWNER) {
-            // @todo
+            $req = $this->get_request();
+            $res = $req->editor_add($session_id, $user, file_manticore_api::ACCESS_WRITE);
+
+            if (!$res) {
+                throw new Exception("Failed to update an invitation status.", file_api_core::ERROR_CODE);
+            }
         }
     }
 

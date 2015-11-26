@@ -132,6 +132,7 @@ class file_api_document extends file_api_common
     {
         $manticore = new file_manticore($this->api);
         $users     = $this->args['users'];
+        $comment   = $this->args['comment'];
 
         if (empty($users)) {
             throw new Exception("Invalid arguments.", file_api_core::ERROR_CODE);
@@ -139,12 +140,12 @@ class file_api_document extends file_api_common
 
         foreach ((array) $users as $user) {
             if (!empty($user['user'])) {
-                $manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED);
+                $manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED, $comment, $user['name']);
 
                 $result[] = array(
                     'session_id' => $id,
                     'user'       => $user['user'],
-//                    'name' => $user['name'],
+                    'user_name'  => $user['name'],
                     'status'     => file_manticore::STATUS_INVITED,
                 );
             }
@@ -161,7 +162,7 @@ class file_api_document extends file_api_common
     protected function document_request($id)
     {
         $manticore = new file_manticore($this->api);
-        $manticore->invitation_create($id, null, file_manticore::STATUS_REQUESTED);
+        $manticore->invitation_create($id, null, file_manticore::STATUS_REQUESTED, $this->args['comment']);
     }
 
     /**
@@ -170,7 +171,7 @@ class file_api_document extends file_api_common
     protected function document_decline($id)
     {
         $manticore = new file_manticore($this->api);
-        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_DECLINED);
+        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_DECLINED, $this->args['comment']);
     }
 
     /**
@@ -179,7 +180,7 @@ class file_api_document extends file_api_common
     protected function document_accept($id)
     {
         $manticore = new file_manticore($this->api);
-        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_ACCEPTED);
+        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_ACCEPTED, $this->args['comment']);
     }
 
     /**
