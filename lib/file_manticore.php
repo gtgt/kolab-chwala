@@ -105,23 +105,32 @@ class file_manticore
             // @TODO: make sure the session exists in Manticore?
         }
         else {
-            // @TODO: to prevent from creating a new sessions for the same file+user
-            // (e.g. when user uses F5 to refresh the page), we should check
-            // if such a session exist
+            // To prevent from creating new sessions for the same file+user
+            // (e.g. when user uses F5 to refresh the page), we check first
+            // if such a session exist and continue with it
+            $db  = $this->rc->get_dbh();
+            $res = $db->query("SELECT `id` FROM `{$this->sessions_table}`"
+                . " WHERE `owner` = ? AND `uri` = ?", $this->user, $uri);
 
-            $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
-            $data       = array();
-            $owner      = $this->user;
-
-            // we'll store user credentials if the file comes from
-            // an external source that requires authentication
-            if ($backend != $driver) {
-                $auth = $driver->auth_info();
-                $auth['password']  = $this->rc->encrypt($auth['password']);
-                $data['auth_info'] = $auth;
+            if ($row = $db->fetch_assoc($res)) {
+                $session_id = $row['id'];
+                $res = true;
             }
+            else if (!$db->is_error($res)) {
+                $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
+                $data       = array();
+                $owner      = $this->user;
 
-            $res = $this->session_create($session_id, $uri, $owner, $data);
+                // we'll store user credentials if the file comes from
+                // an external source that requires authentication
+                if ($backend != $driver) {
+                    $auth = $driver->auth_info();
+                    $auth['password']  = $this->rc->encrypt($auth['password']);
+                    $data['auth_info'] = $auth;
+                }
+
+                $res = $this->session_create($session_id, $uri, $owner, $data);
+            }
 
             if (!$res) {
                 throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
