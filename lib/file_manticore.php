@@ -447,7 +447,9 @@ class file_manticore
         }
 
         // get user name
-        $user_name = $this->api->resolve_user($user) ?: '';
+        if (empty($user_name)) {
+            $user_name = $this->api->resolve_user($user) ?: '';
+        }
 
         // insert invitation
         $db     = $this->rc->get_dbh();
