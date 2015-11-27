@@ -1324,8 +1324,7 @@ td span.branch span.l3
 
 #filelist tbody td.filename span {
   background: url(images/mimetypes/unknown.png) 0 0 no-repeat;
-  padding: 0 0 0 20px;
-  height: 16px;
+  padding: 1px 0 1px 20px;
   cursor: pointer;
 }
 
@@ -1350,8 +1349,8 @@ td span.branch span.l3
 
 #folderlist td span.name {
   background: url(images/folder.png) 0 0 no-repeat;
-  height: 18px;
-  padding-left: 20px;
+  line-height: 16px;
+  padding: 1px 0 1px 20px;
   margin-left: 3px;
   cursor: pointer;
 }
