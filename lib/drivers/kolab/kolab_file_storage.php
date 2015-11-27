@@ -44,6 +44,10 @@ class kolab_file_storage implements file_storage
      */
     protected $title;
 
+    /**
+     * @var array
+     */
+    protected $icache = array();
 
     /**
      * Class constructor
@@ -566,7 +570,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_get($file_name, $params = array(), $fp = null)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -624,7 +628,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_info($file_name)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -1207,12 +1211,15 @@ class kolab_file_storage implements file_storage
      *
      * @param string               $file_name Name of a file (with folder path)
      * @param kolab_storage_folder $folder    Reference to folder object
+     * @param bool                 $cache     Use internal cache
      *
      * @return array File data
      * @throws Exception
      */
-    protected function get_file_object(&$file_name, &$folder = null)
+    protected function get_file_object(&$file_name, &$folder = null, $cache = false)
     {
+        $original_name = $file_name;
+
         // extract file path and file name
         $path        = explode(file_storage::SEPARATOR, $file_name);
         $file_name   = array_pop($path);
@@ -1223,14 +1230,24 @@ class kolab_file_storage implements file_storage
         }
 
         $folder = $this->get_folder_object($folder_name);
+
+        if ($cache && !empty($this->icache[$original_name])) {
+            return $this->icache[$original_name];
+        }
+
         $filter = array(
             array('type', '=', 'file'),
             array('filename', '=', $file_name)
         );
 
         $files = $this->get_files($folder, $filter, false);
+        $file  = $files[0];
 
-        return $files[0];
+        if ($cache) {
+            $this->icache[$original_name] = $file;
+        }
+
+        return $file;
     }
 
     /**
