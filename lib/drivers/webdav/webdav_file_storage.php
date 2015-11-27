@@ -429,7 +429,7 @@ class webdav_file_storage implements file_storage
 //                header("Content-Type: application/force-download");
         }
         else {
-            $mimetype = file_utils::real_mimetype($params['force-type'] ? $params['force-type'] : $file['type']);
+            $mimetype = file_utils::real_mimetype($params['force-type'] ? $params['force-type'] : $response['headers']['content-type']);
             $disposition = 'inline';
 
             header("Content-Transfer-Encoding: binary");
