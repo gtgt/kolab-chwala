@@ -445,7 +445,7 @@ class seafile_file_storage implements file_storage
      * Return file body.
      *
      * @param string   $file_name Name of a file (with folder path)
-     * @param array    $params    Parameters (force-download)
+     * @param array    $params    Parameters (force-download, force-type, head)
      * @param resource $fp        Print to file pointer instead (send no headers)
      *
      * @throws Exception
@@ -506,7 +506,7 @@ class seafile_file_storage implements file_storage
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
         // just send redirect to SeaFile server
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
             // In view-mode we can't redirect to SeaFile server because:
             // - it responds with Content-Disposition: attachment, which causes that
             //   e.g. previewing images is not possible
@@ -521,8 +521,6 @@ class seafile_file_storage implements file_storage
 
             header("Location: $link");
         }
-
-        die;
     }
 
     /**

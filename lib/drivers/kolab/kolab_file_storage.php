@@ -614,7 +614,7 @@ class kolab_file_storage implements file_storage
         header("Content-Length: " . $file['size']);
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
             $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
         }
     }

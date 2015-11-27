@@ -402,10 +402,10 @@ class webdav_file_storage implements file_storage
     {
         $this->init();
 
-        // TODO: Write directly to $fp
+        // @TODO: Write directly to $fp
 
         $file_name = $this->encode_path($file_name);
-        $response  = $this->client->request('GET', $file_name);
+        $response  = $this->client->request($params['head'] ? 'HEAD' : 'GET', $file_name);
 
         if ($response['statusCode'] != 200) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
@@ -450,8 +450,9 @@ class webdav_file_storage implements file_storage
         header("Content-Length: " . $size);
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
-        if ($size)
+        if ($size && empty($params['head'])) {
             echo $response['body'];
+        }
     }
 
     /**
