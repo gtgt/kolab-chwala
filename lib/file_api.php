@@ -59,7 +59,6 @@ class file_api extends file_api_core
 
             if ($username = $this->authenticate()) {
                 $_SESSION['user'] = $username;
-                $_SESSION['time'] = time();
                 $_SESSION['env']  = $this->env;
 
                 // remember client API version
@@ -95,23 +94,16 @@ class file_api extends file_api_core
         $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
 
         if (empty($sess_id)) {
-            session_start();
+            $this->session->start();
             return false;
         }
 
         session_id($sess_id);
-        session_start();
+        $this->session->start();
 
         if (empty($_SESSION['user'])) {
             return false;
         }
-
-        $timeout = $this->config->get('session_lifetime', 0) * 60;
-        if ($timeout && $_SESSION['time'] && $_SESSION['time'] < time() - $timeout) {
-            return false;
-        }
-        // update session time
-        $_SESSION['time'] = time();
 
         return true;
     }
