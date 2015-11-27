@@ -160,9 +160,9 @@ table tbody tr.selected {
 #topmenu > span {
   color: #aaa;
   font-size: 11px;
-  padding-top: 2px;
   display: inline-block;
   height: 18px;
+  line-height: 18px;
 }
 
 #navigation {
