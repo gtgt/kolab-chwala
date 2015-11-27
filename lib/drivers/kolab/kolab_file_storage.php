@@ -672,8 +672,7 @@ class kolab_file_storage implements file_storage
         }
 
         // get files list
-        $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select($filter);
+        $files  = $this->get_files($folder_name, $filter);
         $result = array();
 
         // convert to kolab_storage files list data format
@@ -1189,6 +1188,21 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Get files from a folder (with performance fix)
+     */
+    protected function get_files($folder, $filter, $all = true)
+    {
+        if (!($folder instanceof kolab_storage_folder)) {
+            $folder = $this->get_folder_object($folder);
+        }
+
+        // for better performance it's good to assume max. number of records
+        $folder->set_order_and_limit(null, $all ? 0 : 1);
+
+        return $folder->select($filter);
+    }
+
+    /**
      * Get file object.
      *
      * @param string               $file_name Name of a file (with folder path)
@@ -1208,12 +1222,13 @@ class kolab_file_storage implements file_storage
             throw new Exception("Missing folder name", file_storage::ERROR);
         }
 
-        // get folder object
         $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select(array(
+        $filter = array(
             array('type', '=', 'file'),
             array('filename', '=', $file_name)
-        ));
+        );
+
+        $files = $this->get_files($folder, $filter, false);
 
         return $files[0];
     }
