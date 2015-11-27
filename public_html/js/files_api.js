@@ -284,7 +284,7 @@ function files_api()
   // folder structure presentation (structure icons)
   this.folder_list_tree = function(folders)
   {
-    var i, n, diff, tree = [], folder;
+    var i, n, diff, prefix, tree = [], folder;
 
     for (i in folders) {
       items = i.split(this.env.directory_separator);
@@ -297,12 +297,13 @@ function files_api()
       }
 
       folders[i].tree = [1];
+      prefix = items.slice(0, items_len-1).join(this.env.directory_separator) + this.env.directory_separator;
 
       for (n=0; n<tree.length; n++) {
         folder = tree[n];
         diff = folders[folder].depth - (items_len - 1);
-        if (diff >= 0)
-          folders[folder].tree[diff] = folders[folder].tree[diff] ? folders[folder].tree[diff] + 2 : 2;
+        if (diff >= 0 && folder.indexOf(prefix) === 0)
+          folders[folder].tree[diff] |= 2;
       }
 
       tree.push(i);
