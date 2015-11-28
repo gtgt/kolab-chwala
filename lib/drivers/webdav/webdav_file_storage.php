@@ -411,7 +411,7 @@ class webdav_file_storage implements file_storage
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
 
-        $size = $response['headers']['content-length'][0];
+        $size = $response['headers']['content-length'];
 
         // write to file pointer, send no headers
         if ($fp) {
