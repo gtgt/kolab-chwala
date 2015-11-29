@@ -92,11 +92,15 @@ class file_api_core extends file_locale
             $drivers = $backend->driver_list();
 
             foreach ($drivers as $item) {
-                // Disable webdav sources/drivers in iRony
-                // It does not work when the API is used where
-                // some SabreDAV classes are redefined
+                // Disable webdav sources/drivers in iRony that point to the
+                // same host to prevent infinite recursion
                 if ($iRony && $item['driver'] == 'webdav') {
-                    continue;
+                    $self_url = parse_url($_SERVER['SCRIPT_URI']);
+                    $item_url = parse_url($item['host']);
+
+                    if ($self_url['host'] == $item_url['host']) {
+                        continue;
+                    }
                 }
 
                 $all[] = $item['title'];
