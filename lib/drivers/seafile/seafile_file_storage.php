@@ -463,7 +463,7 @@ class seafile_file_storage implements file_storage
         $file = $this->from_file_object($file);
 
         // get file location on SeaFile server for download
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
             $link = $this->api->file_get($repo_id, $fn);
         }
 
