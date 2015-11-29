@@ -71,7 +71,7 @@ class file_api_folder_create extends file_api_common
 
         // load driver
         $driver = $this->api->load_driver_object($this->args['driver']);
-        $driver->configure($this->api->config, $this->args['folder']);
+        $driver->configure($this->api->env, $this->args['folder']);
 
         // check if authentication works
         $data = $driver->driver_validate($this->args);
