@@ -214,7 +214,7 @@ class file_manticore
 
         // get existing sessions
         $sessions = array();
-        $filter   = array('file', 'owner', 'is_owner');
+        $filter   = array('file', 'owner', 'owner_name', 'is_owner');
         $db       = $this->rc->get_dbh();
         $result   = $db->query("SELECT * FROM `{$this->sessions_table}`"
             . " WHERE `uri` LIKE '" . $db->escape($uri) . "%'");
@@ -399,6 +399,11 @@ class file_manticore
                 $filename = rawurldecode($filename);
 
                 $row['filename'] = $filename;
+
+                if ($path = $this->uri2path($row['uri'])) {
+                    $row['file'] = $path;
+                }
+
                 unset($row['uri']);
             }
 
@@ -569,7 +574,7 @@ class file_manticore
         }
 */
         $session = array();
-        $fields  = array('id', 'uri', 'owner');
+        $fields  = array('id', 'uri', 'owner', 'owner_name');
 
         foreach ($fields as $field) {
             if (isset($record[$field])) {

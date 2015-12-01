@@ -659,6 +659,7 @@ function files_api()
  *    owner - user identifier
  *    invitationMore - add "more" link into invitation notices
  *    invitationChange - method to handle invitation state updates
+ *    invitationSave - method to handle invitation state update
  */
 function manticore_api(conf)
 {
@@ -891,6 +892,35 @@ function manticore_api(conf)
           .append($('<a>').text(self.gettext('more')).attr('id', invitation.id)).html();
 
       self.display_message(msg, 'notice', true, 30);
+
+      // update existing sessions info
+      if (conf.api && conf.api.sessions && invitation.file) {
+        var session, folder = conf.api.file_path(invitation.file),
+          is_invited = function() {
+            return !invitation.is_session_owner && /^(invited|accepted)/.test(invitation.status);
+          };
+
+        $.each(conf.api.sessions[folder] || {}, function(i, s) {
+          if (i == invitation.session_id || s.file == invitation.file) {
+            if (is_invited())
+              conf.api.sessions[folder][i].is_invited = true;
+            if (s.id == invitation.session_id)
+              session = conf.api.sessions[folder][i];
+          }
+        });
+
+        if (!session) {
+          if (!conf.api.sessions[folder])
+            conf.api.sessions[folder] = {};
+          conf.api.sessions[folder][invitation.session_id] = {
+            owner: invitation.owner,
+            owner_name: invitation.owner_name,
+            is_owner: invitation.is_session_owner,
+            is_invited: is_invited(),
+            file: invitation.file
+          };
+        }
+      }
 
       if (conf.invitationChange)
         conf.invitationChange(invitation);

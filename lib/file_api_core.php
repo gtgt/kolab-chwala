@@ -263,9 +263,12 @@ class file_api_core extends file_locale
     {
         $key = "user:$email";
 
+        // make sure Kolab backend is initialized so kolab_storage can be found
+        $this->get_backend();
+
         // @todo: Move this into drivers
         if ($this->icache[$key] === null
-            && class_exists('kolab_storage', false)
+            && class_exists('kolab_storage')
             && ($ldap = kolab_storage::ldap())
         ) {
             $user = $ldap->get_user_record($email, $_SESSION['imap_host']);

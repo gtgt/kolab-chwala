@@ -51,7 +51,7 @@ class file_api_document extends file_api_common
             if (empty($this->args['id'])) {
                 throw new Exception("Missing document ID.", file_api_core::ERROR_CODE);
             }
- 
+
             switch ($this->args['method']) {
                 case 'document_delete':
                 case 'document_invite':
