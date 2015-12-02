@@ -69,6 +69,16 @@ class file_api_file_info extends file_api_common
             }
         }
 
+        // check writable flag
+        if ($this->args['file']) {
+            $path = explode(file_storage::SEPARATOR, $path);
+            array_pop($path);
+            $path = implode(file_storage::SEPARATOR, $path);
+            $acl  = $driver->folder_rights($path);
+
+            $info['writable'] = ($acl & file_storage::ACL_WRITE) != 0;
+        }
+
         return $info;
     }
 

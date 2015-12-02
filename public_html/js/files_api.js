@@ -468,7 +468,7 @@ function files_api()
 
   // Checks if specified mimetype is supported natively by the browser (return 1)
   // or can be displayed in the browser using File API viewer (return 2)
-  // or using Manticore - WebODF collaborative editor (return 4)
+  // or is editable (using File API viewer or Manticore) (return 4)
   this.file_type_supported = function(type, capabilities)
   {
     var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
@@ -487,7 +487,7 @@ function files_api()
 
     // prefer text viewer for any text type
     if (/^text\/(?!(pdf|x-pdf))/i.test(type))
-      res |= 2;
+      res |= 2 | 4;
 
     if (caps.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
