@@ -96,6 +96,8 @@ class file_api_document extends file_api_common
         // Initial tracking request, return just the current timestamp
         if ($this->args['timestamp'] == -1) {
             return array('timestamp' => $timestamp);
+            // @TODO: in this mode we should likely return all invitations
+            // that require user action, otherwise we may skip some unintentionally
         }
 
         $manticore = new file_manticore($this->api);

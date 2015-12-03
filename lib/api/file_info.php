@@ -37,28 +37,40 @@ class file_api_file_info extends file_api_common
         $manticore    = $capabilities['MANTICORE'];
 
         // support file_info by session ID
-        if ((!isset($this->args['file']) || $this->args['file'] === '')
-            && $manticore && !empty($this->args['session'])
-        ) {
-            $this->args['file'] = $this->file_manticore_file($this->args['session']);
-        }
-
         if (!isset($this->args['file']) || $this->args['file'] === '') {
-            throw new Exception("Missing file name", file_api_core::ERROR_CODE);
+            if ($manticore && !empty($this->args['session'])) {
+                $this->args['file'] = $this->file_manticore_file($this->args['session']);
+            }
+            else {
+                throw new Exception("Missing file name", file_api_core::ERROR_CODE);
+            }
         }
 
-        list($driver, $path) = $this->api->get_driver($this->args['file']);
+        if ($this->args['file'] !== null) {
+            list($driver, $path) = $this->api->get_driver($this->args['file']);
 
-        $info = $driver->file_info($path);
-        $info['file'] = $this->args['file'];
+            $info = $driver->file_info($path);
+            $info['file'] = $this->args['file'];
+        }
+        else {
+            $info = array(
+                // @TODO: session exists, invitation exists, assume ODF format
+                // however, this should be done in a different way,
+                // e.g. this info should be stored in sessions database
+                'type'     => 'application/vnd.oasis.opendocument.text',
+                'writable' => false,
+            );
+        }
 
         // Possible 'viewer' types are defined in files_api.js:file_type_supported()
         // 1 - Native browser support
         // 2 - Chwala viewer exists
-        // 4 - Manticore (WebODF collaborative editor)
+        // 4 - Editor exists
 
         if (rcube_utils::get_boolean((string) $this->args['viewer'])) {
-            $this->file_viewer_info($info);
+            if ($this->args['file'] !== null) {
+                $this->file_viewer_info($info);
+            }
 
             // check if file type is supported by webodf editor?
             if ($manticore) {
@@ -73,7 +85,7 @@ class file_api_file_info extends file_api_common
         }
 
         // check writable flag
-        if ($this->args['file']) {
+        if ($this->args['file'] !== null) {
             $path = explode(file_storage::SEPARATOR, $path);
             array_pop($path);
             $path = implode(file_storage::SEPARATOR, $path);
@@ -126,6 +138,6 @@ class file_api_file_info extends file_api_common
     {
         $manticore = new file_manticore($this->api);
 
-        return $manticore->session_file($session_id);
+        return $manticore->session_file($session_id, true);
     }
 }

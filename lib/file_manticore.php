@@ -71,10 +71,12 @@ class file_manticore
      */
     public function session_start($file, &$session_id = null)
     {
-        list($driver, $path) = $this->api->get_driver($file);
+        if ($file !== null) {
+            list($driver, $path) = $this->api->get_driver($file);
+            $uri = $driver->path2uri($path);
+        }
 
         $backend = $this->api->get_backend();
-        $uri     = $driver->path2uri($path);
 
         if ($session_id) {
             $session = $this->session_info($session_id);
@@ -104,7 +106,7 @@ class file_manticore
 
             // @TODO: make sure the session exists in Manticore?
         }
-        else {
+        else if (!empty($uri)) {
             // To prevent from creating new sessions for the same file+user
             // (e.g. when user uses F5 to refresh the page), we check first
             // if such a session exist and continue with it
@@ -136,6 +138,9 @@ class file_manticore
                 throw new Exception("Failed creating document editing session", file_api_core::ERROR_CODE);
             }
         }
+        else {
+            throw new Exception("Failed creating document editing session (unknown file)", file_api_core::ERROR_CODE);
+        }
 
         return $this->frame_uri($session_id);
     }
@@ -143,12 +148,13 @@ class file_manticore
     /**
      * Get file path (not URI) from session.
      *
-     * @param string $id Session ID
+     * @param string $id        Session ID
+     * @param bool   $join_mode Throw exception only if session does not exist
      *
      * @return string File path
      * @throws Exception
      */
-    public function session_file($id)
+    public function session_file($id, $join_mode = false)
     {
         $session = $this->session_info($id);
 
@@ -158,11 +164,19 @@ class file_manticore
 
         $path = $this->uri2path($session['uri']);
 
-        if (empty($path)) {
+        if (empty($path) && (!$join_mode || $session['owner'] == $this->user)) {
             throw new Exception("Document session not found.", file_api_core::ERROR_CODE);
         }
 
-        // @TODO: check permissions to the session
+        // check permissions to the session
+        if ($session['owner'] != $this->user) {
+            $invitations = $this->invitations_find(array('session_id' => $id, 'user' => $this->user));
+            $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED, self::STATUS_ACCEPTED_OWNER);
+
+            if (empty($invitations) || !in_array($invitations[0]['status'], $states)) {
+                throw new Exception("No permission to join the editing session.", file_api_core::ERROR_CODE);
+            }
+        }
 
         return $path;
     }
@@ -172,6 +186,8 @@ class file_manticore
      *
      * @param string $id               Session identifier
      * @param bool   $with_invitations Return invitations list
+     *
+     * @return array Session data
      */
     public function session_info($id, $with_invitations = false)
     {
