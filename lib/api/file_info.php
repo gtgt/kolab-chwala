@@ -31,7 +31,10 @@ class file_api_file_info extends file_api_common
     {
         parent::handle();
 
-        $manticore = $this->rc->config->get('fileapi_manticore');
+        // check Manticore support. Note: we don't use config->get('fileapi_manticore')
+        // here as it may be not properly set if backend driver wasn't initialized yet
+        $capabilities = $this->api->capabilities(false);
+        $manticore    = $capabilities['MANTICORE'];
 
         // support file_info by session ID
         if ((!isset($this->args['file']) || $this->args['file'] === '')

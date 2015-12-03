@@ -255,6 +255,8 @@ class kolab_file_storage implements file_storage
 
     protected function init($user = null)
     {
+        $this->rc->plugins->exec_hook('startup');
+
         if ($_SESSION['user_id'] || $user) {
             // overwrite config with user preferences
             $this->rc->user = $user ? $user : new rcube_user($_SESSION['user_id']);

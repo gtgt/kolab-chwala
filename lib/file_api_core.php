@@ -205,9 +205,11 @@ class file_api_core extends file_locale
     /**
      * Returns storage(s) capabilities
      *
+     * @param bool $full Return all drivers' capabilities
+     *
      * @return array Capabilities
      */
-    public function capabilities()
+    public function capabilities($full = true)
     {
         $rcube   = rcube::get_instance();
         $backend = $this->get_backend();
@@ -232,6 +234,10 @@ class file_api_core extends file_locale
         // Manticore support
         if ($manticore = $rcube->config->get('fileapi_manticore')) {
             $caps['MANTICORE'] = true;
+        }
+
+        if (!$full) {
+            return $caps;
         }
 
         // get capabilities of other drivers

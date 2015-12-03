@@ -51,7 +51,7 @@ class file_api_common
         }
 
         // disable script execution time limit, so we can handle big files
-        @set_time_limit(0);
+        @set_time_limit(360);
     }
 
     /**
