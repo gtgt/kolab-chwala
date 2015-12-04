@@ -657,17 +657,6 @@ class file_manticore
     }
 
     /**
-     * Return Manticore user/session info
-     */
-    public function user_info()
-    {
-        $req = $this->get_request();
-        $res = $req->get('api/users/me');
-
-        return $res->get();
-    }
-
-    /**
      * Initialize Manticore API request handler
      */
     protected function get_request()

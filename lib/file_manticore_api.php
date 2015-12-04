@@ -180,7 +180,7 @@ class file_manticore_api
         $this->request->setHeader('Authorization', "Bearer $token");
 
         if ($validate) {
-            $result = $this->get('api/user/me');
+            $result = $this->get('api/users/me');
 
             return $result->get_error_code() == 200;
         }
