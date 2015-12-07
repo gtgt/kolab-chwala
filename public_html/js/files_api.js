@@ -748,6 +748,10 @@ function manticore_api(conf)
           delete members[data.memberId];
         }
         break;
+
+      case 'sessionClosed':
+        this.display_message('sessionterminated', 'error');
+        break;
     }
   };
 
