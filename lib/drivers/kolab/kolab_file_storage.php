@@ -44,6 +44,10 @@ class kolab_file_storage implements file_storage
      */
     protected $title;
 
+    /**
+     * @var array
+     */
+    protected $icache = array();
 
     /**
      * Class constructor
@@ -251,6 +255,8 @@ class kolab_file_storage implements file_storage
 
     protected function init($user = null)
     {
+        $this->rc->plugins->exec_hook('startup');
+
         if ($_SESSION['user_id'] || $user) {
             // overwrite config with user preferences
             $this->rc->user = $user ? $user : new rcube_user($_SESSION['user_id']);
@@ -566,7 +572,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_get($file_name, $params = array(), $fp = null)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -624,7 +630,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_info($file_name)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -672,8 +678,7 @@ class kolab_file_storage implements file_storage
         }
 
         // get files list
-        $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select($filter);
+        $files  = $this->get_files($folder_name, $filter);
         $result = array();
 
         // convert to kolab_storage files list data format
@@ -1189,16 +1194,34 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Get files from a folder (with performance fix)
+     */
+    protected function get_files($folder, $filter, $all = true)
+    {
+        if (!($folder instanceof kolab_storage_folder)) {
+            $folder = $this->get_folder_object($folder);
+        }
+
+        // for better performance it's good to assume max. number of records
+        $folder->set_order_and_limit(null, $all ? 0 : 1);
+
+        return $folder->select($filter);
+    }
+
+    /**
      * Get file object.
      *
      * @param string               $file_name Name of a file (with folder path)
      * @param kolab_storage_folder $folder    Reference to folder object
+     * @param bool                 $cache     Use internal cache
      *
      * @return array File data
      * @throws Exception
      */
-    protected function get_file_object(&$file_name, &$folder = null)
+    protected function get_file_object(&$file_name, &$folder = null, $cache = false)
     {
+        $original_name = $file_name;
+
         // extract file path and file name
         $path        = explode(file_storage::SEPARATOR, $file_name);
         $file_name   = array_pop($path);
@@ -1208,14 +1231,25 @@ class kolab_file_storage implements file_storage
             throw new Exception("Missing folder name", file_storage::ERROR);
         }
 
-        // get folder object
         $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select(array(
+
+        if ($cache && !empty($this->icache[$original_name])) {
+            return $this->icache[$original_name];
+        }
+
+        $filter = array(
             array('type', '=', 'file'),
             array('filename', '=', $file_name)
-        ));
+        );
 
-        return $files[0];
+        $files = $this->get_files($folder, $filter, false);
+        $file  = $files[0];
+
+        if ($cache) {
+            $this->icache[$original_name] = $file;
+        }
+
+        return $file;
     }
 
     /**
