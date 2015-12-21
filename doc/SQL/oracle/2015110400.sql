@@ -1,18 +1,3 @@
-CREATE TABLE "chwala_locks" (
-    "uri"     varchar(512) NOT NULL,
-    "owner"   varchar(256),
-    "timeout" integer,
-    "expires" timestamp DEFAULT NULL,
-    "token"   varchar(256),
-    "scope"   smallint,
-    "depth"   smallint
-);
-
-CREATE INDEX "uri_index" ON "chwala_locks" ("uri", "depth");
-CREATE INDEX "expires_index" ON "chwala_locks" ("expires");
-CREATE INDEX "token_index" ON "chwala_locks" ("token");
-
-
 CREATE TABLE "chwala_sessions" (
     "id"         varchar(40) NOT NULL,
     "uri"        varchar(1024) NOT NULL,
@@ -38,5 +23,3 @@ CREATE TABLE "chwala_invitations" (
 
 CREATE INDEX "chwala_invitations_session_id_idx" ON "chwala_invitations" ("session_id");
 CREATE UNIQUE INDEX "chwala_invitations_user_idx" ON "chwala_invitations" ("user", "session_id");
-
-INSERT INTO "system" ("name", "value") VALUES ('chwala-version', '2015110400');
