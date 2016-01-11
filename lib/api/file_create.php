@@ -71,12 +71,39 @@ class file_api_file_create extends file_api_common
             $file['type'] = 'application/octet-stream';
         }
 
+        // Get file content from a template
+        if ($request == 'file_create' && empty($file['path']) && !strlen($file['content'])) {
+            $this->use_file_template($file);
+        }
+
         list($driver, $path) = $this->api->get_driver($this->args['file']);
 
         $driver->$request($path, $file);
 
         if (rcube_utils::get_boolean((string) $this->args['info'])) {
             return $driver->file_info($path);
+        }
+    }
+
+    /**
+     * Use templates when creating empty files
+     */
+    protected function use_file_template(&$file)
+    {
+        if ($ext = array_search($file['type'], file_utils::$ext_map)) {
+            // find the template
+            $ext = ".$ext";
+            if ($handle = opendir(__DIR__ . '/../templates')) {
+                while (false !== ($entry = readdir($handle))) {
+                    if (substr($entry, -strlen($ext)) == $ext) {
+                        // set path to the template file
+                        $file['path'] = __DIR__ . '/../templates/' . $entry;
+                        break;
+                    }
+                }
+
+                closedir($handle);
+            }
         }
     }
 }
