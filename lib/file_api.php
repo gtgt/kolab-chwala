@@ -53,7 +53,7 @@ class file_api extends file_api_core
         $this->request = strtolower($_GET['method']);
 
         // Check the session, authenticate the user
-        if (!$this->session_validate()) {
+        if ($this->request == 'authenticate' || !$this->session_validate()) {
             $this->session->destroy(session_id());
             $this->session->regenerate_id(false);
 
