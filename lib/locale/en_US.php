@@ -41,6 +41,7 @@ $LANG['folder.driverwithpass'] = 'remember password';
 $LANG['folder.driverwithpassdesc'] = 'Stored passwords will be encrypted. Enable this if you do not want to be asked for the password on every login or you want this storage to be available via WebDAV.';
 $LANG['folder.name'] = 'Name:';
 $LANG['folder.authenticate'] = 'Logon to $title';
+$LANG['folder.parent'] = 'Subfolder of:';
 
 $LANG['form.submit'] = 'Submit';
 $LANG['form.cancel'] = 'Cancel';
