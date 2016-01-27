@@ -72,10 +72,10 @@ while ($FILES[$x]) {
     $class =~ s/\.png$//;
     $class =~ s/[^a-z0-9_]/_/g;
 
-    $line .= "#filelist tbody td.filename." .$class . " span";
+    $line .= ".filelist tbody td.filename." .$class . " span";
 
     for my $alias (@{$aliases{$class}}) {
-        $line .= ",\n#filelist tbody td.filename." .$alias . " span";
+        $line .= ",\n.filelist tbody td.filename." .$alias . " span";
     }
 
     $line .= " {\n  background: url($file) 0 0 no-repeat;\n";
