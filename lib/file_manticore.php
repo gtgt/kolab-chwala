@@ -322,6 +322,92 @@ class file_manticore
     }
 
     /**
+     * Find sessions, including:
+     *   1. to which the user has access (is a creator or has been invited)
+     *   2. to which the user is considered eligible to request authorization
+     *     to participate in the session by already having access to the file
+     *
+     * @param array $param List parameters
+     *
+     * @return array Sessions list
+     */
+    public function sessions_list($param = array())
+    {
+        $db       = $this->rc->get_dbh();
+        $sessions = array();
+
+        // Get sessions 1. (user has access)
+        $result = $db->query("SELECT s.`id`, s.`uri`, s.`owner`, s.`owner_name`"
+            . " FROM `{$this->sessions_table}` s"
+            . " WHERE s.`owner` = ? OR s.`id` IN ("
+                . "SELECT i.`session_id` FROM `{$this->invitations_table}` i"
+                . " WHERE i.`user` = ?"
+            . ")",
+            $this->user, $this->user);
+
+        if ($db->is_error($result)) {
+            throw new Exception("Internal error.", file_api_core::ERROR_CODE);
+        }
+
+        while ($row = $db->fetch_assoc($result)) {
+            $path = $this->uri2path($row['uri']);
+
+            if (!$path) {
+                // likely user has no access to the file, but has been invited,
+                // extract filename from the URI
+                $path = parse_url($row['uri'], PHP_URL_PATH);
+                $path = explode('/', $path);
+                $path = $path[count($path) - 1];
+            }
+
+            if ($path) {
+                $sessions[$row['id']] = $this->session_info_parse($row, $path);
+                // For performance reasons we don't want to fetch info of every file
+                // on the list. As we support only ODT files here...
+                $sessions[$row['id']]['type'] = 'application/vnd.oasis.opendocument.text';
+            }
+        }
+
+        // TODO: Get sessions 2. (user is eligible)
+        // - get list of folders and find sessions for files in these locations
+
+        // set 'is_invited' flag
+        if (!empty($sessions)) {
+            $invitations = $this->invitations_find(array('user' => $this->user));
+            $states      = array(self::STATUS_INVITED, self::STATUS_ACCEPTED, self::STATUS_ACCEPTED_OWNER);
+
+            foreach ($invitations as $invitation) {
+                if (!empty($sessions[$invitation['session_id']]) && in_array($invitation['status'], $states)) {
+                    $sessions[$invitation['session_id']]['is_invited'] = true;
+                }
+            }
+        }
+
+        // Sorting
+        $sort  = !empty($params['sort']) ? $params['sort'] : 'name';
+        $index = array();
+
+        if (in_array($sort, array('name', 'file', 'owner'))) {
+            foreach ($sessions as $key => $val) {
+                if ($sort == 'name' || $sort == 'file') {
+                    $path        = explode(file_storage::SEPARATOR, $val['file']);
+                    $index[$key] = $path[count($path) - 1];
+                    continue;
+                }
+
+                $index[$key] = $val[$sort];
+            }
+            array_multisort($index, SORT_ASC, SORT_LOCALE_STRING, $sessions);
+        }
+
+        if ($params['reverse']) {
+            $sessions = array_reverse($sessions, true);
+        }
+
+        return $sessions;
+    }
+
+    /**
      * Find invitations for current user. This will return all
      * invitations related to the user including his sessions.
      *
@@ -392,7 +478,7 @@ class file_manticore
         }
 
         $result = $db->query("SELECT $select FROM `{$this->invitations_table}` i"
-            . "$query ORDER BY `changed`");
+            . "$query ORDER BY i.`changed`");
 
         if ($db->is_error($result)) {
             throw new Exception("Internal error.", file_api_core::ERROR_CODE);
@@ -584,11 +670,6 @@ class file_manticore
      */
     protected function session_info_parse($record, $path = null, $filter = array())
     {
-/*
-        if (is_string($data) && !empty($data)) {
-            $data = json_decode($data, true);
-        }
-*/
         $session = array();
         $fields  = array('id', 'uri', 'owner', 'owner_name');
 

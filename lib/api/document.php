@@ -40,8 +40,14 @@ class file_api_document extends file_api_common
         if ($this->args['method'] == 'invitations') {
             return $this->invitations();
         }
+
+        // Sessions list
+        if ($this->args['method'] == 'sessions') {
+            return $this->sessions();
+        }
+
         // Session and invitations management
-        else if (strpos($this->args['method'], 'document_') === 0) {
+        if (strpos($this->args['method'], 'document_') === 0) {
             if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $post = file_get_contents('php://input');
                 $this->args += (array) json_decode($post, true);
@@ -113,6 +119,24 @@ class file_api_document extends file_api_common
             'list'      => $list,
             'timestamp' => $timestamp,
         );
+    }
+
+    /**
+     * Get sessions list
+     */
+    protected function sessions()
+    {
+        $manticore = new file_manticore($this->api);
+
+        $params = array(
+            'reverse' => rcube_utils::get_boolean((string) $this->args['reverse']),
+        );
+
+        if (!empty($this->args['sort'])) {
+            $params['sort'] = strtolower($this->args['sort']);
+        }
+
+        return $manticore->sessions_list($params);
     }
 
     /**
