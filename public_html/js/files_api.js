@@ -91,7 +91,7 @@ function files_api()
       type: 'POST', url: url, data: JSON.stringify(data), dataType: 'json',
       contentType: 'application/json; charset=utf-8',
       success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
-      error: function(o, status, err) { ref.http_error(o, status, err); },
+      error: function(o, status, err) { ref.http_error(o, status, err, data); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
     });
@@ -110,7 +110,7 @@ function files_api()
     return $.ajax({
       type: 'GET', url: url, data: data, dataType: 'json',
       success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
-      error: function(o, status, err) { ref.http_error(o, status, err); },
+      error: function(o, status, err) { ref.http_error(o, status, err, data); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
     });
@@ -125,7 +125,7 @@ function files_api()
   };
 
   // handle HTTP request errors
-  this.http_error = function(request, status, err)
+  this.http_error = function(request, status, err, data)
   {
     var errmsg = request.statusText;
 
