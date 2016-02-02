@@ -336,7 +336,7 @@ class file_manticore
         $db       = $this->rc->get_dbh();
         $sessions = array();
 
-        // Get sessions 1. (user has access)
+        // 1. Get sessions user has access to
         $result = $db->query("SELECT s.`id`, s.`uri`, s.`owner`, s.`owner_name`"
             . " FROM `{$this->sessions_table}` s"
             . " WHERE s.`owner` = ? OR s.`id` IN ("
@@ -350,17 +350,7 @@ class file_manticore
         }
 
         while ($row = $db->fetch_assoc($result)) {
-            $path = $this->uri2path($row['uri']);
-
-            if (!$path) {
-                // likely user has no access to the file, but has been invited,
-                // extract filename from the URI
-                $path = parse_url($row['uri'], PHP_URL_PATH);
-                $path = explode('/', $path);
-                $path = $path[count($path) - 1];
-            }
-
-            if ($path) {
+            if ($path = $this->uri2path($row['uri'], true)) {
                 $sessions[$row['id']] = $this->session_info_parse($row, $path);
                 // For performance reasons we don't want to fetch info of every file
                 // on the list. As we support only ODT files here...
@@ -368,8 +358,35 @@ class file_manticore
             }
         }
 
-        // TODO: Get sessions 2. (user is eligible)
-        // - get list of folders and find sessions for files in these locations
+        // 2. Get sessions user is eligible by access to the file
+        // - get list of all folder URIs and find sessions for files in these locations
+        // @FIXME: in corner cases (user has many folders) this may produce a big query,
+        // maybe fetching all sessions and then comparing with list of locations would be faster?
+        $uris  = $this->all_folder_locations();
+        $where = array_map(function($uri) use ($db) {
+                return 's.`uri` LIKE ' . $db->quote(str_replace('%', '_', $uri) . '/%');
+            }, $uris);
+
+        $result = $db->query("SELECT s.`id`, s.`uri`, s.`owner`, s.`owner_name`"
+            . " FROM `{$this->sessions_table}` s WHERE " . join(' OR ', $where));
+
+        if ($db->is_error($result)) {
+            throw new Exception("Internal error.", file_api_core::ERROR_CODE);
+        }
+
+        while ($row = $db->fetch_assoc($result)) {
+            if (empty($sessions[$row['id']])) {
+                // remove filename (and anything after it) so we have the folder URI
+                // to check if it's on the folders list we have
+                $uri = substr($row['uri'], 0, strrpos($row['uri'], '/'));
+                if (in_array($uri, $uris) && ($path = $this->uri2path($row['uri'], true))) {
+                    $sessions[$row['id']] = $this->session_info_parse($row, $path);
+                    // For performance reasons we don't want to fetch info of every file
+                    // on the list. As we support only ODT files here...
+                    $sessions[$row['id']]['type'] = 'application/vnd.oasis.opendocument.text';
+                }
+            }
+        }
 
         // set 'is_invited' flag
         if (!empty($sessions)) {
@@ -709,7 +726,7 @@ class file_manticore
     /**
      * Get file path from the URI
      */
-    protected function uri2path($uri)
+    protected function uri2path($uri, $use_fallback = false)
     {
         $backend = $this->api->get_backend();
 
@@ -734,6 +751,16 @@ class file_manticore
             catch (Exception $e) {
                 // do nothing
             }
+        }
+
+        // likely user has no access to the file, but has been invited,
+        // extract filename from the URI
+        if ($use_fallback && $uri) {
+            $path = parse_url($uri, PHP_URL_PATH);
+            $path = explode('/', $path);
+            $path = $path[count($path) - 1];
+
+            return $path;
         }
     }
 
@@ -766,5 +793,34 @@ class file_manticore
         }
 
         return $this->request;
+    }
+
+    /**
+     * Get URI of all user folders (with shared locations)
+     */
+    protected function all_folder_locations()
+    {
+        $locations = array();
+
+        foreach (array_merge(array($this->api->get_backend()), $this->api->get_drivers(true)) as $driver) {
+            // Performance optimization: We're interested here in shared folders,
+            // Kolab is the only driver that currently supports them, ignore others
+            if (get_class($driver) != 'kolab_file_storage') {
+                continue;
+            }
+
+            try {
+                foreach ($driver->folder_list() as $folder) {
+                    if ($uri = $driver->path2uri($folder)) {
+                        $locations[] = $uri;
+                    }
+                }
+            }
+            catch (Exception $e) {
+               // do nothing
+            }
+        }
+
+        return $locations;
     }
 }
