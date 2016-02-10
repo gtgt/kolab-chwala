@@ -72,8 +72,7 @@ class file_manticore
     public function session_start($file, &$session_id = null)
     {
         if ($file !== null) {
-            list($driver, $path) = $this->api->get_driver($file);
-            $uri = $driver->path2uri($path);
+            $uri = $this->path2uri($file, $driver);
         }
 
         $backend = $this->api->get_backend();
@@ -224,9 +223,7 @@ class file_manticore
     public function session_find($path, $invitations = true)
     {
         // create an URI for specified path
-        list($driver, $path) = $this->api->get_driver($path);
-
-        $uri = trim($driver->path2uri($path), '/') . '/';
+        $uri = trim($this->path2uri($path), '/') . '/';
 
         // get existing sessions
         $sessions = array();
@@ -358,7 +355,7 @@ class file_manticore
             }
         }
 
-        // 2. Get sessions user is eligible by access to the file
+        // 2. Get sessions user is eligible
         // - get list of all folder URIs and find sessions for files in these locations
         // @FIXME: in corner cases (user has many folders) this may produce a big query,
         // maybe fetching all sessions and then comparing with list of locations would be faster?
@@ -683,6 +680,33 @@ class file_manticore
     }
 
     /**
+     * Update a session URI (e.g. on file/folder move)
+     *
+     * @param string $from      Source file/folder path
+     * @param string $to        Destination file/folder path
+     * @param bool   $is_folder True if the path is a folder
+     */
+    public function session_uri_update($from, $to, $is_folder = false)
+    {
+        $db = $this->rc->get_dbh();
+
+        // Resolve paths
+        $from = $this->path2uri($from);
+        $to   = $this->path2uri($to);
+
+        if ($is_folder) {
+            $set = "`uri` = REPLACE(`uri`, " . $db->quote($from . '/') . ", " . $db->quote($to .'/') . ")";
+            $where = "`uri` LIKE " . $db->quote(str_replace('%', '_', $from) . '/%');
+        }
+        else {
+            $set = "`uri` = " . $db->quote($to);
+            $where = "`uri` = " . $db->quote($from);
+        }
+
+        $db->query("UPDATE `{$this->sessions_table}` SET $set WHERE $where");
+    }
+
+    /**
      * Parse session info data
      */
     protected function session_info_parse($record, $path = null, $filter = array())
@@ -721,6 +745,16 @@ class file_manticore
         $base_url = rtrim($this->rc->config->get('fileapi_manticore'), ' /');
 
         return $base_url . '/document/' . $id . '/' . $_SESSION['manticore_token'];
+    }
+
+    /**
+     * Get file URI from path
+     */
+    protected function path2uri($path, &$driver = null)
+    {
+        list($driver, $path) = $this->api->get_driver($path);
+
+        return $driver->path2uri($path);
     }
 
     /**

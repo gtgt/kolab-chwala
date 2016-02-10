@@ -163,4 +163,20 @@ class file_api_common
 
         return $result;
     }
+
+    /**
+     * Update manticore session on file/folder move
+     */
+    protected function session_uri_update($from, $to, $is_folder = false)
+    {
+        // check Manticore support. Note: we don't use config->get('fileapi_manticore')
+        // here as it may be not properly set if backend driver wasn't initialized yet
+        $capabilities = $this->api->capabilities(false);
+        if (empty($capabilities['MANTICORE'])) {
+            return;
+        }
+
+        $manticore = new file_manticore($this->api);
+        $manticore->session_uri_update($from, $to, $is_folder);
+    }
 }

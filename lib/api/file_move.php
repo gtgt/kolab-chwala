@@ -112,6 +112,11 @@ class file_api_file_move extends file_api_common
                     throw $e;
                 }
             }
+
+            // Update manticore sessions
+            if ($request == 'file_move') {
+                $this->session_uri_update($file, $new_file, false);
+            }
         }
 
         if (!empty($errors)) {
