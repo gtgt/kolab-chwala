@@ -53,7 +53,7 @@ class file_api extends file_api_core
         $this->request = strtolower($_GET['method']);
 
         // Check the session, authenticate the user
-        if ($this->request == 'authenticate' || !$this->session_validate()) {
+        if (!$this->session_validate($this->request == 'authenticate')) {
             $this->session->destroy(session_id());
             $this->session->regenerate_id(false);
 
@@ -89,9 +89,11 @@ class file_api extends file_api_core
     /**
      * Session validation check and session start
      */
-    private function session_validate()
+    private function session_validate($new_session = false)
     {
-        $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
+        if (!$new_session) {
+            $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
+        }
 
         if (empty($sess_id)) {
             $this->session->start();
