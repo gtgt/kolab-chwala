@@ -248,7 +248,8 @@ class kolab_file_storage implements file_storage
         $this->init($user);
 
         // force reloading of mailboxes list/data
-        $storage->clear_cache('mailboxes', true);
+        // Roundcube already does that (T1050)
+        //$storage->clear_cache('mailboxes', true);
 
         return true;
     }
