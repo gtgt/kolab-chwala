@@ -22,7 +22,14 @@
  +--------------------------------------------------------------------------+
 */
 
-require 'SabreDAV/vendor/autoload.php';
+// try SabreDAV installed as described in README
+if (file_exists(__DIR__ . '/../../ext/SabreDAV/vendor/autoload.php')) {
+    require __DIR__ . '/../../ext/SabreDAV/vendor/autoload.php';
+}
+// fallback to System-installed package
+else {
+    require 'Sabre/autoload.php';
+}
 
 use Sabre\DAV\Client;
 
