@@ -83,7 +83,12 @@ class seafile_api
         $this->config = $config;
 
         // set Web API URI
-        $this->url = rtrim('https://' . ($config['host'] ?: 'localhost'), '/');
+        $this->url = rtrim(trim($config['host']), '/') ?: 'localhost';
+
+        if (!preg_match('|^https?://|i', $this->url)) {
+            $this->url = 'https://' . $this->url;
+        }
+
         if (!preg_match('|/api2$|', $this->url)) {
             $this->url .= '/api2/';
         }

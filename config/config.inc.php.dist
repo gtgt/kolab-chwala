@@ -64,6 +64,7 @@ $config['fileapi_seafile_cache'] = 'db';
 $config['fileapi_seafile_cache_ttl'] = '7d';
 
 // Default SeaFile Web API host
+// Note: http:// and https:// (default) prefixes can be used here
 $config['fileapi_seafile_host'] = 'localhost';
 
 // Enables SSL certificates validation when connecting
