@@ -1295,8 +1295,9 @@ class seafile_file_storage implements file_storage
     {
         list($file, $repo_id, $library) = $this->find_library($path);
 
-        return 'seafile://' . rawurlencode($library['owner']) . '@' . $this->config['host']
-            . '/' . file_utils::encode_path($path);
+        $host = preg_replace('|https?://|i', '', $this->config['host']);
+
+        return 'seafile://' . rawurlencode($library['owner']) . '@' . $host . '/' . file_utils::encode_path($path);
     }
 
     /**
@@ -1313,13 +1314,14 @@ class seafile_file_storage implements file_storage
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
-        $user = rawurldecode($matches[1]);
-        $host = $matches[2];
-        $path = file_utils::decode_path($matches[3]);
+        $user   = rawurldecode($matches[1]);
+        $host   = $matches[2];
+        $path   = file_utils::decode_path($matches[3]);
+        $c_host = preg_replace('|https?://|i', '', $this->config['host']);
 
         list($file, $repo_id, $library) = $this->find_library($path, true);
 
-        if (empty($library) || $host != $this->config['host'] || $user != $library['owner']) {
+        if (empty($library) || $host != $c_host || $user != $library['owner']) {
             throw new Exception("Internal storage error. Unresolvable URI.", file_storage::ERROR);
         }
 
