@@ -67,13 +67,6 @@ function files_api()
       return label;
   };
 
-  // print a message into browser console
-  this.log = function(msg)
-  {
-    if (window.console && console.log)
-      console.log(msg);
-  };
-
   /********************************************************/
   /*********        Remote request methods        *********/
   /********************************************************/
@@ -707,8 +700,6 @@ function manticore_api(conf)
   {
     var result;
 
-    console.log(data);
-
     if (callbacks[data.id])
       result = callbacks[data.id](data);
     if (result !== false && data.name && conf[data.name])
@@ -774,8 +765,6 @@ function manticore_api(conf)
     data.name = action;
 
     callbacks[data.id] = callback;
-
-    console.log(data);
 
     manticore.postMessage(data, domain);
   };
