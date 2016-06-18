@@ -4,3 +4,6 @@ config/plugins.inc.php
 lib/ext/PEAR/
 logs
 public_html/htaccess
+config/config.inc.php
+config/rcube.config.inc.php
+.htaccess
