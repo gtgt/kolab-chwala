@@ -38,7 +38,7 @@ class kolab_bonnie_api
     {
         $this->config = $config;
 
-        $this->client = new kolab_bonnie_api_client($config['uri'], $config['timeout'] ?: 5, (bool)$config['debug']);
+        $this->client = new kolab_bonnie_api_client($config['uri'], $config['timeout'] ?: 30, (bool)$config['debug']);
 
         $this->client->set_secret($config['secret']);
         $this->client->set_authentication($config['user'], $config['pass']);
@@ -50,25 +50,40 @@ class kolab_bonnie_api
     /**
      * Wrapper function for <object>.changelog() API call
      */
-    public function changelog($type, $uid, $mailbox=null)
+    public function changelog($type, $uid, $mailbox, $msguid=null)
     {
-        return $this->client->execute($type.'.changelog', array('uid' => $uid, 'mailbox' => $mailbox));
+        return $this->client->execute($type.'.changelog', array('uid' => $uid, 'mailbox' => $mailbox, 'msguid' => $msguid));
     }
 
     /**
      * Wrapper function for <object>.diff() API call
      */
-    public function diff($type, $uid, $rev, $mailbox=null)
+    public function diff($type, $uid, $rev1, $rev2, $mailbox, $msguid=null, $instance=null)
     {
-        return $this->client->execute($type.'.diff', array('uid' => $uid, 'rev' => $rev, 'mailbox' => $mailbox));
+        return $this->client->execute($type.'.diff', array(
+          'uid' => $uid,
+          'rev1' => $rev1,
+          'rev2' => $rev2,
+          'mailbox' => $mailbox,
+          'msguid' => $msguid,
+          'instance' => $instance,
+        ));
     }
 
     /**
      * Wrapper function for <object>.get() API call
      */
-    public function get($type, $uid, $rev, $mailbox=null)
+    public function get($type, $uid, $rev, $mailbox, $msguid=null)
     {
-      return $this->client->execute($type.'.get', array('uid' => $uid, 'rev' => intval($rev), 'mailbox' => $mailbox));
+      return $this->client->execute($type.'.get', array('uid' => $uid, 'rev' => $rev, 'mailbox' => $mailbox, 'msguid' => $msguid));
+    }
+
+    /**
+     * Wrapper function for <object>.rawdata() API call
+     */
+    public function rawdata($type, $uid, $rev, $mailbox, $msguid=null)
+    {
+      return $this->client->execute($type.'.rawdata', array('uid' => $uid, 'rev' => $rev, 'mailbox' => $mailbox, 'msguid' => $msguid));
     }
 
     /**

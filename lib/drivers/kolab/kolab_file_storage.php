@@ -44,6 +44,10 @@ class kolab_file_storage implements file_storage
      */
     protected $title;
 
+    /**
+     * @var array
+     */
+    protected $icache = array();
 
     /**
      * Class constructor
@@ -56,8 +60,8 @@ class kolab_file_storage implements file_storage
         // WARNING: We can use only plugins that are prepared for this
         //          e.g. are not using output or rcmail objects or
         //          doesn't throw errors when using them
-        $plugins  = (array)$this->rc->config->get('fileapi_plugins', array('kolab_auth'));
-        $required = array('libkolab');
+        $plugins = (array) $this->rc->config->get('fileapi_plugins', array('kolab_auth', 'kolab_folders'));
+        $plugins = array_unique(array_merge($plugins, array('libkolab')));
 
         // Kolab WebDAV server supports plugins, no need to overwrite object
         if (!is_a($this->rc->plugins, 'rcube_plugin_api')) {
@@ -66,7 +70,11 @@ class kolab_file_storage implements file_storage
             $this->rc->plugins->init($this, '');
         }
 
-        $this->rc->plugins->load_plugins($plugins, $required);
+        // this way we're compatible with Roundcube Framework 1.2
+        // we can't use load_plugins() here
+        foreach ($plugins as $plugin) {
+            $this->rc->plugins->load_plugin($plugin, true);
+        }
 
         $this->init();
     }
@@ -240,13 +248,16 @@ class kolab_file_storage implements file_storage
         $this->init($user);
 
         // force reloading of mailboxes list/data
-        $storage->clear_cache('mailboxes', true);
+        // Roundcube already does that (T1050)
+        //$storage->clear_cache('mailboxes', true);
 
         return true;
     }
 
     protected function init($user = null)
     {
+        $this->rc->plugins->exec_hook('startup');
+
         if ($_SESSION['user_id'] || $user) {
             // overwrite config with user preferences
             $this->rc->user = $user ? $user : new rcube_user($_SESSION['user_id']);
@@ -299,9 +310,10 @@ class kolab_file_storage implements file_storage
         $quota   = $storage->get_capability('QUOTA');
 
         return array(
-            file_storage::CAPS_MAX_UPLOAD => $max_filesize,
-            file_storage::CAPS_QUOTA      => $quota,
-            file_storage::CAPS_LOCKS      => true,
+            file_storage::CAPS_MAX_UPLOAD    => $max_filesize,
+            file_storage::CAPS_QUOTA         => $quota,
+            file_storage::CAPS_LOCKS         => true,
+            file_storage::CAPS_SUBSCRIPTIONS => true,
         );
     }
 
@@ -561,7 +573,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_get($file_name, $params = array(), $fp = null)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -605,7 +617,7 @@ class kolab_file_storage implements file_storage
         header("Content-Length: " . $file['size']);
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
             $folder->get_attachment($file['_msguid'], $file['fileid'], $file['_mailbox'], true);
         }
     }
@@ -619,7 +631,7 @@ class kolab_file_storage implements file_storage
      */
     public function file_info($file_name)
     {
-        $file = $this->get_file_object($file_name, $folder);
+        $file = $this->get_file_object($file_name, $folder, true);
         if (empty($file)) {
             throw new Exception("Storage error. File not found.", file_storage::ERROR);
         }
@@ -667,8 +679,7 @@ class kolab_file_storage implements file_storage
         }
 
         // get files list
-        $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select($filter);
+        $files  = $this->get_files($folder_name, $filter);
         $result = array();
 
         // convert to kolab_storage files list data format
@@ -761,7 +772,7 @@ class kolab_file_storage implements file_storage
         // Update object
         $file['_attachments'] = array(
             0 => array(
-                'name'     => $file['name'],
+                'name'     => $new_name,
                 'path'     => $file_path,
                 'mimetype' => $file['type'],
                 'size'     => $file['size'],
@@ -853,10 +864,10 @@ class kolab_file_storage implements file_storage
     public function folder_create($folder_name)
     {
         $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
-        $success     = kolab_storage::folder_create($folder_name, 'file');
+        $success     = kolab_storage::folder_create($folder_name, 'file', true);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to create folder", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to create the folder", file_storage::ERROR);
         }
     }
 
@@ -873,7 +884,7 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_delete($folder_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to delete folder.", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to delete the folder.", file_storage::ERROR);
         }
     }
 
@@ -892,36 +903,198 @@ class kolab_file_storage implements file_storage
         $success     = kolab_storage::folder_rename($folder_name, $new_name);
 
         if (!$success) {
-            throw new Exception("Storage error. Unable to rename folder", file_storage::ERROR);
+            throw new Exception("Storage error. Unable to rename the folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name)
+    {
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+        $storage     = $this->rc->get_storage();
+
+        if (!$storage->subscribe($folder_name)) {
+            throw new Exception("Storage error. Unable to subscribe the folder", file_storage::ERROR);
+        }
+    }
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name)
+    {
+        $folder_name = rcube_charset::convert($folder_name, RCUBE_CHARSET, 'UTF7-IMAP');
+        $storage     = $this->rc->get_storage();
+
+        if (!$storage->unsubscribe($folder_name)) {
+            throw new Exception("Storage error. Unable to unsubsribe the folder", file_storage::ERROR);
         }
     }
 
     /**
      * Returns list of folders.
      *
+     * @param array $params List parameters ('type', 'search', 'extended', 'permissions')
+     *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list()
+    public function folder_list($params = array())
     {
-        $folders = kolab_storage::list_folders('', '*', 'file', false);
+        $unsubscribed = $params['type'] & file_storage::FILTER_UNSUBSCRIBED;
+        $rights       = ($params['type'] & file_storage::FILTER_WRITABLE) ? 'w' : null;
+        $imap         = $this->rc->get_storage();
+        $folders      = $imap->list_folders_subscribed('', '*', 'file', $rights);
 
         if (!is_array($folders)) {
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
-        // create 'Files' folder in case there's no folder of type 'file'
-        if (empty($folders)) {
-            if (kolab_storage::folder_create('Files', 'file')) {
-                $folders[] = 'Files';
+        // create/subscribe 'Files' folder in case there's no folder of type 'file'
+        if (empty($folders) && !$unsubscribed) {
+            $default = 'Files';
+
+            // the folder may exist but be unsubscribed
+            if (!$imap->folder_exists($default)) {
+                if (kolab_storage::folder_create($default, 'file', true)) {
+                    $folders[] = $default;
+                }
+            }
+            else if (kolab_storage::folder_type($default) == 'file') {
+                if ($imap->subscribe($default)) {
+                    $folders[] = $default;
+                }
             }
         }
         else {
-            $callback = function($folder) { return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET); };
-            $folders  = array_map($callback, $folders);
+            if ($unsubscribed) {
+                $subscribed = $folders;
+                $folders    = $imap->list_folders('', '*', 'file', $rights);
+                $folders    = array_diff($folders, $subscribed);
+            }
+
+            // convert folder names to UTF-8
+            $callback = function($folder) {
+                if (strpos($folder, '&') !== false) {
+                    return rcube_charset::convert($folder, 'UTF7-IMAP', RCUBE_CHARSET);
+                }
+
+                return $folder;
+            };
+
+            $folders = array_map($callback, $folders);
+        }
+
+        // searching
+        if (isset($params['search'])) {
+            $search  = mb_strtoupper($params['search']);
+            $prefix  = null;
+            $ns      = $imap->get_namespace('other');
+
+            if (!empty($ns)) {
+                $prefix = rcube_charset::convert($ns[0][0], 'UTF7-IMAP', RCUBE_CHARSET);
+            }
+
+            $folders = array_filter($folders, function($folder) use ($search, $prefix) {
+                $path = explode('/', $folder);
+
+                // search in folder name not the full path
+                if (strpos(mb_strtoupper($path[count($path)-1]), $search) !== false) {
+                    return true;
+                }
+                // if it is an other user folder, we'll match the user name
+                // and return all folders of the matching user
+                else if (strpos($folder, $prefix) === 0 && strpos(mb_strtoupper($path[1]), $search) !== false) {
+                    return true;
+                }
+
+                return false;
+            });
+        }
+
+        $folders = array_values($folders);
+
+        // In extended format we return array of arrays
+        if ($params['extended']) {
+            if (!$rights && $params['permissions']) {
+                // get list of known writable folders from cache
+                $cache_key   = 'mailboxes.permissions';
+                $permissions = (array) $imap->get_cache($cache_key);
+            }
+
+            foreach ($folders as $idx => $folder_name) {
+                $folder = array('folder' => $folder_name);
+
+                // check if folder is readonly
+                if (isset($permissions)) {
+                    if (!array_key_exists($folder_name, $permissions)) {
+                        $acl = $this->folder_rights($folder_name);
+                        $permissions[$folder_name] = $acl;
+                    }
+
+                    if (!($permissions[$folder_name] & file_storage::ACL_WRITE)) {
+                        $folder['readonly'] = true;
+                    }
+                }
+
+                $folders[$idx] = $folder;
+            }
+
+            if ($cache_key) {
+                $imap->update_cache($cache_key, $permissions);
+            }
         }
 
         return $folders;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder Folder name
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder)
+    {
+        $storage = $this->rc->get_storage();
+        $folder  = rcube_charset::convert($folder, RCUBE_CHARSET, 'UTF7-IMAP');
+        $rights  = file_storage::ACL_READ;
+
+        // get list of known writable folders from cache
+        $cache_key   = 'mailboxes.permissions';
+        $permissions = (array) $storage->get_cache($cache_key);
+
+        if (array_key_exists($folder, $permissions)) {
+            return $permissions[$folder];
+        }
+
+        // For better performance, assume personal folders are writeable
+        if ($storage->folder_namespace($folder) == 'personal') {
+            $rights |= file_storage::ACL_WRITE;
+        }
+        else {
+            $myrights = $storage->my_rights($folder);
+
+            if (in_array('t', (array) $myrights)) {
+                $rights |= file_storage::ACL_WRITE;
+            }
+
+            $permissions[$folder] = $rights;
+            $storage->update_cache($cache_key, $permissions);
+        }
+
+        return $rights;
     }
 
     /**
@@ -933,25 +1106,25 @@ class kolab_file_storage implements file_storage
      * If child_locks is set to true, this method should also look for
      * any locks in the subtree of the URI for locks.
      *
-     * @param string $uri         URI
+     * @param string $path        File/folder path
      * @param bool   $child_locks Enables subtree checks
      *
      * @return array List of locks
      * @throws Exception
      */
-    public function lock_list($uri, $child_locks = false)
+    public function lock_list($path, $child_locks = false)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         // get locks list
         $list = $this->lock_db->lock_list($uri, $child_locks);
 
         // convert back resource string into URIs
         foreach ($list as $idx => $lock) {
-            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+            $list[$idx]['uri'] = $this->uri2path($lock['uri']);
         }
 
         return $list;
@@ -960,7 +1133,7 @@ class kolab_file_storage implements file_storage
     /**
      * Locks a URI
      *
-     * @param string $uri  URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *                     - depth: 0/'infinite'
      *                     - scope: 'shared'/'exclusive'
@@ -970,12 +1143,12 @@ class kolab_file_storage implements file_storage
      *
      * @throws Exception
      */
-    public function lock($uri, $lock)
+    public function lock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->lock($uri, $lock)) {
             throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
@@ -985,17 +1158,17 @@ class kolab_file_storage implements file_storage
     /**
      * Removes a lock from a URI
      *
-     * @param string $path URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *
      * @throws Exception
      */
-    public function unlock($uri, $lock)
+    public function unlock($path, $lock)
     {
         $this->init_lock_db();
 
-        // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        // convert path to global resource string
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->unlock($uri, $lock)) {
             throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
@@ -1022,16 +1195,34 @@ class kolab_file_storage implements file_storage
     }
 
     /**
+     * Get files from a folder (with performance fix)
+     */
+    protected function get_files($folder, $filter, $all = true)
+    {
+        if (!($folder instanceof kolab_storage_folder)) {
+            $folder = $this->get_folder_object($folder);
+        }
+
+        // for better performance it's good to assume max. number of records
+        $folder->set_order_and_limit(null, $all ? 0 : 1);
+
+        return $folder->select($filter);
+    }
+
+    /**
      * Get file object.
      *
      * @param string               $file_name Name of a file (with folder path)
      * @param kolab_storage_folder $folder    Reference to folder object
+     * @param bool                 $cache     Use internal cache
      *
      * @return array File data
      * @throws Exception
      */
-    protected function get_file_object(&$file_name, &$folder = null)
+    protected function get_file_object(&$file_name, &$folder = null, $cache = false)
     {
+        $original_name = $file_name;
+
         // extract file path and file name
         $path        = explode(file_storage::SEPARATOR, $file_name);
         $file_name   = array_pop($path);
@@ -1041,14 +1232,25 @@ class kolab_file_storage implements file_storage
             throw new Exception("Missing folder name", file_storage::ERROR);
         }
 
-        // get folder object
         $folder = $this->get_folder_object($folder_name);
-        $files  = $folder->select(array(
+
+        if ($cache && !empty($this->icache[$original_name])) {
+            return $this->icache[$original_name];
+        }
+
+        $filter = array(
             array('type', '=', 'file'),
             array('filename', '=', $file_name)
-        ));
+        );
 
-        return $files[0];
+        $files = $this->get_files($folder, $filter, false);
+        $file  = $files[0];
+
+        if ($cache) {
+            $this->icache[$original_name] = $file;
+        }
+
+        return $file;
     }
 
     /**
@@ -1073,6 +1275,15 @@ class kolab_file_storage implements file_storage
             $folder      = kolab_storage::get_folder($imap_name, 'file');
 
             if (!$folder || !$folder->valid) {
+                $error = $folder->get_error();
+
+                if ($error === kolab_storage::ERROR_IMAP_CONN || $error === kolab_storage::ERROR_CACHE_DB) {
+                    throw new Exception("The storage is temporarily unavailable.", file_storage::ERROR_UNAVAILABLE);
+                }
+                else if ($error === kolab_storage::ERROR_NO_PERMISSION) {
+                    throw new Exception("Storage error. Access not permitted", file_storage::ERROR_FORBIDDEN);
+                }
+
                 throw new Exception("Storage error. Folder not found.", file_storage::ERROR);
             }
 
@@ -1129,19 +1340,27 @@ class kolab_file_storage implements file_storage
         return $file;
     }
 
-    protected function uri2resource($uri)
+    /**
+     * Convert file/folder path into a global URI.
+     *
+     * @param string $path File/folder path
+     *
+     * @return string URI
+     * @throws Exception
+     */
+    public function path2uri($path)
     {
         $storage   = $this->rc->get_storage();
         $namespace = $storage->get_namespace();
         $separator = $storage->get_hierarchy_delimiter();
-        $uri       = str_replace(file_storage::SEPARATOR, $separator, $uri);
+        $path      = str_replace(file_storage::SEPARATOR, $separator, $path);
         $owner     = $this->rc->get_user_name();
 
         // find the owner and remove namespace prefix
         foreach ($namespace as $type => $ns) {
             foreach ($ns as $root) {
-                if (is_array($root) && $root[0] && strpos($uri, $root[0]) === 0) {
-                    $uri = substr($uri, strlen($root[0]));
+                if (is_array($root) && $root[0] && strpos($path, $root[0]) === 0) {
+                    $path = substr($path, strlen($root[0]));
 
                     switch ($type) {
                     case 'shared':
@@ -1151,7 +1370,7 @@ class kolab_file_storage implements file_storage
                         break;
 
                     case 'other':
-                        list($user, $uri) = explode($separator, $uri, 2);
+                        list($user, $path) = explode($separator, $path, 2);
 
                         if (strpos($user, '@') === false) {
                             $domain = strstr($owner, '@');
@@ -1169,15 +1388,21 @@ class kolab_file_storage implements file_storage
             }
         }
 
-        // convert to imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
-
-        return 'imap://' . urlencode($owner) . '@' . $storage->options['host'] . '/' . $uri;
+        return 'imap://' . rawurlencode($owner) . '@' . $storage->options['host']
+            . '/' . file_utils::encode_path($path);
     }
 
-    protected function resource2uri($resource)
+    /**
+     * Convert global URI into file/folder path.
+     *
+     * @param string $uri URI
+     *
+     * @return string File/folder path
+     * @throws Exception
+     */
+    public function uri2path($uri)
     {
-        if (!preg_match('|^imap://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+        if (!preg_match('|^imap://([^@]+)@([^/]+)/(.*)$|', $uri, $matches)) {
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
@@ -1185,11 +1410,8 @@ class kolab_file_storage implements file_storage
         $separator = $storage->get_hierarchy_delimiter();
         $owner     = $this->rc->get_user_name();
 
-        $user = urldecode($matches[1]);
-        $uri  = $matches[3];
-
-        // convert from imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+        $user = rawurldecode($matches[1]);
+        $path = file_utils::decode_path($matches[3]);
 
         // personal namespace
         if ($user == $owner) {
@@ -1198,7 +1420,7 @@ class kolab_file_storage implements file_storage
         }
         // shared namespace
         else if (preg_match('/^shared\((.*)\)$/', $user, $matches)) {
-            $uri = $matches[1] . $uri;
+            $path = $matches[1] . $path;
         }
         // other users namespace
         else {
@@ -1207,12 +1429,10 @@ class kolab_file_storage implements file_storage
             list($local, $domain) = explode('@', $user);
 
             // here we assume there's only one other users namespace root
-            $uri = $namespace[0][0] . $local . $separator . $uri;
+            $path = $namespace[0][0] . $local . $separator . $path;
         }
 
-        $uri = str_replace($separator, file_storage::SEPARATOR, $uri);
-
-        return $uri;
+        return str_replace($separator, file_storage::SEPARATOR, $path);
     }
 
     /**

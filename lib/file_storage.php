@@ -31,13 +31,16 @@ interface file_storage
     const CAPS_PROGRESS_TIME = 'PROGRESS_TIME';
     const CAPS_QUOTA         = 'QUOTA';
     const CAPS_LOCKS         = 'LOCKS';
+    const CAPS_SUBSCRIPTIONS = 'SUBSCRIPTIONS';
 
     // config
     const SEPARATOR = '/';
 
     // error codes
-    const ERROR             = 500;
     const ERROR_LOCKED      = 423;
+    const ERROR             = 500;
+    const ERROR_UNAVAILABLE = 503;
+    const ERROR_FORBIDDEN   = 530;
     const ERROR_FILE_EXISTS = 550;
     const ERROR_UNSUPPORTED = 570;
     const ERROR_NOAUTH      = 580;
@@ -47,6 +50,13 @@ interface file_storage
     const LOCK_EXCLUSIVE = 'exclusive';
     const LOCK_INFINITE  = 'infinite';
 
+    // list filters
+    const FILTER_UNSUBSCRIBED = 1;
+    const FILTER_WRITABLE     = 2;
+
+    // folder permissions
+    const ACL_READ = 1;
+    const ACL_WRITE = 2;
 
     /**
      * Authenticates a user
@@ -250,12 +260,41 @@ interface file_storage
     public function folder_move($folder_name, $new_name);
 
     /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name);
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name);
+
+    /**
      * Returns list of folders.
+     *
+     * @param array $params List parameters ('type', 'search', 'extended', 'permissions')
      *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list();
+    public function folder_list($params = array());
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder_name);
 
     /**
      * Returns a list of locks
@@ -308,4 +347,24 @@ interface file_storage
      * @throws Exception
      */
     public function quota($folder);
+
+    /**
+     * Convert file/folder path into a global URI.
+     *
+     * @param string $path File/folder path
+     *
+     * @return string URI
+     * @throws Exception
+     */
+    public function path2uri($path);
+
+    /**
+     * Convert global URI into file/folder path.
+     *
+     * @param string $uri URI
+     *
+     * @return string File/folder path
+     * @throws Exception
+     */
+    public function uri2path($uri);
 }

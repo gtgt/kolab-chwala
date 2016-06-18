@@ -26,8 +26,8 @@ class kolab_storage_cache_contact extends kolab_storage_cache
     protected $extra_cols = array('type','name','firstname','surname','email');
     protected $binary_items = array(
         'photo'          => '|<photo><uri>[^;]+;base64,([^<]+)</uri></photo>|i',
-        'pgppublickey'   => '|<key><uri>date:application/pgp-keys;base64,([^<]+)</uri></key>|i',
-        'pkcs7publickey' => '|<key><uri>date:application/pkcs7-mime;base64,([^<]+)</uri></key>|i',
+        'pgppublickey'   => '|<key><uri>data:application/pgp-keys;base64,([^<]+)</uri></key>|i',
+        'pkcs7publickey' => '|<key><uri>data:application/pkcs7-mime;base64,([^<]+)</uri></key>|i',
     );
 
     /**
@@ -52,6 +52,11 @@ class kolab_storage_cache_contact extends kolab_storage_cache
         // avoid value being null
         if (empty($sql_data['email'])) {
             $sql_data['email'] = '';
+        }
+
+        // use organization if name is empty
+        if (empty($sql_data['name']) && !empty($object['organization'])) {
+            $sql_data['name'] = rcube_charset::clean($object['organization']);
         }
 
         return $sql_data;

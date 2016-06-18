@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2012-2013, Kolab Systems AG                                |
+ | Copyright (C) 2012-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -25,10 +25,9 @@
 class file_api extends file_api_core
 {
     public $session;
+    public $config;
+    public $browser;
     public $output_type = file_api_core::OUTPUT_JSON;
-
-    private $conf;
-    private $browser;
 
 
     public function __construct()
@@ -36,11 +35,11 @@ class file_api extends file_api_core
         $rcube = rcube::get_instance();
         $rcube->add_shutdown_function(array($this, 'shutdown'));
 
-        $this->conf = $rcube->config;
+        $this->config = $rcube->config;
         $this->session_init();
 
-        if ($_SESSION['config']) {
-            $this->config = $_SESSION['config'];
+        if ($_SESSION['env']) {
+            $this->env = $_SESSION['env'];
         }
 
         $this->locale_init();
@@ -54,30 +53,29 @@ class file_api extends file_api_core
         $this->request = strtolower($_GET['method']);
 
         // Check the session, authenticate the user
-        if (!$this->session_validate()) {
+        if (!$this->session_validate($this->request == 'authenticate')) {
             $this->session->destroy(session_id());
+            $this->session->regenerate_id(false);
 
-            if ($this->request == 'authenticate') {
-                $this->session->regenerate_id(false);
+            if ($username = $this->authenticate()) {
+                $_SESSION['user'] = $username;
+                $_SESSION['env']  = $this->env;
 
-                if ($username = $this->authenticate()) {
-                    $_SESSION['user']   = $username;
-                    $_SESSION['time']   = time();
-                    $_SESSION['config'] = $this->config;
+                // remember client API version
+                if (is_numeric($_GET['version'])) {
+                    $_SESSION['version'] = $_GET['version'];
+                }
 
-                    // remember client API version
-                    if (is_numeric($_GET['version'])) {
-                        $_SESSION['version'] = $_GET['version'];
-                    }
-
+                if ($this->request == 'authenticate') {
                     $this->output_success(array(
                         'token'        => session_id(),
                         'capabilities' => $this->capabilities(),
                     ));
                 }
             }
-
-            throw new Exception("Invalid session", 403);
+            else {
+                throw new Exception("Invalid session", 403);
+            }
         }
 
         // Call service method
@@ -91,28 +89,23 @@ class file_api extends file_api_core
     /**
      * Session validation check and session start
      */
-    private function session_validate()
+    private function session_validate($new_session = false)
     {
-        $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
+        if (!$new_session) {
+            $sess_id = rcube_utils::request_header('X-Session-Token') ?: $_REQUEST['token'];
+        }
 
         if (empty($sess_id)) {
-            session_start();
+            $this->session->start();
             return false;
         }
 
         session_id($sess_id);
-        session_start();
+        $this->session->start();
 
         if (empty($_SESSION['user'])) {
             return false;
         }
-
-        $timeout = $this->conf->get('session_lifetime', 0) * 60;
-        if ($timeout && $_SESSION['time'] && $_SESSION['time'] < time() - $timeout) {
-            return false;
-        }
-        // update session time
-        $_SESSION['time'] = time();
 
         return true;
     }
@@ -123,8 +116,8 @@ class file_api extends file_api_core
     private function session_init()
     {
         $rcube     = rcube::get_instance();
-        $sess_name = $this->conf->get('session_name');
-        $lifetime  = $this->conf->get('session_lifetime', 0) * 60;
+        $sess_name = $this->config->get('session_name');
+        $lifetime  = $this->config->get('session_lifetime', 0) * 60;
 
         if ($lifetime) {
             ini_set('session.gc_maxlifetime', $lifetime * 2);
@@ -134,13 +127,18 @@ class file_api extends file_api_core
         ini_set('session.use_cookies', 0);
         ini_set('session.serialize_handler', 'php');
 
-        // use database for storing session data
-        $this->session = new rcube_session($rcube->get_dbh(), $this->conf);
+        // Roundcube Framework >= 1.2
+        if (in_array('factory', get_class_methods('rcube_session'))) {
+            $this->session = rcube_session::factory($this->config);
+        }
+        // Rouncube Framework < 1.2
+        else {
+            $this->session = new rcube_session($rcube->get_dbh(), $this->config);
+            $this->session->set_secret($this->config->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
+            $this->session->set_ip_check($this->config->get('ip_check'));
+        }
 
         $this->session->register_gc_handler(array($rcube, 'gc'));
-
-        $this->session->set_secret($this->conf->get('des_key') . dirname($_SERVER['SCRIPT_NAME']));
-        $this->session->set_ip_check($this->conf->get('ip_check'));
 
         // this is needed to correctly close session in shutdown function
         $rcube->session = $this->session;
@@ -152,7 +150,7 @@ class file_api extends file_api_core
     public function shutdown()
     {
         // write performance stats to logs/console
-        if ($this->conf->get('devel_mode')) {
+        if ($this->config->get('devel_mode')) {
             if (function_exists('memory_get_peak_usage'))
                 $mem = memory_get_peak_usage();
             else if (function_exists('memory_get_usage'))
@@ -205,15 +203,15 @@ class file_api extends file_api_core
         if (!empty($username)) {
             $backend = $this->get_backend();
             $result  = $backend->authenticate($username, $password);
-        }
 
-        if (empty($result)) {
+            if (empty($result)) {
 /*
-            header('WWW-Authenticate: Basic realm="' . $this->app_name .'"');
-            header('HTTP/1.1 401 Unauthorized');
-            exit;
+                header('WWW-Authenticate: Basic realm="' . $this->app_name .'"');
+                header('HTTP/1.1 401 Unauthorized');
+                exit;
 */
-            throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
+                throw new Exception("Invalid password or username", file_api_core::ERROR_CODE);
+            }
         }
 
         return $username;
@@ -234,14 +232,14 @@ class file_api extends file_api_core
                 return array();
 
             case 'configure':
-                foreach (array_keys($this->config) as $name) {
+                foreach (array_keys($this->env) as $name) {
                     if (isset($_GET[$name])) {
-                        $this->config[$name] = $_GET[$name];
+                        $this->env[$name] = $_GET[$name];
                     }
                 }
-                $_SESSION['config'] = $this->config;
+                $_SESSION['env'] = $this->env;
 
-                return $this->config;
+                return $this->env;
 
             case 'upload_progress':
                 return $this->upload_progress();
@@ -255,12 +253,17 @@ class file_api extends file_api_core
 
         // handle request
         if ($request && preg_match('/^[a-z0-9_-]+$/', $request)) {
-            // request name aliases for backward compatibility
             $aliases = array(
+                // request name aliases for backward compatibility
                 'lock'          => 'lock_create',
                 'unlock'        => 'lock_delete',
                 'folder_rename' => 'folder_move',
             );
+
+            // Redirect all document_* actions into 'document' action
+            if (preg_match('/^(sessions|invitations|document_[a-z]+)$/', $request)) {
+                $request = 'document';
+            }
 
             $request = $aliases[$request] ?: $request;
 
@@ -290,7 +293,7 @@ class file_api extends file_api_core
             if (!empty($status)) {
                 $status['percent'] = round($status['current']/$status['total']*100);
                 if ($status['percent'] < 100) {
-                    $diff = time() - intval($status['start_time']);
+                    $diff = max(1, time() - intval($status['start_time']));
                     // calculate time to end of uploading (in seconds)
                     $status['eta'] = intval($diff * (100 - $status['percent']) / $status['percent']);
                     // average speed (bytes per second)

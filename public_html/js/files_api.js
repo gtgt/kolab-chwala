@@ -1,8 +1,8 @@
-/*
+/**
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2012-2013, Kolab Systems AG                                |
+ | Copyright (C) 2012-2015, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -26,6 +26,7 @@ function files_api()
   var ref = this;
 
   // default config
+  this.sessions = {};
   this.translations = {};
   this.env = {
     url: 'api/',
@@ -66,13 +67,6 @@ function files_api()
       return label;
   };
 
-  // print a message into browser console
-  this.log = function(msg)
-  {
-    if (window.console && console.log)
-      console.log(msg);
-  };
-
   /********************************************************/
   /*********        Remote request methods        *********/
   /********************************************************/
@@ -89,8 +83,8 @@ function files_api()
     return $.ajax({
       type: 'POST', url: url, data: JSON.stringify(data), dataType: 'json',
       contentType: 'application/json; charset=utf-8',
-      success: function(response) { ref[func](response); },
-      error: function(o, status, err) { ref.http_error(o, status, err); },
+      success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
+      error: function(o, status, err) { ref.http_error(o, status, err, data); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
     });
@@ -108,8 +102,8 @@ function files_api()
 
     return $.ajax({
       type: 'GET', url: url, data: data, dataType: 'json',
-      success: function(response) { ref[func](response); },
-      error: function(o, status, err) { ref.http_error(o, status, err); },
+      success: function(response) { if (typeof func == 'function') func(response); else ref[func](response); },
+      error: function(o, status, err) { ref.http_error(o, status, err, data); },
       cache: false,
       beforeSend: function(xmlhttp) { xmlhttp.setRequestHeader('X-Session-Token', ref.env.token); }
     });
@@ -119,12 +113,12 @@ function files_api()
   this.request = function(action, data, func)
   {
     // Use POST for modification actions with probable big request size
-    var method = /(create|delete|move|copy|update|auth)/.test(action) ? 'post' : 'get';
+    var method = /_(create|delete|move|copy|update|auth|subscribe|unsubscribe|invite|decline|request|accept|remove)$/.test(action) ? 'post' : 'get';
     return this[method](action, data, func);
   };
 
   // handle HTTP request errors
-  this.http_error = function(request, status, err)
+  this.http_error = function(request, status, err, data)
   {
     var errmsg = request.statusText;
 
@@ -167,10 +161,10 @@ function files_api()
   this.logout = function(response) {};
 
   // set state
-  this.set_busy = function(a, message) {};
+  this.set_busy = function(state, message) {};
 
   // displays error message
-  this.display_message = function(label) {};
+  this.display_message = function(label, type) {};
 
   // called when a request timed out
   this.request_timed_out = function() {};
@@ -210,27 +204,115 @@ function files_api()
     return '?' + $.param(param) + querystring;
   };
 
-  // Folder list parser, converts it into structure
-  this.folder_list_parse = function(list, num)
+  // fill folder selector with options
+  this.folder_select_element = function(select, params)
   {
-    var i, n, items, items_len, f, tmp, folder,
+    var options = [],
+      selected = params && params.selected ? params.selected : this.env.folder;
+
+    if (params && params.empty)
+      options.push($('<option>').val('').text('---'));
+
+    $.each(this.env.folders, function(i, f) {
+      var n, name = escapeHTML(f.name);
+
+      // skip read-only folders
+      if (params && params.writable && (f.readonly || f.virtual)) {
+        var folder, found = false, prefix = i + ref.env.directory_separator;
+
+        // for virtual folders check if there's any writable subfolder
+        for (n in ref.env.folders) {
+          if (n.indexOf(prefix) === 0) {
+            folder = ref.env.folders[n];
+            if (!folder.virtual && !folder.readonly) {
+              found = true;
+              break;
+            }
+          }
+        }
+
+        if (!found)
+          return;
+      }
+
+      for (n=0; n<f.depth; n++)
+        name = '&nbsp;&nbsp;&nbsp;' + name;
+
+      options.push($('<option>').val(i).html(name));
+    });
+
+    select.empty().append(options);
+
+    if (selected)
+      select.val(selected);
+  };
+
+  // Folder list parser, converts it into structure
+  this.folder_list_parse = function(list, num, subscribed)
+  {
+    var i, n, j, items, items_len, f, tmp, folder, readonly,
+      subs_support, subs_prefixes = {}, found,
+      separator = this.env.directory_separator,
       len = list ? list.length : 0, folders = {};
 
     if (!num) num = 1;
 
+    if (subscribed === undefined)
+      subscribed = true;
+
+    // prepare subscriptions support detection
+    if (len && this.env.caps) {
+      subs_support = !!this.env.caps.SUBSCRIPTIONS;
+      $.each(this.env.caps.MOUNTPOINTS || [], function(i, v) {
+        subs_prefixes[i] = !!v.SUBSCRIPTIONS;
+      });
+    }
+
     for (i=0; i<len; i++) {
       folder = list[i];
-      items = folder.split(this.env.directory_separator);
+      readonly = false;
+
+      // in extended format folder is an object
+      if (typeof folder !== 'string') {
+        readonly = folder.readonly;
+        folder = folder.folder;
+      }
+
+      items = folder.split(separator);
       items_len = items.length;
 
       for (n=0; n<items_len-1; n++) {
-        tmp = items.slice(0,n+1);
-        f = tmp.join(this.env.directory_separator);
+        tmp = items.slice(0, n+1);
+        f = tmp.join(separator);
         if (!folders[f])
           folders[f] = {name: tmp.pop(), depth: n, id: 'f'+num++, virtual: 1};
       }
 
-      folders[folder] = {name: items.pop(), depth: items_len-1, id: 'f'+num++};
+      folders[folder] = {
+        name: items.pop(),
+        depth: items_len-1,
+        id: 'f' + num++,
+        readonly: readonly
+      };
+
+      // set subscription flag, leave undefined if the source does not support subscriptions
+      found = false;
+      for (j in subs_prefixes) {
+        if (folder === j) {
+          // this is a mount point
+          found = true;
+          break;
+        }
+        if (folder.indexOf(j + separator) === 0) {
+          if (subs_prefixes[j])
+            folders[folder].subscribed = subscribed;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found && subs_support)
+        folders[folder].subscribed = subscribed;
     }
 
     return folders;
@@ -239,7 +321,7 @@ function files_api()
   // folder structure presentation (structure icons)
   this.folder_list_tree = function(folders)
   {
-    var i, n, diff, tree = [], folder;
+    var i, n, diff, prefix, tree = [], folder;
 
     for (i in folders) {
       items = i.split(this.env.directory_separator);
@@ -252,12 +334,13 @@ function files_api()
       }
 
       folders[i].tree = [1];
+      prefix = items.slice(0, items_len-1).join(this.env.directory_separator) + this.env.directory_separator;
 
       for (n=0; n<tree.length; n++) {
         folder = tree[n];
         diff = folders[folder].depth - (items_len - 1);
-        if (diff >= 0)
-          folders[folder].tree[diff] = folders[folder].tree[diff] ? folders[folder].tree[diff] + 2 : 2;
+        if (diff >= 0 && folder.indexOf(prefix) === 0)
+          folders[folder].tree[diff] |= 2;
       }
 
       tree.push(i);
@@ -291,6 +374,21 @@ function files_api()
           $('#' + folders[i].id + ' span.branch').html(html);
       }
     }
+  };
+
+  // Get editing sessions on the specified file
+  this.file_sessions = function(file)
+  {
+    var sessions = [], folder = this.file_path(file);
+
+    $.each(this.sessions[folder] || {}, function(session_id, session) {
+      if (session.file == file) {
+        session.id = session_id;
+        sessions.push(session);
+      }
+    });
+
+    return sessions;
   };
 
   // convert content-type string into class name
@@ -363,20 +461,26 @@ function files_api()
 
   // Checks if specified mimetype is supported natively by the browser (return 1)
   // or can be displayed in the browser using File API viewer (return 2)
-  this.file_type_supported = function(type)
+  // or is editable (using File API viewer or Manticore) (return 4)
+  this.file_type_supported = function(type, capabilities)
   {
-    var i, t, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
-      caps = this.env.browser_capabilities || {};
+    var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
+      caps = this.env.browser_capabilities || {},
+      doc = /^application\/vnd.oasis.opendocument.(text)$/i;
+
+    // Manticore?
+    if (capabilities && capabilities.MANTICORE && doc.test(type))
+      res |= 4;
 
     if (caps.tif)
       img += '|tiff';
 
     if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
-      return 1;
+      res |= 1;
 
     // prefer text viewer for any text type
     if (/^text\/(?!(pdf|x-pdf))/i.test(type))
-      return 2;
+      res |= 2 | 4;
 
     if (caps.pdf) {
       regexps.push(/^application\/(pdf|x-pdf|acrobat|vnd.pdf)/i);
@@ -388,17 +492,19 @@ function files_api()
 
     for (i in regexps)
       if (regexps[i].test(type))
-        return 1;
+        res |= 1;
 
     for (i in navigator.mimeTypes) {
       t = navigator.mimeTypes[i].type;
       if (t == type && navigator.mimeTypes[i].enabledPlugin)
-        return 1;
+        res |= 1;
     }
 
     // types with viewer support
     if ($.inArray(type, this.env.supported_mimetypes) > -1)
-      return 2;
+      res |= 2;
+
+    return res;
   };
 
   // Return browser capabilities
@@ -503,6 +609,417 @@ function files_api()
 
     return (new Date(1970, 1, 1, 0, 0, s, 0)).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, '$1');
   };
+
+  // same as str.split(delimiter) but it ignores delimiters within quoted strings
+  this.explode_quoted_string = function(str, delimiter)
+  {
+    var result = [],
+      strlen = str.length,
+      q, p, i, chr, last;
+
+    for (q = p = i = 0; i < strlen; i++) {
+      chr = str.charAt(i);
+      if (chr == '"' && last != '\\') {
+        q = !q;
+      }
+      else if (!q && chr == delimiter) {
+        result.push(str.substring(p, i));
+        p = i + 1;
+      }
+      last = chr;
+    }
+
+    result.push(str.substr(p));
+    return result;
+  };
+};
+
+/**
+ * Class implementing Manticore Client API
+ *
+ * Configuration:
+ *    iframe - manticore iframe element
+ *    title_input - document title element
+ *    export_menu - export formats list
+ *    members_list - collaborators list
+ *    photo_url - <img> src for a collaborator
+ *    photo_default_url - default image of a collaborator
+ *
+ *    set_busy, display_message, hide_message, gettext - common methods
+ *
+ *    api - Chwala files_api instance
+ *    interval - how often to check for invitations in seconds (default: 60)
+ *    owner - user identifier
+ *    invitationMore - add "more" link into invitation notices
+ *    invitationChange - method to handle invitation state updates
+ *    invitationSave - method to handle invitation state update
+ */
+function manticore_api(conf)
+{
+  var domain, manticore,
+    locks = {},
+    callbacks = {},
+    members = {},
+    self = this;
+
+  // Sets state
+  this.set_busy = function(state, message)
+  {
+    if (conf.set_busy)
+      return conf.set_busy(state, message);
+  };
+
+  // Displays error/notification message
+  this.display_message = function(label, type, is_txt, timeout)
+  {
+    if (conf.display_message)
+      return conf.display_message(label, type, is_txt, timeout);
+
+    if (type == 'error')
+      alert(is_txt ? label : this.gettext(label));
+  };
+
+  // Hides the error/notification message
+  this.hide_message = function(id)
+  {
+    if (conf.hide_message)
+      return conf.hide_message(id);
+  };
+
+  // Localization method
+  this.gettext = function(label)
+  {
+    if (conf.gettext)
+      return conf.gettext(label);
+
+    return label;
+  };
+
+  // Handle messages from Manticore
+  this.message_handler = function(data)
+  {
+    var result;
+
+    if (callbacks[data.id])
+      result = callbacks[data.id](data);
+    if (result !== false && data.name && conf[data.name])
+      result = conf[data.name](data);
+
+    delete callbacks[data.id];
+
+    if (locks[data.id]) {
+      this.set_busy(false);
+      this.hide_message(data.id);
+      delete locks[data.id];
+    }
+
+    if (result === false)
+      return;
+
+    switch (data.name) {
+      case 'ready':
+        this.ready();
+        break;
+
+      case 'titleChanged':
+        if (conf.title_input)
+          $(conf.title_input).val(data.value);
+        break;
+
+      case 'memberAdded':
+        // @TODO: display notification?
+        if (conf.members_list)
+          $(conf.members_list).append(this.member_item(data));
+        break;
+
+      case 'memberRemoved':
+        // @TODO: display notification?
+        if (conf.members_list) {
+          $('#' + members[data.memberId].id, conf.members_list).remove();
+          delete members[data.memberId];
+        }
+        break;
+
+      case 'sessionClosed':
+        this.display_message('sessionterminated', 'error');
+        break;
+    }
+  };
+
+  this.post = function(action, data, callback, lock_label)
+  {
+    if (!data) data = {};
+
+    if (lock_label) {
+      data.id = this.set_busy(true, this.gettext(lock_label));
+      locks[data.id] = true;
+    }
+
+    if (!data.id)
+      data.id = (new Date).getTime();
+
+    // make sure the id is not in use
+    while (callbacks[data.id])
+      data.id++;
+
+    data.name = action;
+
+    callbacks[data.id] = callback;
+
+    manticore.postMessage(data, domain);
+  };
+
+  this.ready = function()
+  {
+    if (this.init_lock) {
+      this.set_busy(false);
+      this.hide_message(this.init_lock);
+      delete this.init_lock;
+    }
+
+    if (conf.export_menu)
+      this.export_menu(conf.export_menu);
+
+    if (conf.members_list)
+      this.get_members(function(data) {
+        var images = [], id = (new Date).getTime();
+        $.each(data.value || [], function() {
+          images.push(self.member_item(this, id++));
+        });
+        $(conf.members_list).html('').append(images);
+      });
+
+    if (conf.title_input)
+      this.get_title(function(data) {
+        $(conf.title_input).val(data.value);
+      });
+  };
+
+  // Save current document
+  this.save = function(callback)
+  {
+    this.post('actionSave', {}, callback, 'saving');
+  };
+
+  // Export/download current document
+  this.export = function(type, callback)
+  {
+    this.post('actionExport', {value: type}, callback);
+  };
+
+  // Get supported export formats and create content of menu element
+  this.export_menu = function(menu)
+  {
+    this.post('getExportFormats', {}, function(data) {
+      var items = [];
+
+      $.each(data.value || [], function(i, v) {
+        items.push($('<li>').attr({role: 'menuitem'}).append(
+          $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
+            .text(v.label).click(function() { self.export(v.format); })
+        ));
+      });
+
+      $(menu).html('').append(items);
+    });
+  };
+
+  // Get document title
+  this.get_title = function(callback)
+  {
+    this.post('getTitle', {}, callback);
+  };
+
+  // Set document title
+  this.set_title = function(title, callback)
+  {
+    this.post('setTitle', {value: title}, callback);
+  };
+
+  // Get document session members
+  this.get_members = function(callback)
+  {
+    this.post('getMembers', {}, callback);
+  };
+
+  // Creates session member image element
+  this.member_item = function(member, id)
+  {
+    member.id = 'member' + (id || (new Date).getTime());
+    member.name = member.fullName + ' (' + member.email + ')';
+
+    members[member.memberId] = member;
+
+    var img = $('<img>').attr({title: member.name, id: member.id, 'class': 'photo', src: conf.photo_default_url})
+        .css({'border-color': member.color})
+        .text(name);
+
+    if (conf.photo_url) {
+      img.attr('src', conf.photo_url.replace(/%email/, urlencode(member.email)));
+      if (conf.photo_default_url)
+        img.error(function() { this.src = conf.photo_default_url; });
+    }
+
+    return img;
+  };
+
+  // track changes in invitations
+  this.track_invitations = function()
+  {
+    conf.api.request('invitations', {timestamp: this.invitations_timestamp || -1}, this.parse_invitations);
+    this.invitations_timeout = setTimeout(function() { self.track_invitations(); }, (conf.interval || 60) * 1000);
+  };
+
+  // parse 'invitations' response
+  this.parse_invitations = function(response)
+  {
+    if (!conf.api.response(response) || !response.result)
+      return;
+
+    var invitation_change = function(invitation) {
+      var msg = self.invitation_msg(invitation);
+
+      if (conf.invitationMore)
+        msg = $('<div>')
+          .append($('<span>').text(msg + ' '))
+          .append($('<a>').text(self.gettext('more')).attr('id', invitation.id)).html();
+
+      self.display_message(msg, 'notice', true, 30);
+
+      // update existing sessions info
+      if (conf.api && conf.api.sessions && invitation.file) {
+        var session, folder = conf.api.file_path(invitation.file),
+          is_invited = function() {
+            return !invitation.is_session_owner && /^(invited|accepted)/.test(invitation.status);
+          };
+
+        $.each(conf.api.sessions[folder] || {}, function(i, s) {
+          if (i == invitation.session_id || s.file == invitation.file) {
+            if (is_invited())
+              conf.api.sessions[folder][i].is_invited = true;
+            if (s.id == invitation.session_id)
+              session = conf.api.sessions[folder][i];
+          }
+        });
+
+        if (!session) {
+          if (!conf.api.sessions[folder])
+            conf.api.sessions[folder] = {};
+          conf.api.sessions[folder][invitation.session_id] = {
+            owner: invitation.owner,
+            owner_name: invitation.owner_name,
+            is_owner: invitation.is_session_owner,
+            is_invited: is_invited(),
+            file: invitation.file
+          };
+        }
+      }
+
+      if (conf.invitationChange)
+        conf.invitationChange(invitation);
+    }
+
+    $.each(response.result.list || [], function(i, invitation) {
+      invitation.id = 'i' + (response.result.timestamp + i);
+      invitation.is_session_owner = invitation.user != conf.owner;
+
+      // display notifications
+      if (!invitation.is_session_owner) {
+        if (invitation.status == 'invited' || invitation.status == 'declined-owner' || invitation.status == 'accepted-owner') {
+          invitation_change(invitation);
+        }
+      }
+      else {
+        if (invitation.status == 'accepted' || invitation.status == 'declined' || invitation.status == 'requested') {
+          invitation_change(invitation);
+        }
+      }
+    });
+
+    self.invitations_timestamp = response.result.timestamp;
+  };
+
+  this.invitation_msg = function(invitation)
+  {
+    return self.gettext(invitation.status.replace('-', '') + 'notice')
+      .replace('$user', invitation.user_name ? invitation.user_name : invitation.user)
+      .replace('$owner', invitation.owner_name ? invitation.owner_name : invitation.owner)
+      .replace('$file', invitation.filename);
+  };
+
+  // Request access to the editing session
+  this.invitation_request = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationrequesting');
+    conf.api.request('document_request', params, function(response) {
+      self.invitation_response(response, invitation, 'requested');
+    });
+  };
+
+  // Accept an invitations to the editing session
+  this.invitation_accept = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationaccepting');
+    conf.api.request('document_accept', params, function(response) {
+      self.invitation_response(response, invitation, 'accepted');
+    });
+  };
+
+  // Decline an invitations to the editing session
+  this.invitation_decline = function(invitation)
+  {
+    var params = {id: invitation.session_id, user: invitation.user || ''};
+
+    conf.api.req = this.set_busy(true, 'invitationdeclining');
+    conf.api.request('document_decline', params, function(response) {
+      self.invitation_response(response, invitation, 'declined');
+    });
+  };
+
+  // document_decline response handler
+  this.invitation_response = function(response, invitation, status)
+  {
+    if (!conf.api.response(response))
+      return;
+
+    invitation.status = status;
+
+    if (conf.invitationSaved)
+      conf.invitationSaved(invitation);
+  };
+
+
+  if (!conf)
+    conf = {};
+
+  // Got Manticore iframe, use Client API
+  if (conf.iframe) {
+    manticore = conf.iframe.contentWindow;
+
+    if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
+      domain = RegExp.$1;
+
+    // Register 'message' event to receive messages from Manticore iframe
+    window.addEventListener('message', function(event) {
+      if (event.source == manticore && event.origin == domain) {
+        self.message_handler(event.data);
+      }
+    });
+
+    // Bind for document title changes
+    if (conf.title_input)
+      $(conf.title_input).change(function() { self.set_title($(this).val()); });
+
+    // Display loading message
+    this.init_lock = this.set_busy(true, 'loading');
+  }
+
+  if (conf.api)
+    this.track_invitations();
 };
 
 // Add escape() method to RegExp object

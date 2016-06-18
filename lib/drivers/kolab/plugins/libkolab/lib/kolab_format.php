@@ -626,7 +626,7 @@ abstract class kolab_format
      *
      * @param array Hash array reference to append attachment data into
      */
-    public function get_attachments(&$object)
+    public function get_attachments(&$object, $all = false)
     {
         $this->init();
 
@@ -646,6 +646,14 @@ abstract class kolab_format
                     'mimetype' => $attach->mimetype(),
                     'size'     => strlen($content),
                     'content'  => $content,
+                );
+            }
+            else if ($all && substr($attach->uri(), 0, 4) == 'cid:') {
+                $key = $attach->uri();
+                $object['_attachments'][$key] = array(
+                    'id'       => $key,
+                    'name'     => $attach->label(),
+                    'mimetype' => $attach->mimetype(),
                 );
             }
             else if (in_array(substr($attach->uri(), 0, 4), array('http','imap'))) {

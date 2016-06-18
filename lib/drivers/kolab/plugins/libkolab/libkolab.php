@@ -9,7 +9,7 @@
  * @version @package_version@
  * @author Thomas Bruederli <bruederli@kolabsys.com>
  *
- * Copyright (C) 2012, Kolab Systems AG <contact@kolabsys.com>
+ * Copyright (C) 2012-2015, Kolab Systems AG <contact@kolabsys.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -28,6 +28,7 @@
 class libkolab extends rcube_plugin
 {
     static $http_requests = array();
+    static $bonnie_api = false;
 
     /**
      * Required startup method of a Roundcube plugin
@@ -52,6 +53,32 @@ class libkolab extends rcube_plugin
             rcube::raise_error($e, true);
             kolab_format::$timezone = new DateTimeZone('GMT');
         }
+
+        $this->add_texts('localization/', false);
+
+        // embed scripts and templates for email message audit trail
+        if ($rcmail->task == 'mail' && self::get_bonnie_api()) {
+            if ($rcmail->output->type == 'html') {
+                $this->add_hook('render_page', array($this, 'bonnie_render_page'));
+
+                $this->include_script('js/audittrail.js');
+                $this->include_stylesheet($this->local_skin_path() . '/libkolab.css');
+
+                // add 'Show history' item to message menu
+                $this->api->add_content(html::tag('li', null,
+                    $this->api->output->button(array(
+                        'command'  => 'kolab-mail-history',
+                        'label'    => 'libkolab.showhistory',
+                        'type'     => 'link',
+                        'classact' => 'icon history active',
+                        'class'    => 'icon history',
+                        'innerclass' => 'icon history',
+                    ))),
+                    'messagemenu');
+            }
+
+            $this->register_action('plugin.message-changelog', array($this, 'message_changelog'));
+        }
     }
 
     /**
@@ -61,6 +88,75 @@ class libkolab extends rcube_plugin
     {
         $p['fetch_headers'] = trim($p['fetch_headers'] .' X-KOLAB-TYPE X-KOLAB-MIME-VERSION');
         return $p;
+    }
+
+    /**
+     * Getter for a singleton instance of the Bonnie API
+     *
+     * @return mixed kolab_bonnie_api instance if configured, false otherwise
+     */
+    public static function get_bonnie_api()
+    {
+        // get configuration for the Bonnie API
+        if (!self::$bonnie_api && ($bonnie_config = rcube::get_instance()->config->get('kolab_bonnie_api', false))) {
+            self::$bonnie_api = new kolab_bonnie_api($bonnie_config);
+        }
+
+        return self::$bonnie_api;
+    }
+
+    /**
+     * Hook to append the message history dialog template to the mail view
+     */
+    function bonnie_render_page($p)
+    {
+        if (($p['template'] === 'mail' || $p['template'] === 'message') && !$p['kolab-audittrail']) {
+            // append a template for the audit trail dialog
+            $this->api->output->add_footer(
+                html::div(array('id' => 'mailmessagehistory',  'class' => 'uidialog', 'aria-hidden' => 'true', 'style' => 'display:none'),
+                    self::object_changelog_table(array('class' => 'records-table changelog-table'))
+                )
+            );
+            $this->api->output->set_env('kolab_audit_trail', true);
+            $p['kolab-audittrail'] = true;
+        }
+
+        return $p;
+    }
+
+    /**
+     * Handler for message audit trail changelog requests
+     */
+    public function message_changelog()
+    {
+        if (!self::$bonnie_api) {
+            return false;
+        }
+
+        $rcmail = rcube::get_instance();
+        $msguid = rcube_utils::get_input_value('_uid', rcube_utils::INPUT_POST, true);
+        $mailbox = rcube_utils::get_input_value('_mbox', rcube_utils::INPUT_POST);
+
+        $result = $msguid && $mailbox ? self::$bonnie_api->changelog('mail', null, $mailbox, $msguid) : null;
+        if (is_array($result)) {
+            if (is_array($result['changes'])) {
+                $dtformat = $rcmail->config->get('date_format') . ' ' . $rcmail->config->get('time_format');
+                array_walk($result['changes'], function(&$change) use ($dtformat, $rcmail) {
+                  if ($change['date']) {
+                      $dt = rcube_utils::anytodatetime($change['date']);
+                      if ($dt instanceof DateTime) {
+                          $change['date'] = $rcmail->format_date($dt, $dtformat);
+                      }
+                  }
+                });
+            }
+            $this->api->output->command('plugin.message_render_changelog', $result['changes']);
+        }
+        else {
+            $this->api->output->command('plugin.message_render_changelog', false);
+        }
+
+        $this->api->output->send();
     }
 
     /**
@@ -91,6 +187,10 @@ class libkolab extends rcube_plugin
         if (!empty($config)) {
             $http_config = array_merge($http_config, $config);
         }
+
+        // force CURL adapter, this allows to handle correctly
+        // compressed responses with SplObserver registered (kolab_files) (#4507)
+        $http_config['adapter'] = 'HTTP_Request2_Adapter_Curl';
 
         $key = md5(serialize($http_config));
 
@@ -126,13 +226,91 @@ class libkolab extends rcube_plugin
     }
 
     /**
+     * Table oultine for object changelog display
+     */
+    public static function object_changelog_table($attrib = array())
+    {
+        $rcube = rcube::get_instance();
+        $attrib += array('domain' => 'libkolab');
+
+        $table = new html_table(array('cols' => 5, 'border' => 0, 'cellspacing' => 0));
+        $table->add_header('diff',      '');
+        $table->add_header('revision',  $rcube->gettext('revision', $attrib['domain']));
+        $table->add_header('date',      $rcube->gettext('date', $attrib['domain']));
+        $table->add_header('user',      $rcube->gettext('user', $attrib['domain']));
+        $table->add_header('operation', $rcube->gettext('operation', $attrib['domain']));
+        $table->add_header('actions',   '&nbsp;');
+
+        $rcube->output->add_label(
+            'libkolab.showrevision',
+            'libkolab.actionreceive',
+            'libkolab.actionappend',
+            'libkolab.actionmove',
+            'libkolab.actiondelete',
+            'libkolab.actionread',
+            'libkolab.actionflagset',
+            'libkolab.actionflagclear',
+            'libkolab.objectchangelog',
+            'close'
+        );
+
+        return $table->show($attrib);
+    }
+
+    /**
      * Wrapper function for generating a html diff using the FineDiff class by Raymond Hill
      */
-    public static function html_diff($from, $to)
+    public static function html_diff($from, $to, $is_html = null)
     {
-      include_once __dir__ . '/vendor/finediff.php';
+        // auto-detect text/html format
+        if ($is_html === null) {
+            $from_html = (preg_match('/<(html|body)(\s+[a-z]|>)/', $from, $m) && strpos($from, '</'.$m[1].'>') > 0);
+            $to_html   = (preg_match('/<(html|body)(\s+[a-z]|>)/', $to, $m) && strpos($to, '</'.$m[1].'>') > 0);
+            $is_html   = $from_html || $to_html;
 
-      $diff = new FineDiff($from, $to, FineDiff::$wordGranularity);
-      return $diff->renderDiffToHTML();
+            // ensure both parts are of the same format
+            if ($is_html && !$from_html) {
+                $converter = new rcube_text2html($from, false, array('wrap' => true));
+                $from = $converter->get_html();
+            }
+            if ($is_html && !$to_html) {
+                $converter = new rcube_text2html($to, false, array('wrap' => true));
+                $to = $converter->get_html();
+            }
+        }
+
+        // compute diff from HTML
+        if ($is_html) {
+            include_once __dir__ . '/vendor/Caxy/HtmlDiff/Match.php';
+            include_once __dir__ . '/vendor/Caxy/HtmlDiff/Operation.php';
+            include_once __dir__ . '/vendor/Caxy/HtmlDiff/HtmlDiff.php';
+
+            // replace data: urls with a transparent image to avoid memory problems
+            $from = preg_replace('/src="data:image[^"]+/', 'src="data:image/gif;base64,R0lGODlhAQABAPAAAOjq6gAAACH/C1hNUCBEYXRhWE1QAT8AIfkEBQAAAAAsAAAAAAEAAQAAAgJEAQA7', $from);
+            $to   = preg_replace('/src="data:image[^"]+/', 'src="data:image/gif;base64,R0lGODlhAQABAPAAAOjq6gAAACH/C1hNUCBEYXRhWE1QAT8AIfkEBQAAAAAsAAAAAAEAAQAAAgJEAQA7', $to);
+
+            $diff = new Caxy\HtmlDiff\HtmlDiff($from, $to);
+            $diffhtml = $diff->build();
+
+            // remove empty inserts (from tables)
+            return preg_replace('!<ins class="diff\w+">\s*</ins>!Uims', '', $diffhtml);
+        }
+        else {
+            include_once __dir__ . '/vendor/finediff.php';
+
+            $diff = new FineDiff($from, $to, FineDiff::$wordGranularity);
+            return $diff->renderDiffToHTML();
+        }
+    }
+
+    /**
+     * Return a date() format string to render identifiers for recurrence instances
+     *
+     * @param array Hash array with event properties
+     * @return string Format string
+     */
+    public static function recurrence_id_format($event)
+    {
+        return $event['allday'] ? 'Ymd' : 'Ymd\THis';
     }
 }

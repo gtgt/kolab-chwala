@@ -25,9 +25,8 @@ class seafile_request_observer implements SplObserver
         switch ($event['name']) {
         case 'receivedHeaders':
             if ($this->file) {
-                $target = $this->dir . DIRECTORY_SEPARATOR . $this->file;
-                if (!($this->fp = @fopen($target, 'wb'))) {
-                    throw new Exception("Cannot open target file '{$target}'");
+                if (!($this->fp = @fopen($this->file, 'wb'))) {
+                    throw new Exception("Cannot open target file '{$this->file}'");
                 }
             }
             else if (!$this->fp) {

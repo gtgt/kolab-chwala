@@ -186,4 +186,57 @@ class file_utils
 
         return $uri;
     }
+
+    /**
+     * Callback for uasort() that implements correct
+     * locale-aware case-sensitive sorting
+     */
+    public static function sort_folder_comparator($p1, $p2)
+    {
+        $ext   = is_array($p1); // folder can be a string or an array with 'folder' key
+        $path1 = explode(file_storage::SEPARATOR, $ext ? $p1['folder'] : $p1);
+        $path2 = explode(file_storage::SEPARATOR, $ext ? $p2['folder'] : $p2);
+
+        foreach ($path1 as $idx => $folder1) {
+            $folder2 = $path2[$idx];
+
+            if ($folder1 === $folder2) {
+                continue;
+            }
+
+            return strcoll($folder1, $folder2);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Encode folder path for use in an URI
+     *
+     * @param string $path Folder path
+     *
+     * @return string Encoded path
+     */
+    public static function encode_path($path)
+    {
+        $items = explode(file_storage::SEPARATOR, $path);
+        $items = array_map('rawurlencode', $items);
+
+        return implode(file_storage::SEPARATOR, $items);
+    }
+
+    /**
+     * Decode an URI into folder path
+     *
+     * @param string $path Encoded folder path
+     *
+     * @return string Decoded path
+     */
+    public static function decode_path($path)
+    {
+        $items = explode(file_storage::SEPARATOR, $path);
+        $items = array_map('rawurldecode', $items);
+
+        return implode(file_storage::SEPARATOR, $items);
+    }
 }

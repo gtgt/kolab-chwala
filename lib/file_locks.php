@@ -28,8 +28,8 @@
  * It stores all its data in a sql database. Derived from SabreDAV's
  * PDO Lock manager.
  */
-class file_locks {
-
+class file_locks
+{
     const SHARED    = 1;
     const EXCLUSIVE = 2;
     const INFINITE  = -1;

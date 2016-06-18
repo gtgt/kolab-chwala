@@ -117,7 +117,7 @@ class seafile_file_storage implements file_storage
             'ssl_verify_peer' => $this->rc->config->get('fileapi_seafile_ssl_verify_peer', true),
             'ssl_verify_host' => $this->rc->config->get('fileapi_seafile_ssl_verify_host', true),
             'cache'           => $this->rc->config->get('fileapi_seafile_cache'),
-            'cache_ttl'       => $this->rc->config->get('fileapi_seafile_cache', '14d'),
+            'cache_ttl'       => $this->rc->config->get('fileapi_seafile_cache_ttl', '14d'),
             'debug'           => $this->rc->config->get('fileapi_seafile_debug', false),
         );
 
@@ -445,7 +445,7 @@ class seafile_file_storage implements file_storage
      * Return file body.
      *
      * @param string   $file_name Name of a file (with folder path)
-     * @param array    $params    Parameters (force-download)
+     * @param array    $params    Parameters (force-download, force-type, head)
      * @param resource $fp        Print to file pointer instead (send no headers)
      *
      * @throws Exception
@@ -463,7 +463,7 @@ class seafile_file_storage implements file_storage
         $file = $this->from_file_object($file);
 
         // get file location on SeaFile server for download
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
             $link = $this->api->file_get($repo_id, $fn);
         }
 
@@ -506,10 +506,21 @@ class seafile_file_storage implements file_storage
         header("Content-Disposition: $disposition; filename=\"$filename\"");
 
         // just send redirect to SeaFile server
-        if ($file['size']) {
+        if ($file['size'] && empty($params['head'])) {
+            // In view-mode we can't redirect to SeaFile server because:
+            // - it responds with Content-Disposition: attachment, which causes that
+            //   e.g. previewing images is not possible
+            // - pdf/odf viewers can't follow redirects for some reason (#4590)
+            if (empty($params['force-download'])) {
+                if ($fp = fopen('php://output', 'wb')) {
+                    $this->save_file_content($link, $fp);
+                    fclose($fp);
+                    die;
+                }
+            }
+
             header("Location: $link");
         }
-        die;
     }
 
     /**
@@ -568,7 +579,7 @@ class seafile_file_storage implements file_storage
         }
 
         // get directory entries
-        $entries = $this->api->directory_entries($repo_id, $folder);
+        $entries = $this->api->directory_entries($repo_id, $folder, 'file');
         $result  = array();
 
         foreach ((array) $entries as $idx => $file) {
@@ -588,8 +599,8 @@ class seafile_file_storage implements file_storage
                     }
                     else if ($idx == 'class') {
                         foreach ($value as $v) {
-                            if (stripos($file['type'], $v) === 0) {
-                                break 2;
+                            if (stripos($file['type'], $v) !== false) {
+                                continue 2;
                             }
                         }
 
@@ -814,13 +825,40 @@ class seafile_file_storage implements file_storage
     }
 
     /**
+     * Subscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_subscribe($folder_name)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
+     * Unsubscribe a folder.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @throws Exception
+     */
+    public function folder_unsubscribe($folder_name)
+    {
+        throw new Exception("Not implemented", file_storage::ERROR_UNSUPPORTED);
+    }
+
+    /**
      * Returns list of folders.
+     *
+     * @param array $params List parameters ('type', 'search')
      *
      * @return array List of folders
      * @throws Exception
      */
-    public function folder_list()
+    public function folder_list($params = array())
     {
+        $writable  = ($params['type'] & file_storage::FILTER_WRITABLE) ? true : false;
         $libraries = $this->libraries();
         $folders   = array();
 
@@ -838,7 +876,14 @@ class seafile_file_storage implements file_storage
                 continue;
             }
 
-            $folders[$library['name']] = $library['mtime'];
+            if (strpos($library['permission'], 'w') === false) {
+                $readonly_prefixes[] = $library['name'];
+            }
+
+            $folders[$library['name']] = array(
+                'mtime'      => $library['mtime'],
+                'permission' => $library['permission'],
+            );
 
             if ($folder_tree = $this->folders_tree($library, '', $library, $cached)) {
                 $folders = array_merge($folders, $folder_tree);
@@ -849,15 +894,86 @@ class seafile_file_storage implements file_storage
             throw new Exception("Storage error. Unable to get folders list.", file_storage::ERROR);
         }
 
-        if ($cache) {
+        if ($cache && $cached != $folders) {
             $cache->set('folders', $folders);
         }
 
+        // remove read-only folders when requested
+        if ($writable) {
+            foreach ($folders as $folder_name => $folder) {
+                if (strpos($folder['permission'], 'w') === false) {
+                    unset($folders[$folder_name]);
+                }
+            }
+        }
+
+        // In extended format we return array of arrays
+        if (!empty($params['extended'])) {
+            foreach ($folders as $folder_name => $folder) {
+                $item = array('folder' => $folder_name);
+
+                // check if folder is readonly
+                if (!$writable && $params['permissions']) {
+                    if (strpos($folder['permission'], 'w') === false) {
+                        $item['readonly'] = true;
+                    }
+                }
+
+                $folders[$folder_name] = $item;
+            }
+        }
+        else {
+            $folders = array_keys($folders);
+        }
+
         // sort folders
-        $folders = array_keys($folders);
-        usort($folders, array($this, 'sort_folder_comparator'));
+        usort($folders, array('file_utils', 'sort_folder_comparator'));
 
         return $folders;
+    }
+
+    /**
+     * Check folder rights.
+     *
+     * @param string $folder_name Name of a folder with full path
+     *
+     * @return int Folder rights (sum of file_storage::ACL_*)
+     */
+    public function folder_rights($folder_name)
+    {
+        // It is not possible (yet) to assign a specified library/folder
+        // to the mount point. So, it is a "virtual" folder.
+        if (!strlen($folder_name)) {
+            return 0;
+        }
+
+        list($folder, $repo_id, $library) = $this->find_library($folder_name);
+
+        // @TODO: we should check directory permission not library
+        // However, there's no API for this, we'd need to get a list
+        // of directories of a parent folder/library
+/*
+        if (strpos($folder, '/')) {
+            // @TODO
+        }
+        else {
+            $acl = $library['permission'];
+        }
+*/
+        $acl    = $library['permission'];
+        $rights = 0;
+        $map    = array(
+            'r' => file_storage::ACL_READ,
+            'w' => file_storage::ACL_WRITE,
+        );
+
+        foreach ($map as $key => $value) {
+            if (strpos($acl, $key) !== false) {
+                $rights |= $value;
+            }
+        }
+
+        return $rights;
     }
 
     /**
@@ -869,25 +985,25 @@ class seafile_file_storage implements file_storage
      * If child_locks is set to true, this method should also look for
      * any locks in the subtree of the URI for locks.
      *
-     * @param string $uri         URI
+     * @param string $path        File/folder path
      * @param bool   $child_locks Enables subtree checks
      *
      * @return array List of locks
      * @throws Exception
      */
-    public function lock_list($uri, $child_locks = false)
+    public function lock_list($path, $child_locks = false)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         // get locks list
         $list = $this->lock_db->lock_list($uri, $child_locks);
 
         // convert back resource string into URIs
         foreach ($list as $idx => $lock) {
-            $list[$idx]['uri'] = $this->resource2uri($lock['uri']);
+            $list[$idx]['uri'] = $this->uri2path($lock['uri']);
         }
 
         return $list;
@@ -896,7 +1012,7 @@ class seafile_file_storage implements file_storage
     /**
      * Locks a URI
      *
-     * @param string $uri  URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *                     - depth: 0/'infinite'
      *                     - scope: 'shared'/'exclusive'
@@ -906,12 +1022,12 @@ class seafile_file_storage implements file_storage
      *
      * @throws Exception
      */
-    public function lock($uri, $lock)
+    public function lock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->uri2resource($path);
 
         if (!$this->lock_db->lock($uri, $lock)) {
             throw new Exception("Database error. Unable to create a lock.", file_storage::ERROR);
@@ -921,17 +1037,17 @@ class seafile_file_storage implements file_storage
     /**
      * Removes a lock from a URI
      *
-     * @param string $path URI
+     * @param string $path File/folder path
      * @param array  $lock Lock data
      *
      * @throws Exception
      */
-    public function unlock($uri, $lock)
+    public function unlock($path, $lock)
     {
         $this->init_lock_db();
 
         // convert URI to global resource string
-        $uri = $this->uri2resource($uri);
+        $uri = $this->path2uri($path);
 
         if (!$this->lock_db->unlock($uri, $lock)) {
             throw new Exception("Database error. Unable to remove a lock.", file_storage::ERROR);
@@ -977,23 +1093,29 @@ class seafile_file_storage implements file_storage
         $root   = $library['name'] . ($fname != '/' ? $fname : '');
 
         // nothing changed, use cached folders tree of this folder
-        if ($cached && $cached[$root] && $cached[$root] == $folder['mtime']) {
-            foreach ($cached as $folder_name => $mtime) {
+        if ($cached && is_array($cached[$root]) && $cached[$root]['mtime'] == $folder['mtime']) {
+            foreach ($cached as $folder_name => $f) {
                 if (strpos($folder_name, $root . '/') === 0) {
-                    $folders[$folder_name] = $mtime;
+                    $folders[$folder_name] = array(
+                        'mtime'      => $f['mtime'],
+                        'permission' => $f['permission'],
+                    );
                 }
             }
         }
         // get folder content (files and sub-folders)
         // there's no API method to get only folders
-        else if ($content = $this->api->directory_entries($library['id'], $fname)) {
+        else if ($content = $this->api->directory_entries($library['id'], $fname, 'dir')) {
             if ($fname != '/') {
                 $fname .= '/';
             }
 
             foreach ($content as $item) {
                 if ($item['type'] == 'dir' && strlen($item['name'])) {
-                    $folders[$root . '/' . $item['name']] = $item['mtime'];
+                    $folders[$root . '/' . $item['name']] = array(
+                        'mtime'      => $item['mtime'],
+                        'permission' => $item['permission'],
+                    );
 
                     // get subfolders recursively
                     $folders_tree = $this->folders_tree($library, $fname, $item, $cached);
@@ -1005,26 +1127,6 @@ class seafile_file_storage implements file_storage
         }
 
         return $folders;
-    }
-
-    /**
-     * Callback for uasort() that implements correct
-     * locale-aware case-sensitive sorting
-     */
-    protected function sort_folder_comparator($str1, $str2)
-    {
-        $path1 = explode('/', $str1);
-        $path2 = explode('/', $str2);
-
-        foreach ($path1 as $idx => $folder1) {
-            $folder2 = $path2[$idx];
-
-            if ($folder1 === $folder2) {
-                continue;
-            }
-
-            return strcoll($folder1, $folder2);
-        }
     }
 
     /**
@@ -1181,29 +1283,49 @@ class seafile_file_storage implements file_storage
         return true;
     }
 
-    protected function uri2resource($uri)
+    /**
+     * Convert file/folder path into a global URI.
+     *
+     * @param string $path File/folder path
+     *
+     * @return string URI
+     * @throws Exception
+     */
+    public function path2uri($path)
     {
-        list($file, $repo_id, $library) = $this->find_library($uri);
+        list($file, $repo_id, $library) = $this->find_library($path);
 
-        // convert to imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, RCUBE_CHARSET, 'UTF7-IMAP');
+        $host = preg_replace('|https?://|i', '', $this->config['host']);
 
-        return 'seafile://' . urlencode($library['owner']) . '@' . $this->config['host'] . '/' . $uri;
+        return 'seafile://' . rawurlencode($library['owner']) . '@' . $host . '/' . file_utils::encode_path($path);
     }
 
-    protected function resource2uri($resource)
+    /**
+     * Convert global URI into file/folder path.
+     *
+     * @param string $uri URI
+     *
+     * @return string File/folder path
+     * @throws Exception
+     */
+    public function uri2path($uri)
     {
-        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $resource, $matches)) {
+        if (!preg_match('|^seafile://([^@]+)@([^/]+)/(.*)$|', $uri, $matches)) {
             throw new Exception("Internal storage error. Unexpected data format.", file_storage::ERROR);
         }
 
-        $user = urldecode($matches[1]);
-        $uri  = $matches[3];
+        $user   = rawurldecode($matches[1]);
+        $host   = $matches[2];
+        $path   = file_utils::decode_path($matches[3]);
+        $c_host = preg_replace('|https?://|i', '', $this->config['host']);
 
-        // convert from imap charset (to be safe to store in DB)
-        $uri = rcube_charset::convert($uri, 'UTF7-IMAP', RCUBE_CHARSET);
+        list($file, $repo_id, $library) = $this->find_library($path, true);
 
-        return $uri;
+        if (empty($library) || $host != $c_host || $user != $library['owner']) {
+            throw new Exception("Internal storage error. Unresolvable URI.", file_storage::ERROR);
+        }
+
+        return $path;
     }
 
     /**

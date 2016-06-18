@@ -83,7 +83,12 @@ class seafile_api
         $this->config = $config;
 
         // set Web API URI
-        $this->url = rtrim('https://' . ($config['host'] ?: 'localhost'), '/');
+        $this->url = rtrim(trim($config['host']), '/') ?: 'localhost';
+
+        if (!preg_match('|^https?://|i', $this->url)) {
+            $this->url = 'https://' . $this->url;
+        }
+
         if (!preg_match('|/api2$|', $this->url)) {
             $this->url .= '/api2/';
         }
@@ -108,6 +113,10 @@ class seafile_api
             'strict_redirects', 'ssl_verify_peer', 'ssl_verify_host',
             'ssl_cafile', 'ssl_capath', 'ssl_local_cert', 'ssl_passphrase'
         )));
+
+        // force CURL adapter, this allows to handle correctly
+        // compressed responses with simple SplObserver registered
+        $config['adapter'] = 'HTTP_Request2_Adapter_Curl';
 
         try {
             $request = new HTTP_Request2();
@@ -375,12 +384,13 @@ class seafile_api
     /**
      * List directory entries (files and directories)
      *
-     * @param string $repo_id Library identifier
-     * @param string $dir     Directory name (with path)
+     * @param string $repo_id  Library identifier
+     * @param string $dir      Directory name (with path)
+     * @param string $type     Entry type ('dir' or 'file')
      *
      * @return bool|array List of directories/files on success, False on failure
      */
-    public function directory_entries($repo_id, $dir)
+    public function directory_entries($repo_id, $dir, $type = null)
     {
         // sanity checks
         if (!is_string($dir)) {
@@ -410,7 +420,13 @@ class seafile_api
         //    "name": "test_dir"
         // }]
 
-        return $this->request('GET', "repos/$repo_id/dir", array('p' => $dir));
+        $params = array('p' => $dir);
+
+        if ($type) {
+            $params['t'] = $type == 'dir' ? 'd' : 'f';
+        }
+
+        return $this->request('GET', "repos/$repo_id/dir", $params);
     }
 
     /**

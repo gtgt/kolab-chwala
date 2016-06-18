@@ -39,7 +39,7 @@ function print_usage()
 }
 
 // read arguments
-$opts = get_opt(array(
+$opts = rcube_utils::get_opt(array(
     'h' => 'host',
     'l' => 'limit',
     'v' => 'verbose',

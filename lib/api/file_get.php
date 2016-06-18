@@ -24,6 +24,8 @@
 
 class file_api_file_get extends file_api_common
 {
+    protected $driver;
+
     /**
      * Request handler
      */
@@ -37,9 +39,15 @@ class file_api_file_get extends file_api_common
             header("HTTP/1.0 ".file_api_core::ERROR_CODE." Missing file name");
         }
 
+        $method = $_SERVER['REQUEST_METHOD'];
+        if ($method == 'POST' && !empty($_SERVER['HTTP_X_HTTP_METHOD'])) {
+            $method = $_SERVER['HTTP_X_HTTP_METHOD'];
+        }
+
         $params = array(
             'force-download' => rcube_utils::get_boolean((string) $this->args['force-download']),
             'force-type'     => $this->args['force-type'],
+            'head'           => $this->args['head'] ?: $method == 'HEAD',
         );
 
         list($this->driver, $path) = $this->api->get_driver($this->args['file']);

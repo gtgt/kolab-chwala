@@ -2,9 +2,9 @@
     "name": "kolab/kolab_auth",
     "type": "roundcube-plugin",
     "description": "Kolab authentication",
-    "homepage": "http://git.kolab.org/roundcubemail-plugins-kolab/",
+    "homepage": "https://git.kolab.org/diffusion/RPK/",
     "license": "AGPLv3",
-    "version": "3.2.2",
+    "version": "3.2.8",
     "authors": [
         {
             "name": "Thomas Bruederli",

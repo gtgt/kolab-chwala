@@ -280,7 +280,10 @@ class file_ui_api
             $err_str  = 'Unable to decode response';
         }
 
+        if (!$err_code && array_key_exists('result', (array) $body)) {
+            $body = $body['result'];
+        }
+
         return new file_ui_api_result($body, $err_code, $err_str);
     }
-
 }

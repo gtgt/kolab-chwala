@@ -32,13 +32,14 @@ class file_api_core extends file_locale
     const OUTPUT_JSON = 'application/json';
     const OUTPUT_HTML = 'text/html';
 
-    public $config = array(
+    public $env = array(
         'date_format' => 'Y-m-d H:i',
         'language'    => 'en_US',
     );
 
     protected $app_name = 'Kolab File API';
     protected $drivers  = array();
+    protected $icache   = array();
     protected $backend;
 
     /**
@@ -66,7 +67,7 @@ class file_api_core extends file_locale
         $this->backend = $this->load_driver_object($driver);
 
         // configure api
-        $this->backend->configure($this->config);
+        $this->backend->configure($this->env);
 
         return $this->backend;
     }
@@ -85,12 +86,24 @@ class file_api_core extends file_locale
         $preconf = $rcube->config->get('fileapi_sources');
         $result  = array();
         $all     = array();
+        $iRony   = defined('KOLAB_DAV_ROOT');
 
         if (!empty($enabled)) {
             $backend = $this->get_backend();
             $drivers = $backend->driver_list();
 
             foreach ($drivers as $item) {
+                // Disable webdav sources/drivers in iRony that point to the
+                // same host to prevent infinite recursion
+                if ($iRony && $item['driver'] == 'webdav') {
+                    $self_url = parse_url($_SERVER['SCRIPT_URI']);
+                    $item_url = parse_url($item['host']);
+
+                    if ($self_url['host'] == $item_url['host']) {
+                        continue;
+                    }
+                }
+
                 $all[] = $item['title'];
 
                 if ($item['enabled'] && in_array($item['driver'], (array) $enabled)) {
@@ -167,7 +180,7 @@ class file_api_core extends file_locale
             }
 
             // configure api
-            $driver->configure(array_merge($config, $this->config), $key);
+            $driver->configure(array_merge($config, $this->env), $key);
         }
 
         return $this->drivers[$key];
@@ -192,9 +205,11 @@ class file_api_core extends file_locale
     /**
      * Returns storage(s) capabilities
      *
+     * @param bool $full Return all drivers' capabilities
+     *
      * @return array Capabilities
      */
-    public function capabilities()
+    public function capabilities($full = true)
     {
         $rcube   = rcube::get_instance();
         $backend = $this->get_backend();
@@ -216,6 +231,15 @@ class file_api_core extends file_locale
             }
         }
 
+        // Manticore support
+        if ($manticore = $rcube->config->get('fileapi_manticore')) {
+            $caps['MANTICORE'] = true;
+        }
+
+        if (!$full) {
+            return $caps;
+        }
+
         // get capabilities of other drivers
         $drivers = $this->get_drivers(true);
 
@@ -225,13 +249,42 @@ class file_api_core extends file_locale
                 foreach ($driver->capabilities() as $name => $value) {
                     // skip disabled capabilities
                     if ($value !== false) {
-                        $caps['roots'][$title][$name] = $value;
+                        $caps['MOUNTPOINTS'][$title][$name] = $value;
                     }
                 }
             }
         }
 
         return $caps;
+    }
+
+    /**
+     * Get user name from user identifier (email address) using LDAP lookup
+     *
+     * @param string $email User identifier
+     *
+     * @return string User name
+     */
+    public function resolve_user($email)
+    {
+        $key = "user:$email";
+
+        // make sure Kolab backend is initialized so kolab_storage can be found
+        $this->get_backend();
+
+        // @todo: Move this into drivers
+        if ($this->icache[$key] === null
+            && class_exists('kolab_storage')
+            && ($ldap = kolab_storage::ldap())
+        ) {
+            $user = $ldap->get_user_record($email, $_SESSION['imap_host']);
+
+            $this->icache[$key] = $user ?: false;
+        }
+
+        if ($this->icache[$key]) {
+            return $this->icache[$key]['displayname'] ?: $this->icache[$key]['name'];
+        }
     }
 
     /**

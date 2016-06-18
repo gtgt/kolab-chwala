@@ -68,10 +68,14 @@ class file_api_folder_move extends file_api_common
                 throw new Exception("Destination folder already exists", file_api_core::ERROR_CODE);
             }
 
-            return $this->folder_move_to_other_driver($src_driver, $src_path, $dst_driver, $dst_path);
+            $this->folder_move_to_other_driver($src_driver, $src_path, $dst_driver, $dst_path);
+        }
+        else {
+            $src_driver->folder_move($src_path, $dst_path);
         }
 
-        return $src_driver->folder_move($src_path, $dst_path);
+        // Update manticore
+        $this->session_uri_update($this->args['folder'], $this->args['new'], true);
     }
 
     /**

@@ -293,6 +293,16 @@ abstract class kolab_storage_folder_api
         return join('', (array)$rights);
     }
 
+    /**
+     * Helper method to extract folder UID metadata
+     *
+     * @return string Folder's UID
+     */
+    public function get_uid()
+    {
+        // To be implemented by extending classes
+        return false;
+    }
 
     /**
      * Check activation status of this folder

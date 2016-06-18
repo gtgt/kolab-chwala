@@ -52,13 +52,29 @@ class file_api_file_create extends file_api_common
             $chunk = $this->args['content'];
         }
 
+        $ctype = $this->args['content-type'];
+        if ($ctype && !preg_match('/^[a-z_-]+\/[a-z._-]+$/', $ctype)) {
+            $ctype = '';
+        }
+
         $request = $this instanceof file_api_file_update ? 'file_update' : 'file_create';
         $file    = array(
             'content' => $this->args['content'],
             'path'    => $this->args['path'],
-            'type'    => rcube_mime::file_content_type($chunk,
-                $this->args['file'], $this->args['content-type'], !$is_file),
+            'type'    => rcube_mime::file_content_type($chunk, $this->args['file'], $ctype, !$is_file),
         );
+
+        if (strpos($file['type'], 'empty') !== false && $ctype) {
+            $file['type'] = $ctype;
+        }
+        else if (empty($file['type'])) {
+            $file['type'] = 'application/octet-stream';
+        }
+
+        // Get file content from a template
+        if ($request == 'file_create' && empty($file['path']) && !strlen($file['content'])) {
+            $this->use_file_template($file);
+        }
 
         list($driver, $path) = $this->api->get_driver($this->args['file']);
 
@@ -66,6 +82,28 @@ class file_api_file_create extends file_api_common
 
         if (rcube_utils::get_boolean((string) $this->args['info'])) {
             return $driver->file_info($path);
+        }
+    }
+
+    /**
+     * Use templates when creating empty files
+     */
+    protected function use_file_template(&$file)
+    {
+        if ($ext = array_search($file['type'], file_utils::$ext_map)) {
+            // find the template
+            $ext = ".$ext";
+            if ($handle = opendir(__DIR__ . '/../templates')) {
+                while (false !== ($entry = readdir($handle))) {
+                    if (substr($entry, -strlen($ext)) == $ext) {
+                        // set path to the template file
+                        $file['path'] = __DIR__ . '/../templates/' . $entry;
+                        break;
+                    }
+                }
+
+                closedir($handle);
+            }
         }
     }
 }

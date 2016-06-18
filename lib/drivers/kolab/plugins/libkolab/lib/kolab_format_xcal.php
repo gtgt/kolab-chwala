@@ -30,7 +30,9 @@ abstract class kolab_format_xcal extends kolab_format
 
     public static $fulltext_cols = array('title', 'description', 'location', 'attendees:name', 'attendees:email', 'categories');
 
-    public $scheduling_properties = array('start', 'end', 'location');
+    public static $scheduling_properties = array('start', 'end', 'location');
+
+    protected $_scheduling_properties = null;
 
     protected $sensitivity_map = array(
         'public'       => kolabformat::ClassPublic,
@@ -182,7 +184,10 @@ abstract class kolab_format_xcal extends kolab_format
                 $object['recurrence']['COUNT'] = $count;
             }
             else if ($until = self::php_datetime($rr->end())) {
-                $until->setTime($object['start']->format('G'), $object['start']->format('i'), 0);
+                $refdate = $this->get_reference_date();
+                if ($refdate && $refdate instanceof DateTime && !$refdate->_dateonly) {
+                    $until->setTime($refdate->format('G'), $refdate->format('i'), 0);
+                }
                 $object['recurrence']['UNTIL'] = $until;
             }
 
@@ -226,12 +231,12 @@ abstract class kolab_format_xcal extends kolab_format
         $object['valarms'] = array();
         for ($i=0; $i < $valarms->size(); $i++) {
             $alarm = $valarms->get($i);
-            $type = $alarm_types[$alarm->type()];
+            $type  = $alarm_types[$alarm->type()];
 
             if ($type == 'DISPLAY' || $type == 'EMAIL' || $type == 'AUDIO') {  // only some alarms are supported
                 $valarm = array(
-                    'action' => $type,
-                    'summary' => $alarm->summary(),
+                    'action'      => $type,
+                    'summary'     => $alarm->summary(),
                     'description' => $alarm->description(),
                 );
 
@@ -249,12 +254,14 @@ abstract class kolab_format_xcal extends kolab_format
                 }
 
                 if ($start = self::php_datetime($alarm->start())) {
-                    $object['alarms'] = '@' . $start->format('U');
+                    $object['alarms']  = '@' . $start->format('U');
                     $valarm['trigger'] = $start;
                 }
                 else if ($offset = $alarm->relativeStart()) {
-                    $prefix = $alarm->relativeTo() == kolabformat::End ? '+' : '-';
-                    $value = $time = '';
+                    $prefix = $offset->isNegative() ? '-' : '+';
+                    $value  = '';
+                    $time   = '';
+
                     if      ($w = $offset->weeks())     $value .= $w . 'W';
                     else if ($d = $offset->days())      $value .= $d . 'D';
                     else if ($h = $offset->hours())     $time  .= $h . 'H';
@@ -264,23 +271,29 @@ abstract class kolab_format_xcal extends kolab_format
                     // assume 'at event time'
                     if (empty($value) && empty($time)) {
                         $prefix = '';
-                        $time = '0S';
+                        $time   = '0S';
                     }
 
-                    $object['alarms'] = $prefix . $value . $time;
+                    $object['alarms']  = $prefix . $value . $time;
                     $valarm['trigger'] = $prefix . 'P' . $value . ($time ? 'T' . $time : '');
+
+                    if ($alarm->relativeTo() == kolabformat::End) {
+                        $valarm['related'] == 'END';
+                    }
                 }
 
                 // read alarm duration and repeat properties
                 if (($duration = $alarm->duration()) && $duration->isValid()) {
                     $value = $time = '';
+
                     if      ($w = $duration->weeks())     $value .= $w . 'W';
                     else if ($d = $duration->days())      $value .= $d . 'D';
                     else if ($h = $duration->hours())     $time  .= $h . 'H';
                     else if ($m = $duration->minutes())   $time  .= $m . 'M';
                     else if ($s = $duration->seconds())   $time  .= $s . 'S';
+
                     $valarm['duration'] = 'P' . $value . ($time ? 'T' . $time : '');
-                    $valarm['repeat'] = $alarm->numrepeat();
+                    $valarm['repeat']   = $alarm->numrepeat();
                 }
 
                 $object['alarms']  .= ':' . $type;  // legacy property
@@ -317,22 +330,11 @@ abstract class kolab_format_xcal extends kolab_format
             }
             else {
                 $object['sequence'] = $old_sequence;
-                $old = $this->data['uid'] ? $this->data : $this->to_array();
 
                 // increment sequence when updating properties relevant for scheduling.
                 // RFC 5545: "It is incremented [...] each time the Organizer makes a significant revision to the calendar component."
-                // TODO: make the list of properties considered 'significant' for scheduling configurable
-                foreach ($this->scheduling_properties as $prop) {
-                    $a = $old[$prop];
-                    $b = $object[$prop];
-                    if ($object['allday'] && ($prop == 'start' || $prop == 'end') && $a instanceof DateTime && $b instanceof DateTime) {
-                        $a = $a->format('Y-m-d');
-                        $b = $b->format('Y-m-d');
-                    }
-                    if ($a != $b) {
-                        $object['sequence']++;
-                        break;
-                    }
+                if ($this->check_rescheduling($object)) {
+                    $object['sequence']++;
                 }
             }
         }
@@ -366,7 +368,7 @@ abstract class kolab_format_xcal extends kolab_format
 
                 // set attendee RSVP if missing
                 if (!isset($attendee['rsvp'])) {
-                    $object['attendees'][$i]['rsvp'] = $attendee['rsvp'] = true;
+                    $object['attendees'][$i]['rsvp'] = $attendee['rsvp'] = $reschedule;
                 }
 
                 $att = new Attendee;
@@ -514,9 +516,8 @@ abstract class kolab_format_xcal extends kolab_format
                 }
                 else {
                     try {
-                        $prefix = $valarm['trigger'][0];
-                        $period = new DateInterval(preg_replace('/[^0-9PTWDHMS]/', '', $valarm['trigger']));
-                        $duration = new Duration($period->d, $period->h, $period->i, $period->s, $prefix == '-');
+                        $period   = new DateInterval(preg_replace('/[^0-9PTWDHMS]/', '', $valarm['trigger']));
+                        $duration = new Duration($period->d, $period->h, $period->i, $period->s, $valarm['trigger'][0] == '-');
                     }
                     catch (Exception $e) {
                         // skip alarm with invalid trigger values
@@ -524,7 +525,8 @@ abstract class kolab_format_xcal extends kolab_format
                         continue;
                     }
 
-                    $alarm->setRelativeStart($duration, $prefix == '-' ? kolabformat::Start : kolabformat::End);
+                    $related = strtoupper($valarm['related']) == 'END' ? kolabformat::End : kolabformat::Start;
+                    $alarm->setRelativeStart($duration, $related);
                 }
 
                 if ($valarm['duration']) {
@@ -577,31 +579,56 @@ abstract class kolab_format_xcal extends kolab_format
     }
 
     /**
+     * Return the reference date for recurrence and alarms
+     *
+     * @return mixed DateTime instance of null if no refdate is available
+     */
+    public function get_reference_date()
+    {
+        if ($this->data['start'] && $this->data['start'] instanceof DateTime) {
+            return $this->data['start'];
+        }
+
+        return self::php_datetime($this->obj->start());
+    }
+
+    /**
      * Callback for kolab_storage_cache to get words to index for fulltext search
      *
      * @return array List of words to save in cache
      */
-    public function get_words()
+    public function get_words($obj = null)
     {
         $data = '';
+        $object = $obj ?: $this->data;
+
         foreach (self::$fulltext_cols as $colname) {
             list($col, $field) = explode(':', $colname);
 
             if ($field) {
                 $a = array();
-                foreach ((array)$this->data[$col] as $attr)
+                foreach ((array)$object[$col] as $attr)
                     $a[] = $attr[$field];
                 $val = join(' ', $a);
             }
             else {
-                $val = is_array($this->data[$col]) ? join(' ', $this->data[$col]) : $this->data[$col];
+                $val = is_array($object[$col]) ? join(' ', $object[$col]) : $object[$col];
             }
 
             if (strlen($val))
                 $data .= $val . ' ';
         }
 
-        return array_unique(rcube_utils::normalize_string($data, true));
+        $words = rcube_utils::normalize_string($data, true);
+
+        // collect words from recurrence exceptions
+        if (is_array($object['exceptions'])) {
+            foreach ($object['exceptions'] as $exception) {
+                $words = array_merge($words, $this->get_words($exception));
+            }
+        }
+
+        return array_unique($words);
     }
 
     /**
@@ -609,22 +636,79 @@ abstract class kolab_format_xcal extends kolab_format
      *
      * @return array List of tags to save in cache
      */
-    public function get_tags()
+    public function get_tags($obj = null)
     {
         $tags = array();
+        $object = $obj ?: $this->data;
 
-        if (!empty($this->data['valarms'])) {
+        if (!empty($object['valarms'])) {
             $tags[] = 'x-has-alarms';
         }
 
         // create tags reflecting participant status
-        if (is_array($this->data['attendees'])) {
-            foreach ($this->data['attendees'] as $attendee) {
+        if (is_array($object['attendees'])) {
+            foreach ($object['attendees'] as $attendee) {
                 if (!empty($attendee['email']) && !empty($attendee['status']))
                     $tags[] = 'x-partstat:' . $attendee['email'] . ':' . strtolower($attendee['status']);
             }
         }
 
-        return $tags;
+        // collect tags from recurrence exceptions
+        if (is_array($object['exceptions'])) {
+            foreach ($object['exceptions'] as $exception) {
+                $tags = array_merge($tags, $this->get_tags($exception));
+            }
+        }
+
+        if (!empty($object['status'])) {
+          $tags[] = 'x-status:' . strtolower($object['status']);
+        }
+
+        return array_unique($tags);
+    }
+
+    /**
+     * Identify changes considered relevant for scheduling
+     * 
+     * @param array Hash array with NEW object properties
+     * @param array Hash array with OLD object properties
+     *
+     * @return boolean True if changes affect scheduling, False otherwise
+     */
+    public function check_rescheduling($object, $old = null)
+    {
+        $reschedule = false;
+
+        if (!is_array($old)) {
+            $old = $this->data['uid'] ? $this->data : $this->to_array();
+        }
+
+        foreach ($this->_scheduling_properties ?: self::$scheduling_properties as $prop) {
+            $a = $old[$prop];
+            $b = $object[$prop];
+            if ($object['allday'] && ($prop == 'start' || $prop == 'end') && $a instanceof DateTime && $b instanceof DateTime) {
+                $a = $a->format('Y-m-d');
+                $b = $b->format('Y-m-d');
+            }
+            if ($prop == 'recurrence' && is_array($a) && is_array($b)) {
+                unset($a['EXCEPTIONS'], $b['EXCEPTIONS']);
+                $a = array_filter($a);
+                $b = array_filter($b);
+
+                // advanced rrule comparison: no rescheduling if series was shortened
+                if ($a['COUNT'] && $b['COUNT'] && $b['COUNT'] < $a['COUNT']) {
+                  unset($a['COUNT'], $b['COUNT']);
+                }
+                else if ($a['UNTIL'] && $b['UNTIL'] && $b['UNTIL'] < $a['UNTIL']) {
+                  unset($a['UNTIL'], $b['UNTIL']);
+                }
+            }
+            if ($a != $b) {
+                $reschedule = true;
+                break;
+            }
+        }
+
+        return $reschedule;
     }
 }

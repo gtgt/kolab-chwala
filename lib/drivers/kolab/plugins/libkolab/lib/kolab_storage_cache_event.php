@@ -34,14 +34,32 @@ class kolab_storage_cache_event extends kolab_storage_cache
     {
         $sql_data = parent::_serialize($object);
 
-        $sql_data['dtstart'] = is_object($object['start']) ? $object['start']->format(self::DB_DATE_FORMAT) : date(self::DB_DATE_FORMAT, $object['start']);
-        $sql_data['dtend']   = is_object($object['end'])   ? $object['end']->format(self::DB_DATE_FORMAT)   : date(self::DB_DATE_FORMAT, $object['end']);
+        $sql_data['dtstart'] = $this->_convert_datetime($object['start']);
+        $sql_data['dtend']   = $this->_convert_datetime($object['end']);
 
         // extend date range for recurring events
         if ($object['recurrence'] && $object['_formatobj']) {
             $recurrence = new kolab_date_recurrence($object['_formatobj']);
             $dtend = $recurrence->end() ?: new DateTime('now +10 years');
-            $sql_data['dtend'] = $dtend->format(self::DB_DATE_FORMAT);
+            $sql_data['dtend'] = $this->_convert_datetime($dtend);
+        }
+
+        // extend start/end dates to spawn all exceptions
+        if (is_array($object['exceptions'])) {
+            foreach ($object['exceptions'] as $exception) {
+                if (is_a($exception['start'], 'DateTime')) {
+                    $exstart = $this->_convert_datetime($exception['start']);
+                    if ($exstart < $sql_data['dtstart']) {
+                        $sql_data['dtstart'] = $exstart;
+                    }
+                }
+                if (is_a($exception['end'], 'DateTime')) {
+                    $exend = $this->_convert_datetime($exception['end']);
+                    if ($exend > $sql_data['dtend']) {
+                        $sql_data['dtend'] = $exend;
+                    }
+                }
+            }
         }
 
         return $sql_data;
