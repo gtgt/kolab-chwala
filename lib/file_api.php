@@ -107,6 +107,13 @@ class file_api extends file_api_core
             return false;
         }
 
+        // Document-only session
+        if (($doc_id = $_SESSION['document_session'])
+            && (strpos($this->request, 'document') !== 0 || $doc_id != $_GET['id'])
+        ) {
+            throw new Exception("Access denied", 403);
+        }
+
         return true;
     }
 
@@ -377,10 +384,20 @@ class file_api extends file_api_core
 
         if (!empty($_REQUEST['req_id'])) {
             $response['req_id'] = $_REQUEST['req_id'];
+            header("X-Chwala-Request-ID: " . $_REQUEST['req_id']);
         }
 
         if (empty($response['code'])) {
             $response['code'] = file_api_core::ERROR_CODE;
+        }
+
+        header("X-Chwala-Error: " . $response['code']);
+
+        // When binary response is expected return real
+        // HTTP error instaead of JSON response with code 200
+        if ($this->is_binary_request()) {
+            header(sprintf("HTTP/1.0 %d %s", $response['code'], $response ?: "Server error"));
+            exit;
         }
 
         $this->output_send($response);
@@ -397,6 +414,15 @@ class file_api extends file_api_core
         header("Content-Type: {$this->output_type}; charset=utf-8");
         echo json_encode($data);
         exit;
+    }
+
+    /**
+     * Find out if current request expects binary output
+     */
+    protected function is_binary_request()
+    {
+        return preg_match('/^(file_get|document)$/', $this->request)
+            && $_SERVER['REQUEST_METHOD'] == 'GET';
     }
 
     /**

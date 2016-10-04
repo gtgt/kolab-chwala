@@ -232,8 +232,13 @@ class file_api_core extends file_locale
         }
 
         // Manticore support
-        if ($manticore = $rcube->config->get('fileapi_manticore')) {
+        if ($rcube->config->get('fileapi_manticore')) {
             $caps['MANTICORE'] = true;
+        }
+
+        // WOPI support
+        if ($rcube->config->get('fileapi_wopi')) {
+            $caps['WOPI'] = true;
         }
 
         if (!$full) {

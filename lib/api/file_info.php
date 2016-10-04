@@ -35,6 +35,7 @@ class file_api_file_info extends file_api_common
         // here as it may be not properly set if backend driver wasn't initialized yet
         $capabilities = $this->api->capabilities(false);
         $manticore    = $capabilities['MANTICORE'];
+        $wopi         = $capabilities['WOPI'];
 
         // support file_info by session ID
         if (!isset($this->args['file']) || $this->args['file'] === '') {
@@ -65,7 +66,7 @@ class file_api_file_info extends file_api_common
         // Possible 'viewer' types are defined in files_api.js:file_type_supported()
         // 1 - Native browser support
         // 2 - Chwala viewer exists
-        // 4 - Editor exists
+        // 4 - Editor exists (manticore/wopi)
 
         if (rcube_utils::get_boolean((string) $this->args['viewer'])) {
             if ($this->args['file'] !== null) {
@@ -78,11 +79,24 @@ class file_api_file_info extends file_api_common
                     $info['viewer']['manticore'] = true;
                 }
             }
+            if ($wopi) {
+                // @TODO: check supported mimetype
+                $info['viewer']['wopi'] = true;
+            }
 
-            if ((intval($this->args['viewer']) & 4) && $info['viewer']['manticore']) {
-                $this->file_manticore_handler($info);
+            if ((intval($this->args['viewer']) & 4)) {
+                // @TODO: Chwala client should have a possibility to select
+                //        between wopi and manticore?
+                if ($info['viewer']['wopi']) {
+                    $this->file_wopi_handler($info);
+                }
+                else if ($info['viewer']['manticore']) {
+                    $this->file_manticore_handler($info);
+                }
             }
         }
+
+        $this->file_wopi_handler($info);
 
         // check writable flag
         if ($this->args['file'] !== null) {
@@ -139,5 +153,20 @@ class file_api_file_info extends file_api_common
         $manticore = new file_manticore($this->api);
 
         return $manticore->session_file($session_id, true);
+    }
+
+    /**
+     * Merge WOPI session data into file info
+     */
+    protected function file_wopi_handler(&$info)
+    {
+        $wopi    = new file_wopi($this->api);
+        $file    = $this->args['file'];
+        $session = $this->args['session'];
+
+        if ($uri = $wopi->session_start($file, $session)) {
+            $info['viewer']['href'] = $uri;
+            $info['session']        = $wopi->session_info($session, true);
+        }
     }
 }
