@@ -96,8 +96,6 @@ class file_api_file_info extends file_api_common
             }
         }
 
-        $this->file_wopi_handler($info);
-
         // check writable flag
         if ($this->args['file'] !== null) {
             $path = explode(file_storage::SEPARATOR, $path);
@@ -139,8 +137,9 @@ class file_api_file_info extends file_api_common
         $file      = $this->args['file'];
         $session   = $this->args['session'];
 
-        if ($uri = $manticore->session_start($file, $session)) {
+        if ($uri = $manticore->session_start($file, $info['type'], $session)) {
             $info['viewer']['href'] = $uri;
+            $info['viewer']['post'] = $manticore->editor_post_params($info);
             $info['session']        = $manticore->session_info($session, true);
         }
     }
@@ -164,8 +163,9 @@ class file_api_file_info extends file_api_common
         $file    = $this->args['file'];
         $session = $this->args['session'];
 
-        if ($uri = $wopi->session_start($file, $session)) {
+        if ($uri = $wopi->session_start($file, $info['type'], $session)) {
             $info['viewer']['href'] = $uri;
+            $info['viewer']['post'] = $wopi->editor_post_params($info);
             $info['session']        = $wopi->session_info($session, true);
         }
     }

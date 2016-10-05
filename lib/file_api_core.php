@@ -237,7 +237,7 @@ class file_api_core extends file_locale
         }
 
         // WOPI support
-        if ($rcube->config->get('fileapi_wopi')) {
+        if ($rcube->config->get('fileapi_wopi_office')) {
             $caps['WOPI'] = true;
         }
 

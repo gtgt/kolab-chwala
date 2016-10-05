@@ -63,12 +63,13 @@ class file_document
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
+     * @param string $mimetype    File type
      * @param string &$session_id Optional session ID to join to
      *
      * @return string An URI for specified file/session
      * @throws Exception
      */
-    public function session_start($file, &$session_id = null)
+    public function session_start($file, $mimetype, &$session_id = null)
     {
         if ($file !== null) {
             $uri = $this->path2uri($file, $driver);
@@ -388,6 +389,18 @@ class file_document
         }
 
         return $sessions;
+    }
+
+    /**
+     * Retern extra editor parameters to post the the viewer iframe
+     *
+     * @param array $info File info
+     *
+     * @return array POST parameters
+     */
+    public function editor_post_params($info)
+    {
+        return array();
     }
 
     /**

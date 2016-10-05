@@ -40,6 +40,14 @@ $config['fileapi_sources'] = array(
 // Note: this URL should be accessible from Chwala host and Roundcube host as well.
 $config['fileapi_manticore'] = null;
 
+// WOPI/Office service URL. Enables use of collaborative editor supporting WOPI.
+// Note: this URL should be accessible from Chwala host and Roundcube host as well.
+$config['fileapi_wopi_office'] = null;
+
+// Kolab WOPI service URL. Enables use of collaborative editor supporting WOPI.
+// Note: this URL should be accessible from Chwala host and Office host as well.
+$config['fileapi_wopi_service'] = null;
+
 // Name of the user interface skin.
 $config['file_api_skin'] = 'default';
 
@@ -48,6 +56,13 @@ $config['file_api_skin'] = 'default';
 // the UI location is used with addition of /api/ suffix.
 $config['file_api_url'] = '';
 
+// Type of Chwala cache. Supported values: 'db', 'apc' and 'memcache'.
+// Note: This is only for some additional data like WOPI capabilities.
+$config['chwala_cache'] = 'db';
+
+// lifetime of Chwala cache
+// possible units: s, m, h, d, w
+$config['chwala_cache_ttl'] = '1d';
 
 // ------------------------------------------------
 // SeaFile driver settings
