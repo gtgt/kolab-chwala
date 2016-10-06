@@ -65,6 +65,7 @@ class file_api_document extends file_api_common
                 case 'document_decline':
                 case 'document_accept':
                 case 'document_cancel':
+                case 'document_info':
                     return $this->{$this->args['method']}($this->args['id']);
             }
         }
@@ -87,9 +88,9 @@ class file_api_document extends file_api_common
      */
     protected function get_file_path($id)
     {
-        $manticore = new file_manticore($this->api);
+        $document = new file_document($this->api);
 
-        return $manticore->session_file($id);
+        return $document->session_file($id);
     }
 
     /**
@@ -229,6 +230,32 @@ class file_api_document extends file_api_common
         return array(
             'list' => $result,
         );
+    }
+
+    /**
+     * Return document informations
+     */
+    protected function document_info($id)
+    {
+        list($driver, $path) = $this->api->get_driver($this->get_file_path($id));
+
+        $document = new file_document($this->api);
+        $session  = $document->session_info($id);
+        $result   = $driver->file_info($path);
+        $rcube    = rcube::get_instance();
+
+        $result['owner']      = $session['owner'];
+        $result['owner_name'] = $session['owner_name'];
+        $result['user']       = $rcube->user->get_username();
+
+        if ($result['owner'] == $result['user']) {
+            $result['user_name'] = $result['owner_name'];
+        }
+        else {
+            $result['user_name'] = $this->api->resolve_user($result['user']) ?: '';
+        }
+
+        return $result;
     }
 
     /**
