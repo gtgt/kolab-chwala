@@ -80,6 +80,12 @@ $LANG['size.KB'] = 'KB';
 $LANG['size.MB'] = 'MB';
 $LANG['size.GB'] = 'GB';
 
+$LANG['type.vndoasisopendocumenttext'] = 'OpenDocument Document (.odt)';
+$LANG['type.vndoasisopendocumentpresentation'] = 'OpenDocument Presentation (.odp)';
+$LANG['type.vndoasisopendocumentspreadsheet'] = 'OpenDocument Spreadsheet (.ods)';
+$LANG['type.plain'] = 'Plain Text Document (.txt)';
+$LANG['type.html'] = 'HTML Document (.html)';
+
 $LANG['upload.size'] = 'Size:';
 $LANG['upload.size.error'] = 'Maximum upload size ($size) exceeded!';
 $LANG['upload.progress'] = 'Progress:';

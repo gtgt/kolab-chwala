@@ -34,15 +34,15 @@ class file_wopi extends file_document
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
-     * @param string $mimetype    File type
+     * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
      *
      * @return string WOPI URI for specified document
      * @throws Exception
      */
-    public function session_start($file, $mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null)
     {
-        parent::session_start($file, $session_id);
+        parent::session_start($file, $mimetype, $session_id);
 
         if ($session_id) {
             // Create Chwala session for use as WOPI access_token

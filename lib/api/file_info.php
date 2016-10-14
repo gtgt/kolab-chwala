@@ -39,8 +39,8 @@ class file_api_file_info extends file_api_common
 
         // support file_info by session ID
         if (!isset($this->args['file']) || $this->args['file'] === '') {
-            if ($manticore && !empty($this->args['session'])) {
-                $this->args['file'] = $this->file_manticore_file($this->args['session']);
+            if (($manticore || $wopi) && !empty($this->args['session'])) {
+                $this->args['file'] = $this->file_document_file($this->args['session']);
             }
             else {
                 throw new Exception("Missing file name", file_api_core::ERROR_CODE);
@@ -53,15 +53,6 @@ class file_api_file_info extends file_api_common
             $info = $driver->file_info($path);
             $info['file'] = $this->args['file'];
         }
-        else {
-            $info = array(
-                // @TODO: session exists, invitation exists, assume ODF format
-                // however, this should be done in a different way,
-                // e.g. this info should be stored in sessions database
-                'type'     => 'application/vnd.oasis.opendocument.text',
-                'writable' => false,
-            );
-        }
 
         // Possible 'viewer' types are defined in files_api.js:file_type_supported()
         // 1 - Native browser support
@@ -73,15 +64,16 @@ class file_api_file_info extends file_api_common
                 $this->file_viewer_info($info);
             }
 
-            // check if file type is supported by webodf editor?
+            // check if file type is supported by manticore/wopi editor?
             if ($manticore) {
                 if (strtolower($info['type']) == 'application/vnd.oasis.opendocument.text') {
                     $info['viewer']['manticore'] = true;
                 }
             }
             if ($wopi) {
-                // @TODO: check supported mimetype
-                $info['viewer']['wopi'] = true;
+                if (preg_match('/^application\/vnd\.oasis\.opendocument\./', $info['type'])) {
+                    $info['viewer']['wopi'] = true;
+                }
             }
 
             if ((intval($this->args['viewer']) & 4)) {
@@ -129,6 +121,16 @@ class file_api_file_info extends file_api_common
     }
 
     /**
+     * Get file from manticore/wopi session
+     */
+    protected function file_document_file($session_id)
+    {
+        $document = new file_document($this->api);
+
+        return $document->session_file($session_id, true);
+    }
+
+    /**
      * Merge manticore session data into file info
      */
     protected function file_manticore_handler(&$info)
@@ -142,16 +144,6 @@ class file_api_file_info extends file_api_common
             $info['viewer']['post'] = $manticore->editor_post_params($info);
             $info['session']        = $manticore->session_info($session, true);
         }
-    }
-
-    /**
-     * Get file from manticore session
-     */
-    protected function file_manticore_file($session_id)
-    {
-        $manticore = new file_manticore($this->api);
-
-        return $manticore->session_file($session_id, true);
     }
 
     /**

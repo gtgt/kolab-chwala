@@ -461,15 +461,21 @@ function files_api()
 
   // Checks if specified mimetype is supported natively by the browser (return 1)
   // or can be displayed in the browser using File API viewer (return 2)
-  // or is editable (using File API viewer or Manticore) (return 4)
+  // or is editable (using File API viewer, Manticore or WOPI) (return 4)
   this.file_type_supported = function(type, capabilities)
   {
     var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
       caps = this.env.browser_capabilities || {},
-      doc = /^application\/vnd.oasis.opendocument.(text)$/i;
+      doc = /^application\/vnd.oasis.opendocument.(text)$/i,
+      wopi_doc = /^application\/vnd.oasis.opendocument./i;
 
     // Manticore?
     if (capabilities && capabilities.MANTICORE && doc.test(type))
+      res |= 4;
+
+    // WOPI (Collabora Online)?
+    // @TODO: this could use mimetypes from WOPI discovery
+    if (capabilities && capabilities.WOPI && wopi_doc.test(type))
       res |= 4;
 
     if (caps.tif)

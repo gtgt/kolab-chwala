@@ -299,8 +299,10 @@ class file_api_core extends file_locale
      */
     protected function supported_mimetypes()
     {
-        $mimetypes = array();
-        $dir       = __DIR__ . '/viewers';
+        $rcube       = rcube::get_instance();
+        $mimetypes   = array();
+        $mimetypes_c = array();
+        $dir         = __DIR__ . '/viewers';
 
         if ($handle = opendir($dir)) {
             while (false !== ($file = readdir($handle))) {
@@ -315,7 +317,30 @@ class file_api_core extends file_locale
             closedir($handle);
         }
 
-        return $mimetypes;
+        // Here we return mimetypes supported for editing and creation of files
+        // @TODO: maybe move this to viewers
+        if ($rcube->config->get('fileapi_wopi_office')) {
+            $mimetypes_c['application/vnd.oasis.opendocument.text']         = array('ext' => 'odt');
+            $mimetypes_c['application/vnd.oasis.opendocument.presentation'] = array('ext' => 'odp');
+            $mimetypes_c['application/vnd.oasis.opendocument.spreadsheet']  = array('ext' => 'ods');
+        }
+        else if ($rcube->config->get('fileapi_manticore')) {
+            $mimetypes_c['application/vnd.oasis.opendocument.text'] = array('ext' => 'odt');
+        }
+
+        $mimetypes_c['text/plain'] = array('ext' => 'txt');
+        $mimetypes_c['text/html']  = array('ext' => 'html');
+
+        foreach (array_keys($mimetypes_c) as $type) {
+            list ($app, $label) = explode('/', $type);
+            $label = preg_replace('/[^a-z]/', '', $label);
+            $mimetypes_c[$type]['label'] = $this->translate('type.' . $label);
+        }
+
+        return array(
+            'view' => $mimetypes,
+            'edit' => $mimetypes_c,
+        );
     }
 
     /**

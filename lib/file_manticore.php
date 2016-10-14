@@ -35,15 +35,15 @@ class file_manticore extends file_document
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
-     * @param string $mimetype    File type
+     * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
      *
      * @return string Manticore URI
      * @throws Exception
      */
-    public function session_start($file, $mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null)
     {
-        parent::session_start($file, $session_id);
+        parent::session_start($file, $mimetype, $session_id);
 
         // authenticate to Manticore, we need auth token for frame_uri
         if (empty($_SESSION['manticore_token'])) {

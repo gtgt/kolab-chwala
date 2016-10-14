@@ -63,13 +63,13 @@ class file_document
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
-     * @param string $mimetype    File type
+     * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
      *
      * @return string An URI for specified file/session
      * @throws Exception
      */
-    public function session_start($file, $mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null)
     {
         if ($file !== null) {
             $uri = $this->path2uri($file, $driver);
@@ -99,6 +99,8 @@ class file_document
                     $this->invitation_update($session_id, $this->user, self::STATUS_ACCEPTED);
                 }
             }
+
+            $mimetype = $session['type'];
         }
         else if (!empty($uri)) {
             // To prevent from creating new sessions for the same file+user
@@ -114,7 +116,7 @@ class file_document
             }
             else if (!$db->is_error($res)) {
                 $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
-                $data       = array();
+                $data       = array('type' => $mimetype);
                 $owner      = $this->user;
 
                 // we'll store user credentials if the file comes from
@@ -304,8 +306,7 @@ class file_document
         $sessions = array();
 
         // 1. Get sessions user has access to
-        $result = $db->query("SELECT s.`id`, s.`uri`, s.`owner`, s.`owner_name`"
-            . " FROM `{$this->sessions_table}` s"
+        $result = $db->query("SELECT * FROM `{$this->sessions_table}` s"
             . " WHERE s.`owner` = ? OR s.`id` IN ("
                 . "SELECT i.`session_id` FROM `{$this->invitations_table}` i"
                 . " WHERE i.`user` = ?"
@@ -319,9 +320,6 @@ class file_document
         while ($row = $db->fetch_assoc($result)) {
             if ($path = $this->uri2path($row['uri'], true)) {
                 $sessions[$row['id']] = $this->session_info_parse($row, $path);
-                // For performance reasons we don't want to fetch info of every file
-                // on the list. As we support only ODT files here...
-                $sessions[$row['id']]['type'] = 'application/vnd.oasis.opendocument.text';
             }
         }
 
@@ -334,8 +332,8 @@ class file_document
                 return 's.`uri` LIKE ' . $db->quote(str_replace('%', '_', $uri) . '/%');
             }, $uris);
 
-        $result = $db->query("SELECT s.`id`, s.`uri`, s.`owner`, s.`owner_name`"
-            . " FROM `{$this->sessions_table}` s WHERE " . join(' OR ', $where));
+        $result = $db->query("SELECT * FROM `{$this->sessions_table}` s"
+            . " WHERE " . join(' OR ', $where));
 
         if ($db->is_error($result)) {
             throw new Exception("Internal error.", file_api_core::ERROR_CODE);
@@ -348,9 +346,6 @@ class file_document
                 $uri = substr($row['uri'], 0, strrpos($row['uri'], '/'));
                 if (in_array($uri, $uris) && ($path = $this->uri2path($row['uri'], true))) {
                     $sessions[$row['id']] = $this->session_info_parse($row, $path);
-                    // For performance reasons we don't want to fetch info of every file
-                    // on the list. As we support only ODT files here...
-                    $sessions[$row['id']]['type'] = 'application/vnd.oasis.opendocument.text';
                 }
             }
         }
@@ -677,6 +672,11 @@ class file_document
 
         if ($path) {
             $session['file'] = $path;
+        }
+
+        if (!empty($record['data']) && (empty($filter) || in_array('type', $filter))) {
+            $data = json_decode($record['data'], true);
+            $session['type'] = $data['type'];
         }
 
         // @TODO: is_invited?, last_modified?
