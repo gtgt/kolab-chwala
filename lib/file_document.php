@@ -107,20 +107,17 @@ class file_document
             // To prevent from creating new sessions for the same file+user
             // (e.g. when user uses F5 to refresh the page), we check first
             // if such a session exist and continue with it
-            $db  = $this->rc->get_dbh();
+            $db = $this->rc->get_dbh();
 
-            if (!$readonly) {
-                $res = $db->query("SELECT `id` FROM `{$this->sessions_table}`"
-                    . " WHERE `owner` = ? AND `uri` = ? AND `readonly` = 0",
-                    $this->user, $uri);
+            $res = $db->query("SELECT `id` FROM `{$this->sessions_table}`"
+                . " WHERE `owner` = ? AND `uri` = ? AND `readonly` = ?",
+                $this->user, $uri, intval($readonly));
 
-                if ($row = $db->fetch_assoc($res)) {
-                    $session_id = $row['id'];
-                    $res = true;
-                }
+            if ($row = $db->fetch_assoc($res)) {
+                $session_id = $row['id'];
+                $res = true;
             }
-
-            if (empty($res) && !$db->is_error($res)) {
+            else if (!$db->is_error($res)) {
                 $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
                 $data       = array('type' => $mimetype);
                 $owner      = $this->user;
