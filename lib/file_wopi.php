@@ -36,13 +36,14 @@ class file_wopi extends file_document
      * @param string $file        File path
      * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
+     * @param string $readonly    Create readonly (one-time) session
      *
      * @return string WOPI URI for specified document
      * @throws Exception
      */
-    public function session_start($file, &$mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null, $readonly = false)
     {
-        parent::session_start($file, $mimetype, $session_id);
+        parent::session_start($file, $mimetype, $session_id, $readonly);
 
         if ($session_id) {
             // Create Chwala session for use as WOPI access_token
@@ -106,8 +107,12 @@ class file_wopi extends file_document
             'access_token_ttl' => $ttl ?: 0,
         );
 
+        if (!empty($info['readonly'])) {
+            $params['permission'] = 'readonly';
+        }
+
         // @TODO: we should/could also add:
-        //        lang, title, permission, timestamp, closebutton, revisionhistory
+        //        lang, title, timestamp, closebutton, revisionhistory
 
         return $params;
     }

@@ -311,7 +311,9 @@ class file_api_core extends file_locale
                     $class  = 'file_viewer_' . $matches[1];
                     $viewer = new $class($this);
 
-                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
+                    if ($supported = $viewer->supported_mimetypes()) {
+                        $mimetypes = array_merge($mimetypes, $supported);
+                    }
                 }
             }
             closedir($handle);

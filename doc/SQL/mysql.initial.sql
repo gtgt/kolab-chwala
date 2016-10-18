@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `chwala_sessions` (
     `owner`      varchar(255) BINARY NOT NULL,
     `owner_name` varchar(255) DEFAULT NULL,
     `data`       mediumtext,
+    `readonly`   tinyint(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
     INDEX `uri_index` (`uri`(255)),
     INDEX `owner` (`owner`)
@@ -35,4 +36,4 @@ CREATE TABLE IF NOT EXISTS `chwala_invitations` (
     UNIQUE INDEX `user_session_id` (`user`, `session_id`)
 ) /*!40000 ENGINE=INNODB */ /*!40101 CHARACTER SET utf8 COLLATE utf8_general_ci */;
 
-INSERT INTO `system` (`name`, `value`) VALUES ('chwala-version', '2015110400');
+INSERT INTO `system` (`name`, `value`) VALUES ('chwala-version', '2016101700');

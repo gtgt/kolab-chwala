@@ -397,9 +397,12 @@ function files_api()
     if (!type)
       return '';
 
-    type = type.replace(/[^a-z0-9]/g, '_');
+    var classes = [];
 
-    return type;
+    classes.push(type.replace(/\/.*/, ''));
+    classes.push(type.replace(/[^a-z0-9]/g, '_'));
+
+    return classes.join(' ');
   };
 
   // convert bytes into number with size unit

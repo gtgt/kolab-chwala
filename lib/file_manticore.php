@@ -37,13 +37,14 @@ class file_manticore extends file_document
      * @param string $file        File path
      * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
+     * @param string $readonly    Create readonly (one-time) session
      *
      * @return string Manticore URI
      * @throws Exception
      */
-    public function session_start($file, &$mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null, $readonly = false)
     {
-        parent::session_start($file, $mimetype, $session_id);
+        parent::session_start($file, $mimetype, $session_id, $readonly);
 
         // authenticate to Manticore, we need auth token for frame_uri
         if (empty($_SESSION['manticore_token'])) {
@@ -77,9 +78,9 @@ class file_manticore extends file_document
     /**
      * Create editing session
      */
-    protected function session_create($id, $uri, $owner, $data)
+    protected function session_create($id, $uri, $owner, $data, $readonly = false)
     {
-        $success = parent::session_create($id, $uri, $owner, $data);
+        $success = parent::session_create($id, $uri, $owner, $data, $readonly);
 
         // create the session in Manticore
         if ($success) {

@@ -65,11 +65,12 @@ class file_document
      * @param string $file        File path
      * @param string &$mimetype   File type
      * @param string &$session_id Optional session ID to join to
+     * @param string $readonly    Create readonly (one-time) session
      *
      * @return string An URI for specified file/session
      * @throws Exception
      */
-    public function session_start($file, &$mimetype, &$session_id = null)
+    public function session_start($file, &$mimetype, &$session_id = null, $readonly = false)
     {
         if ($file !== null) {
             $uri = $this->path2uri($file, $driver);
@@ -107,14 +108,19 @@ class file_document
             // (e.g. when user uses F5 to refresh the page), we check first
             // if such a session exist and continue with it
             $db  = $this->rc->get_dbh();
-            $res = $db->query("SELECT `id` FROM `{$this->sessions_table}`"
-                . " WHERE `owner` = ? AND `uri` = ?", $this->user, $uri);
 
-            if ($row = $db->fetch_assoc($res)) {
-                $session_id = $row['id'];
-                $res = true;
+            if (!$readonly) {
+                $res = $db->query("SELECT `id` FROM `{$this->sessions_table}`"
+                    . " WHERE `owner` = ? AND `uri` = ? AND `readonly` = 0",
+                    $this->user, $uri);
+
+                if ($row = $db->fetch_assoc($res)) {
+                    $session_id = $row['id'];
+                    $res = true;
+                }
             }
-            else if (!$db->is_error($res)) {
+
+            if (empty($res) && !$db->is_error($res)) {
                 $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
                 $data       = array('type' => $mimetype);
                 $owner      = $this->user;
@@ -127,7 +133,7 @@ class file_document
                     $data['auth_info'] = $auth;
                 }
 
-                $res = $this->session_create($session_id, $uri, $owner, $data);
+                $res = $this->session_create($session_id, $uri, $owner, $data, $readonly);
             }
 
             if (!$res) {
@@ -228,7 +234,7 @@ class file_document
         $filter   = array('file', 'owner', 'owner_name', 'is_owner');
         $db       = $this->rc->get_dbh();
         $result   = $db->query("SELECT * FROM `{$this->sessions_table}`"
-            . " WHERE `uri` LIKE '" . $db->escape($uri) . "%'");
+            . " WHERE `readonly` = 0 AND `uri` LIKE '" . $db->escape($uri) . "%'");
 
         while ($row = $db->fetch_assoc($result)) {
             if ($path = $this->uri2path($row['uri'])) {
@@ -269,16 +275,16 @@ class file_document
     /**
      * Create editing session
      */
-    protected function session_create($id, $uri, $owner, $data)
+    protected function session_create($id, $uri, $owner, $data, $readonly = false)
     {
         // get user name
         $owner_name = $this->api->resolve_user($owner) ?: '';
 
         $db     = $this->rc->get_dbh();
         $result = $db->query("INSERT INTO `{$this->sessions_table}`"
-            . " (`id`, `uri`, `owner`, `owner_name`, `data`)"
-            . " VALUES (?, ?, ?, ?, ?)",
-            $id, $uri, $owner, $owner_name, json_encode($data));
+            . " (`id`, `uri`, `owner`, `owner_name`, `data`, `readonly`)"
+            . " VALUES (?, ?, ?, ?, ?, ?)",
+            $id, $uri, $owner, $owner_name, json_encode($data), intval($readonly));
 
         $success = $db->affected_rows($result) > 0;
 
@@ -295,6 +301,7 @@ class file_document
      *   1. to which the user has access (is a creator or has been invited)
      *   2. to which the user is considered eligible to request authorization
      *     to participate in the session by already having access to the file
+     * Note: Readonly sessions are ignored here.
      *
      * @param array $param List parameters
      *
@@ -307,10 +314,10 @@ class file_document
 
         // 1. Get sessions user has access to
         $result = $db->query("SELECT * FROM `{$this->sessions_table}` s"
-            . " WHERE s.`owner` = ? OR s.`id` IN ("
+            . " WHERE s.`readonly` = 0 AND (s.`owner` = ? OR s.`id` IN ("
                 . "SELECT i.`session_id` FROM `{$this->invitations_table}` i"
                 . " WHERE i.`user` = ?"
-            . ")",
+            . "))",
             $this->user, $this->user);
 
         if ($db->is_error($result)) {
@@ -333,7 +340,7 @@ class file_document
             }, $uris);
 
         $result = $db->query("SELECT * FROM `{$this->sessions_table}` s"
-            . " WHERE " . join(' OR ', $where));
+            . " WHERE s.`readonly` = 0 AND (" . join(' OR ', $where) . ")");
 
         if ($db->is_error($result)) {
             throw new Exception("Internal error.", file_api_core::ERROR_CODE);
