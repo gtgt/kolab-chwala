@@ -245,6 +245,16 @@ class file_api_core extends file_locale
             return $caps;
         }
 
+        if ($caps['MANTICORE']) {
+            $manticore = new file_manticore($this);
+            $caps['MANTICORE_EDITABLE'] = $manticore->supported_filetypes(true);
+        }
+
+        if ($caps['WOPI']) {
+            $wopi = new file_wopi($this);
+            $caps['WOPI_EDITABLE'] = $wopi->supported_filetypes(true);
+        }
+
         // get capabilities of other drivers
         $drivers = $this->get_drivers(true);
 

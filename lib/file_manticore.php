@@ -182,6 +182,20 @@ class file_manticore extends file_document
     }
 
     /**
+     * List supported mimetypes
+     *
+     * @param bool $editable Return only editable mimetypes
+     *
+     * @return array List of supported mimetypes
+     */
+    public function supported_filetypes($editable = false)
+    {
+        return array(
+            'application/vnd.oasis.opendocument.text',
+        );
+    }
+
+    /**
      * Generate URI of Manticore editing session
      */
     protected function frame_uri($id)

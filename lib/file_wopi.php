@@ -29,6 +29,11 @@ class file_wopi extends file_document
 {
     protected $cache;
 
+    // Mimetypes supported by CODE, but not advertised by all possible names
+    protected $aliases = array(
+        'application/vnd.corel-draw' => 'image/x-coreldraw',
+    );
+
     /**
      * Return viewer URI for specified file/session. This creates
      * a new collaborative editing session when needed.
@@ -113,16 +118,30 @@ class file_wopi extends file_document
 
         // @TODO: we should/could also add:
         //        lang, title, timestamp, closebutton, revisionhistory
-
         return $params;
     }
 
     /**
      * List supported mimetypes
+     *
+     * @param bool $editable Return only editable mimetypes
+     *
+     * @return array List of supported mimetypes
      */
-    public function supported_filetypes()
+    public function supported_filetypes($editable = false)
     {
         $caps = $this->capabilities();
+
+        if ($editable) {
+            $editable = array();
+            foreach ($caps as $mimetype => $c) {
+                if ($c['name'] == 'edit') {
+                    $editable[] = $mimetype;
+                }
+            }
+
+            return $editable;
+        }
 
         return array_keys($caps);
     }
@@ -135,7 +154,7 @@ class file_wopi extends file_document
     {
         $cache_key = 'wopi.capabilities';
         if ($result = $this->get_from_cache($cache_key)) {
-            return $result;
+            return $this->apply_aliases($result);
         }
 
         $office_url  = rtrim($this->rc->config->get('fileapi_wopi_office'), ' /');
@@ -188,7 +207,7 @@ class file_wopi extends file_document
 
         $this->save_in_cache($cache_key, $result);
 
-        return $result;
+        return $this->apply_aliases($result);
     }
 
     /**
@@ -243,6 +262,9 @@ class file_wopi extends file_document
         return $request;
     }
 
+    /**
+     * Get cached data
+     */
     protected function get_from_cache($key)
     {
         if ($cache = $this->get_cache) {
@@ -250,6 +272,9 @@ class file_wopi extends file_document
         }
     }
 
+    /**
+     * Store data in cache
+     */
     protected function save_in_cache($key, $value)
     {
         if ($cache = $this->get_cache) {
@@ -268,5 +293,19 @@ class file_wopi extends file_document
         }
 
         return $this->cache;
+    }
+
+    /**
+     * Support more mimetypes in CODE capabilities
+     */
+    protected function apply_aliases($caps)
+    {
+        foreach ($this->aliases as $type => $alias) {
+            if (isset($caps[$type]) && !isset($caps[$alias])) {
+                $caps[$alias] = $caps[$type];
+            }
+        }
+
+        return $caps;
     }
 }

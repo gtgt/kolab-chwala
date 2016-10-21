@@ -469,17 +469,30 @@ function files_api()
   {
     var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
       caps = this.env.browser_capabilities || {},
-      doc = /^application\/vnd.oasis.opendocument.(text)$/i,
-      wopi_doc = /^application\/vnd.oasis.opendocument./i;
+      doc = /^application\/vnd.oasis.opendocument.(text)$/i;
 
-    // Manticore?
-    if (capabilities && capabilities.MANTICORE && doc.test(type))
-      res |= 4;
+    type = String(type).toLowerCase();
 
-    // WOPI (Collabora Online)?
-    // @TODO: this could use mimetypes from WOPI discovery
-    if (capabilities && capabilities.WOPI && wopi_doc.test(type))
-      res |= 4;
+    if (capabilities) {
+      // Manticore?
+      $.each(capabilities.MANTICORE_EDITABLE || [], function() {
+        if (type == this) {
+          res |= 4;
+          return false;
+        }
+      });
+      // old version of the check
+      if (capabilities && capabilities.MANTICORE && doc.test(type))
+        res |= 4;
+
+      // WOPI (Collabora Online)?
+      $.each(capabilities.WOPI_EDITABLE || [], function() {
+        if (type == this) {
+          res |= 4;
+          return false;
+        }
+      });
+    }
 
     if (caps.tif)
       img += '|tiff';

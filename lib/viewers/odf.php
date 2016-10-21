@@ -90,17 +90,6 @@ class file_viewer_odf extends file_viewer
     }
 
     /**
-     * Return output of file content area
-     *
-     * @param string $file     File name
-     * @param string $mimetype File type
-     */
-    public function frame($file, $mimetype = null)
-    {
-        // we use iframe method, see output()
-    }
-
-    /**
      * Return file viewer URL
      *
      * @param string $file     File name

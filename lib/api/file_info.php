@@ -64,26 +64,13 @@ class file_api_file_info extends file_api_common
                 $this->file_viewer_info($info);
             }
 
-            // check if file type is supported by manticore/wopi editor?
-            if ($manticore) {
-                if (strtolower($info['type']) == 'application/vnd.oasis.opendocument.text') {
-                    $info['viewer']['manticore'] = true;
-                }
-            }
-            if ($wopi) {
-                if (preg_match('/^application\/vnd\.oasis\.opendocument\./', $info['type'])) {
-                    $info['viewer']['wopi'] = true;
-                }
-            }
-
             if ((intval($this->args['viewer']) & 4)) {
                 // @TODO: Chwala client should have a possibility to select
                 //        between wopi and manticore?
-                if ($info['viewer']['wopi']) {
-                    $this->file_wopi_handler($info);
-                }
-                else if ($info['viewer']['manticore']) {
-                    $this->file_manticore_handler($info);
+                if (!$wopi || !$this->file_wopi_handler($info)) {
+                    if ($manticore) {
+                        $this->file_manticore_handler($info);
+                    }
                 }
             }
         }
@@ -139,11 +126,20 @@ class file_api_file_info extends file_api_common
         $file      = $this->args['file'];
         $session   = $this->args['session'];
 
+        if (in_array_nocase($info['type'], $manticore->supported_filetypes(true))) {
+            $info['viewer']['manticore'] = true;
+        }
+        else {
+            return false;
+        }
+
         if ($uri = $manticore->session_start($file, $info['type'], $session)) {
             $info['viewer']['href'] = $uri;
             $info['viewer']['post'] = $manticore->editor_post_params($info);
             $info['session']        = $manticore->session_info($session, true);
         }
+
+        return true;
     }
 
     /**
@@ -155,10 +151,19 @@ class file_api_file_info extends file_api_common
         $file    = $this->args['file'];
         $session = $this->args['session'];
 
+        if (in_array_nocase($info['type'], $wopi->supported_filetypes(true))) {
+            $info['viewer']['wopi'] = true;
+        }
+        else {
+            return false;
+        }
+
         if ($uri = $wopi->session_start($file, $info['type'], $session)) {
             $info['viewer']['href'] = $uri;
             $info['viewer']['post'] = $wopi->editor_post_params($info);
             $info['session']        = $wopi->session_info($session, true);
         }
+
+        return true;
     }
 }
