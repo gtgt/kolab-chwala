@@ -3,7 +3,7 @@
  +--------------------------------------------------------------------------+
  | This file is part of the Kolab File API                                  |
  |                                                                          |
- | Copyright (C) 2011-2013, Kolab Systems AG                                |
+ | Copyright (C) 2011-2016, Kolab Systems AG                                |
  |                                                                          |
  | This program is free software: you can redistribute it and/or modify     |
  | it under the terms of the GNU Affero General Public License as published |
@@ -23,24 +23,10 @@
 */
 
 /**
- * Class implementing image viewer (with format converter)
- *
- * NOTE: some formats are supported by browser, don't use viewer when not needed.
+ * Class integrating Collabora Online documents viewer
  */
-class file_viewer_image extends file_viewer
+class file_viewer_doc extends file_viewer
 {
-    protected $mimetypes = array(
-        'image/bmp',
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'image/pjpeg',
-        'image/gif',
-        'image/tiff',
-        'image/x-tiff',
-    );
-
-
     /**
      * Class constructor
      *
@@ -48,8 +34,39 @@ class file_viewer_image extends file_viewer
      */
     public function __construct($api)
     {
-        // @TODO: disable types not supported by some browsers
         $this->api = $api;
+    }
+
+    /**
+     * Returns list of supported mimetype
+     *
+     * @return array List of mimetypes
+     */
+    public function supported_mimetypes()
+    {
+        $rcube = rcube::get_instance();
+
+        // Get list of supported types from Collabora
+        if ($rcube->config->get('fileapi_wopi_office')) {
+            $wopi = new file_wopi($this->api);
+            if ($types = $wopi->supported_filetypes()) {
+                return $types;
+            }
+        }
+
+        return array();
+    }
+
+    /**
+     * Check if mimetype is supported by the viewer
+     *
+     * @param string $mimetype File type
+     *
+     * @return bool True if mimetype is supported, False otherwise
+     */
+    public function supports($mimetype)
+    {
+        return in_array($mimetype, $this->supported_mimetypes());
     }
 
     /**
@@ -60,17 +77,10 @@ class file_viewer_image extends file_viewer
      */
     public function href($file, $mimetype = null)
     {
-        $href = file_utils::script_uri() . '?method=file_get'
+        return file_utils::script_uri() . '?method=file_get'
+            . '&viewer=doc'
             . '&file=' . urlencode($file)
             . '&token=' . urlencode(session_id());
-
-        // we redirect to self only images with types unsupported
-        // by browser
-        if (in_array($mimetype, $this->mimetypes)) {
-            $href .= '&viewer=image';
-        }
-
-        return $href;
     }
 
     /**
@@ -81,31 +91,43 @@ class file_viewer_image extends file_viewer
      */
     public function output($file, $file_info = array())
     {
-/*
-        // conversion not needed
-        if (preg_match('/^image/p?jpe?g$/i', $file_info['type'])) {
-            $this->api->api->file_get($file);
-            return;
+        // Create readonly session and get WOPI request parameters
+        $wopi = new file_wopi($this->api);
+        $url  = $wopi->session_start($file, $file_info, $session, true);
+
+        if (!$url) {
+            $this->api->output_error("Failed to open file", 404);
         }
-*/
-        $rcube     = rcube::get_instance();
-        $temp_dir  = unslashify($rcube->config->get('temp_dir'));
-        $file_path = tempnam($temp_dir, 'rcmImage');
 
-        list($driver, $file) = $this->api->get_driver($file);
+        $info = array('readonly' => true);
+        $post = $wopi->editor_post_params($info);
+        $url  = htmlentities($url);
+        $form = '';
 
-        // write content to temp file
-        $fd = fopen($file_path, 'w');
-        $driver->file_get($file, array(), $fd);
-        fclose($fd);
-
-        // convert image to jpeg and send it to the browser
-        $image = new rcube_image($file_path);
-        if ($image->convert(rcube_image::TYPE_JPG, $file_path)) {
-          header("Content-Type: image/jpeg");
-          header("Content-Length: " . filesize($file_path));
-          readfile($file_path);
+        foreach ($post as $name => $value) {
+            $form .= '<input type="hidden" name="' . $name . '" value="' . $value . '" />';
         }
-        unlink($file_path);
+
+        echo <<<EOT
+<html>
+  <head>
+    <script src="viewers/doc/file_editor.js" type="text/javascript" charset="utf-8"></script>
+    <style>
+      iframe, body { width: 100%; height: 100%; margin: 0; border: none; }
+      form { display: none; }
+    </style>
+  </head>
+  <body>
+    <iframe id="viewer" name="viewer" allowfullscreen></iframe>
+    <form target="viewer" method="post" action="$url">
+      $form
+    </form>
+    <script type="text/javascript">
+      var file_editor = new file_editor;
+      file_editor.init();
+    </script>
+  </body>
+</html>
+EOT;
     }
 }

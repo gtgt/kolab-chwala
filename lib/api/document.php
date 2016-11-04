@@ -65,6 +65,7 @@ class file_api_document extends file_api_common
                 case 'document_decline':
                 case 'document_accept':
                 case 'document_cancel':
+                case 'document_info':
                     return $this->{$this->args['method']}($this->args['id']);
             }
         }
@@ -87,9 +88,11 @@ class file_api_document extends file_api_common
      */
     protected function get_file_path($id)
     {
-        $manticore = new file_manticore($this->api);
+        $document = new file_document($this->api);
 
-        return $manticore->session_file($id);
+        $file = $document->session_file($id);
+
+        return $file['file'];
     }
 
     /**
@@ -106,14 +109,14 @@ class file_api_document extends file_api_common
             // that require user action, otherwise we may skip some unintentionally
         }
 
-        $manticore = new file_manticore($this->api);
-        $filter    = array();
+        $document = new file_document($this->api);
+        $filter   = array();
 
         if ($this->args['timestamp']) {
             $filter['timestamp'] = $this->args['timestamp'];
         }
 
-        $list = $manticore->invitations_list($filter);
+        $list = $document->invitations_list($filter);
 
         return array(
             'list'      => $list,
@@ -126,7 +129,7 @@ class file_api_document extends file_api_common
      */
     protected function sessions()
     {
-        $manticore = new file_manticore($this->api);
+        $document = new file_document($this->api);
 
         $params = array(
             'reverse' => rcube_utils::get_boolean((string) $this->args['reverse']),
@@ -136,7 +139,7 @@ class file_api_document extends file_api_common
             $params['sort'] = strtolower($this->args['sort']);
         }
 
-        return $manticore->sessions_list($params);
+        return $document->sessions_list($params);
     }
 
     /**
@@ -144,9 +147,9 @@ class file_api_document extends file_api_common
      */
     protected function document_delete($id)
     {
-        $manticore = new file_manticore($this->api);
+        $document = file_document::get_handler($this->api, $id);
 
-        if (!$manticore->session_delete($id)) {
+        if (!$document->session_delete($id)) {
             throw new Exception("Failed deleting the document session.", file_api_core::ERROR_CODE);
         }
     }
@@ -156,9 +159,9 @@ class file_api_document extends file_api_common
      */
     protected function document_invite($id)
     {
-        $manticore = new file_manticore($this->api);
-        $users     = $this->args['users'];
-        $comment   = $this->args['comment'];
+        $document = file_document::get_handler($this->api, $id);
+        $users    = $this->args['users'];
+        $comment  = $this->args['comment'];
 
         if (empty($users)) {
             throw new Exception("Invalid arguments.", file_api_core::ERROR_CODE);
@@ -166,13 +169,13 @@ class file_api_document extends file_api_common
 
         foreach ((array) $users as $user) {
             if (!empty($user['user'])) {
-                $manticore->invitation_create($id, $user['user'], file_manticore::STATUS_INVITED, $comment, $user['name']);
+                $document->invitation_create($id, $user['user'], file_document::STATUS_INVITED, $comment, $user['name']);
 
                 $result[] = array(
                     'session_id' => $id,
                     'user'       => $user['user'],
                     'user_name'  => $user['name'],
-                    'status'     => file_manticore::STATUS_INVITED,
+                    'status'     => file_document::STATUS_INVITED,
                 );
             }
         }
@@ -187,8 +190,8 @@ class file_api_document extends file_api_common
      */
     protected function document_request($id)
     {
-        $manticore = new file_manticore($this->api);
-        $manticore->invitation_create($id, null, file_manticore::STATUS_REQUESTED, $this->args['comment']);
+        $document = file_document::get_handler($this->api, $id);
+        $document->invitation_create($id, null, file_document::STATUS_REQUESTED, $this->args['comment']);
     }
 
     /**
@@ -196,8 +199,8 @@ class file_api_document extends file_api_common
      */
     protected function document_decline($id)
     {
-        $manticore = new file_manticore($this->api);
-        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_DECLINED, $this->args['comment']);
+        $document = file_document::get_handler($this->api, $id);
+        $document->invitation_update($id, $this->args['user'], file_document::STATUS_DECLINED, $this->args['comment']);
     }
 
     /**
@@ -205,8 +208,8 @@ class file_api_document extends file_api_common
      */
     protected function document_accept($id)
     {
-        $manticore = new file_manticore($this->api);
-        $manticore->invitation_update($id, $this->args['user'], file_manticore::STATUS_ACCEPTED, $this->args['comment']);
+        $document = file_document::get_handler($this->api, $id);
+        $document->invitation_update($id, $this->args['user'], file_document::STATUS_ACCEPTED, $this->args['comment']);
     }
 
     /**
@@ -214,21 +217,62 @@ class file_api_document extends file_api_common
      */
     protected function document_cancel($id)
     {
-        $manticore = new file_manticore($this->api);
-        $users     = $this->args['users'];
+        $document = file_document::get_handler($this->api, $id);
+        $users    = $this->args['users'];
 
         if (empty($users)) {
             throw new Exception("Invalid arguments.", file_api_core::ERROR_CODE);
         }
 
         foreach ((array) $users as $user) {
-            $manticore->invitation_delete($id, $user);
+            $document->invitation_delete($id, $user);
             $result[] = $user;
         }
 
         return array(
             'list' => $result,
         );
+    }
+
+    /**
+     * Return document informations
+     */
+    protected function document_info($id)
+    {
+        $document = file_document::get_handler($this->api, $id);
+        $file     = $document->session_file($id);
+        $session  = $document->session_info($id);
+        $rcube    = rcube::get_instance();
+
+        try {
+            list($driver, $path) = $this->api->get_driver($file['file']);
+            $result = $driver->file_info($path);
+        }
+        catch (Exception $e) {
+            // invited users may have no permission,
+            // use file data from the session
+            $result = array(
+                'size'     => $file['size'],
+                'name'     => $file['name'],
+                'modified' => $file['modified'],
+                'type'     => $file['type'],
+            );
+        }
+
+        $result['owner']      = $session['owner'];
+        $result['owner_name'] = $session['owner_name'];
+        $result['user']       = $rcube->user->get_username();
+        $result['readonly']   = !empty($session['readonly']);
+        $result['origin']     = $session['origin'];
+
+        if ($result['owner'] == $result['user']) {
+            $result['user_name'] = $result['owner_name'];
+        }
+        else {
+            $result['user_name'] = $this->api->resolve_user($result['user']) ?: '';
+        }
+
+        return $result;
     }
 
     /**
@@ -260,15 +304,20 @@ class file_api_document extends file_api_common
             throw new Exception("Failed writing to temp file.", file_api_core::ERROR_CODE);
         }
 
-        $file = array(
+        $file_data = array(
             'path' => $tmp_path,
             'type' => rcube_mime::file_content_type($tmp_path, $file),
         );
 
-        $driver->file_update($path, $file);
+        $driver->file_update($path, $file_data);
 
         // remove the temp file
         unlink($tmp_path);
+
+        // Update the file metadata in session
+        $file_data = $driver->file_info($file);
+        $document  = file_document::get_handler($this->api, $this->args['id']);
+        $document->session_update($this->args['id'], $file_data);
     }
 
     /**

@@ -232,12 +232,27 @@ class file_api_core extends file_locale
         }
 
         // Manticore support
-        if ($manticore = $rcube->config->get('fileapi_manticore')) {
+        if ($rcube->config->get('fileapi_manticore')) {
             $caps['MANTICORE'] = true;
+        }
+
+        // WOPI support
+        if ($rcube->config->get('fileapi_wopi_office')) {
+            $caps['WOPI'] = true;
         }
 
         if (!$full) {
             return $caps;
+        }
+
+        if ($caps['MANTICORE']) {
+            $manticore = new file_manticore($this);
+            $caps['MANTICORE_EDITABLE'] = $manticore->supported_filetypes(true);
+        }
+
+        if ($caps['WOPI']) {
+            $wopi = new file_wopi($this);
+            $caps['WOPI_EDITABLE'] = $wopi->supported_filetypes(true);
         }
 
         // get capabilities of other drivers
@@ -294,8 +309,10 @@ class file_api_core extends file_locale
      */
     protected function supported_mimetypes()
     {
-        $mimetypes = array();
-        $dir       = __DIR__ . '/viewers';
+        $rcube       = rcube::get_instance();
+        $mimetypes   = array();
+        $mimetypes_c = array();
+        $dir         = __DIR__ . '/viewers';
 
         if ($handle = opendir($dir)) {
             while (false !== ($file = readdir($handle))) {
@@ -304,13 +321,38 @@ class file_api_core extends file_locale
                     $class  = 'file_viewer_' . $matches[1];
                     $viewer = new $class($this);
 
-                    $mimetypes = array_merge($mimetypes, $viewer->supported_mimetypes());
+                    if ($supported = $viewer->supported_mimetypes()) {
+                        $mimetypes = array_merge($mimetypes, $supported);
+                    }
                 }
             }
             closedir($handle);
         }
 
-        return $mimetypes;
+        // Here we return mimetypes supported for editing and creation of files
+        // @TODO: maybe move this to viewers
+        if ($rcube->config->get('fileapi_wopi_office')) {
+            $mimetypes_c['application/vnd.oasis.opendocument.text']         = array('ext' => 'odt');
+            $mimetypes_c['application/vnd.oasis.opendocument.presentation'] = array('ext' => 'odp');
+            $mimetypes_c['application/vnd.oasis.opendocument.spreadsheet']  = array('ext' => 'ods');
+        }
+        else if ($rcube->config->get('fileapi_manticore')) {
+            $mimetypes_c['application/vnd.oasis.opendocument.text'] = array('ext' => 'odt');
+        }
+
+        $mimetypes_c['text/plain'] = array('ext' => 'txt');
+        $mimetypes_c['text/html']  = array('ext' => 'html');
+
+        foreach (array_keys($mimetypes_c) as $type) {
+            list ($app, $label) = explode('/', $type);
+            $label = preg_replace('/[^a-z]/', '', $label);
+            $mimetypes_c[$type]['label'] = $this->translate('type.' . $label);
+        }
+
+        return array(
+            'view' => $mimetypes,
+            'edit' => $mimetypes_c,
+        );
     }
 
     /**

@@ -97,7 +97,7 @@ class file_api_file_get extends file_api_common
             return;
         }
 
-        $viewer->output($args['file'], $info['type']);
+        $viewer->output($args['file'], $info);
         exit;
     }
 }

@@ -19,6 +19,7 @@ CREATE TABLE "chwala_sessions" (
     "owner"      varchar(255) NOT NULL,
     "owner_name" varchar(255) DEFAULT NULL,
     "data"       long,
+    "readonly"   smallint DEFAULT 0 NOT NULL,
     PRIMARY KEY ("id")
 );
 
@@ -39,4 +40,4 @@ CREATE TABLE "chwala_invitations" (
 CREATE INDEX "chwala_invitations_session_id_idx" ON "chwala_invitations" ("session_id");
 CREATE UNIQUE INDEX "chwala_invitations_user_idx" ON "chwala_invitations" ("user", "session_id");
 
-INSERT INTO "system" ("name", "value") VALUES ('chwala-version', '2015110400');
+INSERT INTO "system" ("name", "value") VALUES ('chwala-version', '2016101700');

@@ -102,21 +102,29 @@ class file_api_common
      */
     protected function find_viewer($mimetype)
     {
-        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
+        $dir   = RCUBE_INSTALL_PATH . 'lib/viewers';
+        $files = array();
 
+        // First get viewers and sort by name to get priority
         if ($handle = opendir($dir)) {
             while (false !== ($file = readdir($handle))) {
                 if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class($this->api);
-
-                    if ($viewer->supports($mimetype)) {
-                        return $viewer;
-                    }
+                    $files[$matches[1]] = $dir . '/' . $file;
                 }
             }
             closedir($handle);
+        }
+
+        ksort($files);
+
+        foreach ($files as $name => $file) {
+            include_once $file;
+            $class  = 'file_viewer_' . $name;
+            $viewer = new $class($this->api);
+
+            if ($viewer->supports($mimetype)) {
+                return $viewer;
+            }
         }
     }
 
