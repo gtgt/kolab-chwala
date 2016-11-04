@@ -86,14 +86,14 @@ class file_viewer_doc extends file_viewer
     /**
      * Print output and exit
      *
-     * @param string $file     File name
-     * @param string $mimetype File type
+     * @param string $file      File name
+     * @param array  $file_info File metadata (e.g. type)
      */
-    public function output($file, $mimetype = null)
+    public function output($file, $file_info = array())
     {
         // Create readonly session and get WOPI request parameters
         $wopi = new file_wopi($this->api);
-        $url  = $wopi->session_start($file, $mimetype, $session, true);
+        $url  = $wopi->session_start($file, $file_info, $session, true);
 
         if (!$url) {
             $this->api->output_error("Failed to open file", 404);

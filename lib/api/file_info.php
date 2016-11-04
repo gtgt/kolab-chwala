@@ -40,7 +40,9 @@ class file_api_file_info extends file_api_common
         // support file_info by session ID
         if (!isset($this->args['file']) || $this->args['file'] === '') {
             if (($manticore || $wopi) && !empty($this->args['session'])) {
-                $this->args['file'] = $this->file_document_file($this->args['session']);
+                if ($info = $this->file_document_file($this->args['session'])) {
+                    $this->args['file'] = $info['file'];
+                }
             }
             else {
                 throw new Exception("Missing file name", file_api_core::ERROR_CODE);
@@ -48,10 +50,19 @@ class file_api_file_info extends file_api_common
         }
 
         if ($this->args['file'] !== null) {
-            list($driver, $path) = $this->api->get_driver($this->args['file']);
+            try {
+                list($driver, $path) = $this->api->get_driver($this->args['file']);
 
-            $info = $driver->file_info($path);
-            $info['file'] = $this->args['file'];
+                $info = $driver->file_info($path);
+                $info['file'] = $this->args['file'];
+            }
+            catch (Exception $e) {
+                // Invited user may have no access to the file,
+                // ignore errors if session exists
+                if (!$this->args['viewer'] || !$this->args['session']) {
+                    throw $e;
+                }
+            }
         }
 
         // Possible 'viewer' types are defined in files_api.js:file_type_supported()
@@ -112,7 +123,7 @@ class file_api_file_info extends file_api_common
      */
     protected function file_document_file($session_id)
     {
-        $document = new file_document($this->api);
+        $document = file_document::get_handler($this->api, $session_id);
 
         return $document->session_file($session_id, true);
     }
@@ -133,7 +144,7 @@ class file_api_file_info extends file_api_common
             return false;
         }
 
-        if ($uri = $manticore->session_start($file, $info['type'], $session)) {
+        if ($uri = $manticore->session_start($file, $info, $session)) {
             $info['viewer']['href'] = $uri;
             $info['viewer']['post'] = $manticore->editor_post_params($info);
             $info['session']        = $manticore->session_info($session, true);
@@ -158,7 +169,7 @@ class file_api_file_info extends file_api_common
             return false;
         }
 
-        if ($uri = $wopi->session_start($file, $info['type'], $session)) {
+        if ($uri = $wopi->session_start($file, $info, $session)) {
             $info['viewer']['href'] = $uri;
             $info['viewer']['post'] = $wopi->editor_post_params($info);
             $info['session']        = $wopi->session_info($session, true);

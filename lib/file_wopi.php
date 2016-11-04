@@ -39,16 +39,16 @@ class file_wopi extends file_document
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
-     * @param string &$mimetype   File type
+     * @param array  &$file_info  File metadata (e.g. type)
      * @param string &$session_id Optional session ID to join to
      * @param string $readonly    Create readonly (one-time) session
      *
      * @return string WOPI URI for specified document
      * @throws Exception
      */
-    public function session_start($file, &$mimetype, &$session_id = null, $readonly = false)
+    public function session_start($file, &$file_info, &$session_id = null, $readonly = false)
     {
-        parent::session_start($file, $mimetype, $session_id, $readonly);
+        parent::session_start($file, $file_info, $session_id, $readonly);
 
         if ($session_id) {
             // Create Chwala session for use as WOPI access_token
@@ -62,7 +62,7 @@ class file_wopi extends file_document
             $this->token = $this->api->session->create($data);
         }
 
-        return $this->frame_uri($session_id, $mimetype);
+        return $this->frame_uri($session_id, $file_info['type']);
     }
 
     /**
@@ -93,7 +93,7 @@ class file_wopi extends file_document
     }
 
     /**
-     * Retern extra viewer parameters to post the the viewer iframe
+     * Retern extra viewer parameters to post to the viewer iframe
      *
      * @param array $info File info
      *
@@ -111,10 +111,6 @@ class file_wopi extends file_document
             'access_token'     => $this->token,
             'access_token_ttl' => $ttl ?: 0,
         );
-
-        if (!empty($info['readonly'])) {
-            $params['permission'] = 'readonly';
-        }
 
         // @TODO: we should/could also add:
         //        lang, title, timestamp, closebutton, revisionhistory

@@ -33,6 +33,7 @@ class file_document
     protected $sessions_table    = 'chwala_sessions';
     protected $invitations_table = 'chwala_invitations';
     protected $icache            = array();
+    protected $file_meta_items   = array('type', 'name', 'size', 'modified');
 
     const STATUS_INVITED   = 'invited';
     const STATUS_REQUESTED = 'requested';
@@ -45,7 +46,7 @@ class file_document
     /**
      * Class constructor
      *
-     * @param file_api Chwala API app instance
+     * @param file_api $api Chwala API app instance
      */
     public function __construct($api)
     {
@@ -59,18 +60,37 @@ class file_document
     }
 
     /**
+     * Detect type of file_document class to use for specified session
+     *
+     * @param file_api $api        Chwala API app instance
+     * @param string   $session_id Document session ID
+     *
+     * @return file_document Document object
+     */
+    public static function get_handler($api, $session_id)
+    {
+        // we add "w-" prefix to wopi session identifiers,
+        // so we can distinguish it from manticore sessions
+        if (strpos($session_id, 'w-') === 0) {
+            return new file_wopi($api);
+        }
+
+        return new file_manticore($api);
+    }
+
+    /**
      * Return viewer URI for specified file/session. This creates
      * a new collaborative editing session when needed.
      *
      * @param string $file        File path
-     * @param string &$mimetype   File type
+     * @param array  &$file_info  File metadata (e.g. type)
      * @param string &$session_id Optional session ID to join to
      * @param string $readonly    Create readonly (one-time) session
      *
      * @return string An URI for specified file/session
      * @throws Exception
      */
-    public function session_start($file, &$mimetype, &$session_id = null, $readonly = false)
+    public function session_start($file, &$file_info, &$session_id = null, $readonly = false)
     {
         if ($file !== null) {
             $uri = $this->path2uri($file, $driver);
@@ -101,7 +121,7 @@ class file_document
                 }
             }
 
-            $mimetype = $session['type'];
+            $file_info['type'] = $session['type'];
         }
         else if (!empty($uri)) {
             // To prevent from creating new sessions for the same file+user
@@ -119,8 +139,21 @@ class file_document
             }
             else if (!$db->is_error($res)) {
                 $session_id = rcube_utils::bin2ascii(md5(time() . $uri, true));
-                $data       = array('type' => $mimetype);
                 $owner      = $this->user;
+                $data       = array('origin' => $this->get_origin());
+
+                // store some file data, they will be used
+                // by invited users that has no access to the storage
+                foreach ($this->file_meta_items as $item) {
+                    if (isset($file_info[$item])) {
+                        $data[$item] = $file_info[$item];
+                    }
+                }
+
+                // bind the session ID with editor type (see file_document::get_handler())
+                if ($this instanceof file_wopi) {
+                    $session_id = 'w-' . $session_id;
+                }
 
                 // we'll store user credentials if the file comes from
                 // an external source that requires authentication
@@ -151,7 +184,7 @@ class file_document
      * @param string $id        Session ID
      * @param bool   $join_mode Throw exception only if session does not exist
      *
-     * @return string File path
+     * @return array File info (file, type, size)
      * @throws Exception
      */
     public function session_file($id, $join_mode = false)
@@ -178,7 +211,15 @@ class file_document
             }
         }
 
-        return $path;
+        $result = array('file' => $path);
+
+        foreach ($this->file_meta_items as $item) {
+            if (isset($session[$item])) {
+                $result[$item] = $session[$item];
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -270,6 +311,38 @@ class file_document
     }
 
     /**
+     * Update editing session
+     *
+     * @param string $id   Session ID
+     * @param array  $data Session metadata
+     */
+    public function session_update($id, $data)
+    {
+       $db     = $this->rc->get_dbh();
+       $result = $db->query("SELECT `data` FROM `{$this->sessions_table}`"
+           . " WHERE `id` = ?", $id);
+
+       if ($row = $db->fetch_assoc($result)) {
+            // merge only relevant information
+            $data = array_intersect_key($data, array_flip($this->file_meta_items));
+            if (empty($data)) {
+                return true;
+            }
+
+            $sess_data = json_decode($row['data'], true);
+            $sess_data = array_merge($sess_data, $data);
+
+            $result = $db->query("UPDATE `{$this->sessions_table}`"
+                . " SET `data` = ? WHERE `id` = ?",
+                json_encode($sess_data), $id);
+
+            return $db->affected_rows($result) > 0;
+        }
+
+        return false;
+    }
+
+    /**
      * Create editing session
      */
     protected function session_create($id, $uri, $owner, $data, $readonly = false)
@@ -283,14 +356,7 @@ class file_document
             . " VALUES (?, ?, ?, ?, ?, ?)",
             $id, $uri, $owner, $owner_name, json_encode($data), intval($readonly));
 
-        $success = $db->affected_rows($result) > 0;
-
-        if ($success) {
-
-            // @TODO
-        }
-
-        return $success;
+        return $db->affected_rows($result) > 0;
     }
 
     /**
@@ -666,7 +732,7 @@ class file_document
     protected function session_info_parse($record, $path = null, $filter = array())
     {
         $session = array();
-        $fields  = array('id', 'uri', 'owner', 'owner_name');
+        $fields  = array('id', 'uri', 'owner', 'owner_name', 'readonly');
 
         foreach ($fields as $field) {
             if (isset($record[$field])) {
@@ -678,9 +744,15 @@ class file_document
             $session['file'] = $path;
         }
 
-        if (!empty($record['data']) && (empty($filter) || in_array('type', $filter))) {
-            $data = json_decode($record['data'], true);
-            $session['type'] = $data['type'];
+        if (!empty($record['data'])) {
+            $data   = json_decode($record['data'], true);
+            $fields = array_merge($this->file_meta_items, array('origin'));
+
+            foreach ($fields as $field) {
+                if (empty($filter) || in_array($field, $filter)) {
+                    $session[$field] = $data[$field];
+                }
+            }
         }
 
         // @TODO: is_invited?, last_modified?
@@ -774,5 +846,19 @@ class file_document
         }
 
         return $locations;
+    }
+
+    /**
+     * Get request origin, use Referer header if specified
+     */
+    protected function get_origin()
+    {
+        if (!empty($_SERVER['HTTP_REFERER'])) {
+            $url = parse_url($_SERVER['HTTP_REFERER']);
+
+            return $url['scheme'] . '://' . $url['host'] . ($url['port'] ?: '');
+        }
+
+        return $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'];
     }
 }

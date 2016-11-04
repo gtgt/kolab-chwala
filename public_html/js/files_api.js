@@ -657,15 +657,17 @@ function files_api()
 };
 
 /**
- * Class implementing Manticore Client API
+ * Class implementing Document Editor Host API
+ * supporting Manticore and Collabora Online
  *
  * Configuration:
- *    iframe - manticore iframe element
+ *    iframe - editor iframe element
  *    title_input - document title element
  *    export_menu - export formats list
  *    members_list - collaborators list
  *    photo_url - <img> src for a collaborator
  *    photo_default_url - default image of a collaborator
+ *    domain - iframe origin
  *
  *    set_busy, display_message, hide_message, gettext - common methods
  *
@@ -676,9 +678,10 @@ function files_api()
  *    invitationChange - method to handle invitation state updates
  *    invitationSave - method to handle invitation state update
  */
-function manticore_api(conf)
+function document_editor_api(conf)
 {
-  var domain, manticore,
+  var domain, editor,
+    is_wopi = false,
     locks = {},
     callbacks = {},
     members = {},
@@ -717,13 +720,18 @@ function manticore_api(conf)
     return label;
   };
 
-  // Handle messages from Manticore
+  // Handle messages from the editor
   this.message_handler = function(data)
   {
     var result;
 
-    if (callbacks[data.id])
+    data = this.message_convert(data);
+
+    if (data.id && callbacks[data.id])
       result = callbacks[data.id](data);
+    else if (typeof data.callback == 'function')
+      result = data.callback(data);
+
     if (result !== false && data.name && conf[data.name])
       result = conf[data.name](data);
 
@@ -756,7 +764,7 @@ function manticore_api(conf)
 
       case 'memberRemoved':
         // @TODO: display notification?
-        if (conf.members_list) {
+        if (conf.members_list && members[data.memberId]) {
           $('#' + members[data.memberId].id, conf.members_list).remove();
           delete members[data.memberId];
         }
@@ -768,8 +776,83 @@ function manticore_api(conf)
     }
   };
 
+  // Convert WOPI postMessage into internal (Manticore) format
+  this.message_convert = function(data)
+  {
+    // In WOPI data is JSON-stringified
+    if ($.type(data) == 'string')
+      data = JSON.parse(data);
+
+    // non-WOPI format
+    if (!data.MessageId)
+      return data;
+
+    var value = data.Values,
+      result = {name: data.MessageId, wopi: true, id: data.MessageId},
+      member_fn = function(value) {
+        var color = value.Color;
+
+        // make sure color is in css hex format
+        if (color) {
+          if ($.type(color) == 'string' && color.charAt(0) != '#')
+            color = '#' + color;
+          else if ($.type(color) == 'number')
+            color = ((color)>>>0).toString(16).slice(-6);
+            color = '#' + ("000000").substring(0, 6 - color.length) + color;
+        }
+
+        return {
+          memberId: value.ViewId,
+          email: value.UserId,
+          fullName: value.UserName,
+          color: color
+        };
+      };
+
+    switch (result.name) {
+      // WOPI editor is ready
+      case 'App_LoadingStatus':
+        is_wopi = true;
+        result.name = 'ready';
+        break;
+
+      // WOPI session member exited
+      case 'View_Removed':
+        result.name = 'memberRemoved';
+        result.memberId = value.ViewId;
+        break;
+
+      // WOPI session member entered
+      case 'View_Added':
+        result.name = 'memberAdded';
+        $.extend(result, member_fn(value));
+        break;
+
+      // Listing WOPI session members
+      case 'Get_Views_Resp':
+        result.list = $.map(value || [], member_fn);
+        result.callback = function(data) { self.members_list(data.list); return false; };
+        break;
+    }
+
+    return result;
+  };
+
+  // Sends Manticore postMessage
   this.post = function(action, data, callback, lock_label)
   {
+    if (is_wopi) {
+      // replace Manticore messages with WOPI messages
+      // ignore unsupported functionality
+      switch (action) {
+        case 'getMembers':
+          // ignore, Collabora Online sends View_Added for current user
+          break;
+      }
+
+      return;
+    }
+
     if (!data) data = {};
 
     if (lock_label) {
@@ -788,9 +871,22 @@ function manticore_api(conf)
 
     callbacks[data.id] = callback;
 
-    manticore.postMessage(data, domain);
+    editor.postMessage(data, domain);
   };
 
+  // Sends WOPI postMessage
+  this.wopi_post = function(action, data)
+  {
+    var msg = {
+        MessageId: action,
+        SendTime: Date.now(),
+        Values: data || {}
+      };
+
+    editor.postMessage(JSON.stringify(msg), domain);
+  };
+
+  // Callback for 'ready' message
   this.ready = function()
   {
     if (this.init_lock) {
@@ -803,13 +899,7 @@ function manticore_api(conf)
       this.export_menu(conf.export_menu);
 
     if (conf.members_list)
-      this.get_members(function(data) {
-        var images = [], id = (new Date).getTime();
-        $.each(data.value || [], function() {
-          images.push(self.member_item(this, id++));
-        });
-        $(conf.members_list).html('').append(images);
-      });
+      this.get_members(function(data) { self.members_list(data.value); });
 
     if (conf.title_input)
       this.get_title(function(data) {
@@ -879,10 +969,21 @@ function manticore_api(conf)
     if (conf.photo_url) {
       img.attr('src', conf.photo_url.replace(/%email/, urlencode(member.email)));
       if (conf.photo_default_url)
-        img.error(function() { this.src = conf.photo_default_url; });
+        img.on('error', function() { this.src = conf.photo_default_url; });
     }
 
     return img;
+  };
+
+  this.members_list = function(list)
+  {
+    var images = [], id = (new Date).getTime();
+
+    $.each(list || [], function() {
+      images.push(self.member_item(this, id++));
+    });
+
+    $(conf.members_list).html('').append(images);
   };
 
   // track changes in invitations
@@ -1018,16 +1119,17 @@ function manticore_api(conf)
   if (!conf)
     conf = {};
 
-  // Got Manticore iframe, use Client API
+  // Got editor iframe, use editor's API
   if (conf.iframe) {
-    manticore = conf.iframe.contentWindow;
+    editor = conf.iframe.contentWindow;
+    domain = conf.domain;
 
-    if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
+    if (!domain && /^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
       domain = RegExp.$1;
 
-    // Register 'message' event to receive messages from Manticore iframe
+    // Register 'message' event to receive messages from the editor iframe
     window.addEventListener('message', function(event) {
-      if (event.source == manticore && event.origin == domain) {
+      if (event.source == editor && event.origin == domain) {
         self.message_handler(event.data);
       }
     });
@@ -1038,6 +1140,8 @@ function manticore_api(conf)
 
     // Display loading message
     this.init_lock = this.set_busy(true, 'loading');
+
+    this.wopi_post('Host_PostmessageReady');
   }
 
   if (conf.api)
