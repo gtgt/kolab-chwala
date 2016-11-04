@@ -494,7 +494,7 @@ function files_api()
       });
     }
 
-    if (caps.tif)
+    if (caps.tiff)
       img += '|tiff';
 
     if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
@@ -532,7 +532,7 @@ function files_api()
   // Return browser capabilities
   this.browser_capabilities = function()
   {
-    var i, caps = [], ctypes = ['pdf', 'flash', 'tif'];
+    var i, caps = [], ctypes = ['pdf', 'flash', 'tiff'];
 
     for (i in ctypes)
       if (this.env.browser_capabilities[ctypes[i]])
@@ -553,17 +553,17 @@ function files_api()
     if (this.env.browser_capabilities.flash === undefined)
       this.env.browser_capabilities.flash = this.flash_support_check();
 
-    if (this.env.browser_capabilities.tif === undefined)
-      this.tif_support_check();
+    if (this.env.browser_capabilities.tiff === undefined)
+      this.tiff_support_check();
   };
 
-  this.tif_support_check = function()
+  this.tiff_support_check = function()
   {
     var img = new Image(), ref = this;
 
-    img.onload = function() { ref.env.browser_capabilities.tif = 1; };
-    img.onerror = function() { ref.env.browser_capabilities.tif = 0; };
-    img.src = this.env.resources_dir + '/blank.tif';
+    img.onload = function() { ref.env.browser_capabilities.tiff = 1; };
+    img.onerror = function() { ref.env.browser_capabilities.tiff = 0; };
+    img.src = this.env.resources_dir + '/blank.tiff';
   };
 
   this.pdf_support_check = function()
