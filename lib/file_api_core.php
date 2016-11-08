@@ -24,7 +24,7 @@
 
 class file_api_core extends file_locale
 {
-    const API_VERSION = 2;
+    const API_VERSION = 3;
 
     const ERROR_CODE    = 500;
     const ERROR_INVALID = 501;

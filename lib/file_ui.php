@@ -40,11 +40,11 @@ class file_ui extends file_locale
      */
     protected $config;
 
-    protected $ajax_only = false;
-    protected $page_title = 'Kolab File API';
-    protected $menu = array();
-    protected $cache = array();
-    protected $devel_mode = false;
+    protected $ajax_only    = false;
+    protected $page_title   = 'Kolab File API';
+    protected $menu         = array();
+    protected $cache        = array();
+    protected $devel_mode   = false;
     protected $object_types = array();
 
     const API_VERSION = 2;
