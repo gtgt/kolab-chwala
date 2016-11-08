@@ -37,12 +37,6 @@ class file_api extends file_api_core
 
         $this->config = $rcube->config;
         $this->session_init();
-
-        if ($_SESSION['env']) {
-            $this->env = $_SESSION['env'];
-        }
-
-        $this->locale_init();
     }
 
     /**
@@ -58,6 +52,10 @@ class file_api extends file_api_core
             $this->session->regenerate_id(false);
 
             if ($username = $this->authenticate()) {
+                // Init locale after the session started
+                $this->locale_init();
+                $this->env['language'] = $this->language;
+
                 $_SESSION['user'] = $username;
                 $_SESSION['env']  = $this->env;
 
@@ -76,6 +74,10 @@ class file_api extends file_api_core
             else {
                 throw new Exception("Invalid session", 403);
             }
+        }
+        else {
+            // Init locale after the session started
+            $this->locale_init();
         }
 
         // Call service method
@@ -112,6 +114,10 @@ class file_api extends file_api_core
             && (strpos($this->request, 'document') !== 0 || $doc_id != $_GET['id'])
         ) {
             throw new Exception("Access denied", 403);
+        }
+
+        if ($_SESSION['env']) {
+            $this->env = $_SESSION['env'];
         }
 
         return true;

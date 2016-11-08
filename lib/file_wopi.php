@@ -53,7 +53,7 @@ class file_wopi extends file_document
         if ($session_id) {
             // Create Chwala session for use as WOPI access_token
             // This session will have access to this one document session only
-            $keys = array('language', 'user_id', 'user', 'username', 'password',
+            $keys = array('env', 'user_id', 'user', 'username', 'password',
                 'storage_host', 'storage_port', 'storage_ssl');
 
             $data = array_intersect_key($_SESSION, array_flip($keys));
@@ -89,7 +89,15 @@ class file_wopi extends file_document
         // @TODO: Parsing and replacing placeholder values
         // https://wopi.readthedocs.io/en/latest/discovery.html#action-urls
 
-        return $office_url . '?WOPISrc=' . urlencode($service_url);
+        $args = array('WOPISrc' => $service_url);
+
+        // We could also set: title, closebutton, revisionhistory
+        // @TODO: do it in editor_post_params() when supported by the editor
+        if ($lang = $this->api->env['language']) {
+            $args['lang'] = str_replace('_', '-', $lang);
+        }
+
+        return $office_url . '?' . http_build_query($args, '', '&', PHP_QUERY_RFC3986);
     }
 
     /**
@@ -112,8 +120,6 @@ class file_wopi extends file_document
             'access_token_ttl' => $ttl ?: 0,
         );
 
-        // @TODO: we should/could also add:
-        //        lang, title, timestamp, closebutton, revisionhistory
         return $params;
     }
 
