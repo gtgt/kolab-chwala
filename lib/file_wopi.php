@@ -97,7 +97,7 @@ class file_wopi extends file_document
             $args['lang'] = str_replace('_', '-', $lang);
         }
 
-        return $office_url . '?' . http_build_query($args, '', '&', PHP_QUERY_RFC3986);
+        return $office_url . '?' . http_build_query($args, '', '&');
     }
 
     /**
