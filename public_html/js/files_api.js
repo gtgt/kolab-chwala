@@ -840,6 +840,11 @@ function document_editor_api(conf)
       case 'Session_Closed':
         result.name = 'sessionClosed';
         break;
+
+      case 'Get_Export_Formats_Resp':
+        result.list = $.map(value || [], function(v) { return {label: v.Label, format: v.Format}; });
+        result.callback = function(data) { self.export_menu_init(data.list); return false; };
+        break;
     }
 
     return result;
@@ -862,6 +867,14 @@ function document_editor_api(conf)
           // Enable Save button, there's no documentChanged event in WOPI
           if (typeof conf.documentChanged == 'function')
             conf.documentChanged();
+          break;
+
+        case 'ActionExport':
+          this.wopi_post('Action_Export', {Format: data.value});
+          break;
+
+        case 'getExportFormats':
+          this.wopi_post('Get_Export_Formats');
           break;
       }
 
@@ -946,18 +959,21 @@ function document_editor_api(conf)
   // Get supported export formats and create content of menu element
   this.export_menu = function(menu)
   {
-    this.post('getExportFormats', {}, function(data) {
-      var items = [];
+    this.post('getExportFormats', {}, function(data) { self.export_menu_init(data.value); });
+  };
 
-      $.each(data.value || [], function(i, v) {
-        items.push($('<li>').attr({role: 'menuitem'}).append(
-          $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
-            .text(v.label).click(function() { self.export(v.format); })
-        ));
-      });
+  this.export_formats_init = function(formats)
+  {
+    var items = [];
 
-      $(menu).html('').append(items);
+    $.each(formats || [], function(i, v) {
+      items.push($('<li>').attr({role: 'menuitem'}).append(
+        $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
+          .text(v.label).click(function() { self.export(v.format); })
+      ));
     });
+
+    $(menu).html('').append(items);
   };
 
   // Get document title
