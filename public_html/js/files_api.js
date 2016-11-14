@@ -950,6 +950,14 @@ function document_editor_api(conf)
       this.wopi_post('Close_Session');
   };
 
+  // Print document
+  this.print = function()
+  {
+    // this is implemented only by WOPI editor
+    if (is_wopi)
+      this.wopi_post('Action_Print');
+  };
+
   // Export/download current document
   this.export = function(type, callback)
   {
