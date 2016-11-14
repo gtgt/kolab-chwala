@@ -833,6 +833,10 @@ function document_editor_api(conf)
         result.list = $.map(value || [], member_fn);
         result.callback = function(data) { self.members_list(data.list); return false; };
         break;
+
+      case 'Session_Closed':
+        result.name = 'sessionClosed';
+        break;
     }
 
     return result;
@@ -911,6 +915,15 @@ function document_editor_api(conf)
   this.save = function(callback)
   {
     this.post('actionSave', {}, callback, 'saving');
+  };
+
+  // Terminate session
+  this.terminate = function()
+  {
+    // we send it only to WOPI editor, Manticore session will
+    // be terminated by Chwala backend
+    if (is_wopi)
+      this.wopi_post('Close_Session');
   };
 
   // Export/download current document
