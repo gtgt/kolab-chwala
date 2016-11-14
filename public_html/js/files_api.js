@@ -814,6 +814,9 @@ function document_editor_api(conf)
       case 'App_LoadingStatus':
         is_wopi = true;
         result.name = 'ready';
+        // Enable Save button, there's no documentChanged event in WOPI
+        if (typeof conf.documentChanged == 'function')
+          conf.documentChanged();
         break;
 
       // WOPI session member exited
@@ -851,6 +854,14 @@ function document_editor_api(conf)
       switch (action) {
         case 'getMembers':
           // ignore, Collabora Online sends View_Added for current user
+          break;
+
+        case 'actionSave':
+          this.wopi_post('Action_Save', {DontTerminateEdit: true, DontSaveIfUnmodified: true});
+
+          // Enable Save button, there's no documentChanged event in WOPI
+          if (typeof conf.documentChanged == 'function')
+            conf.documentChanged();
           break;
       }
 
