@@ -970,7 +970,7 @@ function document_editor_api(conf)
     this.post('getExportFormats', {}, function(data) { self.export_menu_init(data.value); });
   };
 
-  this.export_formats_init = function(formats)
+  this.export_menu_init = function(formats)
   {
     var items = [];
 
