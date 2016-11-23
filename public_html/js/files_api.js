@@ -685,6 +685,7 @@ function document_editor_api(conf)
     locks = {},
     callbacks = {},
     members = {},
+    supported_formats = [],
     self = this;
 
   // Sets state
@@ -813,7 +814,14 @@ function document_editor_api(conf)
       // WOPI editor is ready
       case 'App_LoadingStatus':
         is_wopi = true;
+
+        // wait for 'Document_Loaded' status, this is when
+        // we can finally start using the CODE postMessage API
+        if (value.Status != 'Document_Loaded')
+          return result;
+
         result.name = 'ready';
+
         // Enable Save button, there's no documentChanged event in WOPI
         if (typeof conf.documentChanged == 'function')
           conf.documentChanged();
@@ -869,7 +877,7 @@ function document_editor_api(conf)
             conf.documentChanged();
           break;
 
-        case 'ActionExport':
+        case 'actionExport':
           this.wopi_post('Action_Export', {Format: data.value});
           break;
 
@@ -924,7 +932,7 @@ function document_editor_api(conf)
     }
 
     if (conf.export_menu)
-      this.export_menu(conf.export_menu);
+      this.export_menu_load();
 
     if (conf.members_list)
       this.get_members(function(data) { self.members_list(data.value); });
@@ -961,11 +969,17 @@ function document_editor_api(conf)
   // Export/download current document
   this.export = function(type, callback)
   {
-    this.post('actionExport', {value: type}, callback);
+    // If the specified type is not supported
+    // TODO: https://bugs.documentfoundation.org/show_bug.cgi?id=104125
+    if ($.inArray(type, supported_formats) == -1)
+      type = supported_formats[0];
+
+    if (type)
+      this.post('actionExport', {value: type}, callback);
   };
 
   // Get supported export formats and create content of menu element
-  this.export_menu = function(menu)
+  this.export_menu_load = function()
   {
     this.post('getExportFormats', {}, function(data) { self.export_menu_init(data.value); });
   };
@@ -974,14 +988,17 @@ function document_editor_api(conf)
   {
     var items = [];
 
+    supported_formats = [];
+
     $.each(formats || [], function(i, v) {
+      supported_formats.push(v.format);
       items.push($('<li>').attr({role: 'menuitem'}).append(
         $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
           .text(v.label).click(function() { self.export(v.format); })
       ));
     });
 
-    $(menu).html('').append(items);
+    $(conf.export_menu).html('').append(items);
   };
 
   // Get document title
