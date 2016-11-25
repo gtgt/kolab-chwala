@@ -685,7 +685,7 @@ function document_editor_api(conf)
     locks = {},
     callbacks = {},
     members = {},
-    supported_formats = [],
+    env = {},
     self = this;
 
   // Sets state
@@ -772,7 +772,8 @@ function document_editor_api(conf)
         break;
 
       case 'sessionClosed':
-        this.display_message('sessionterminated', 'error');
+        if (!env.session_terminated)
+          this.display_message('sessionterminated', 'error');
         break;
     }
   };
@@ -952,6 +953,11 @@ function document_editor_api(conf)
   // Terminate session
   this.terminate = function()
   {
+    // remember that user terminated the session
+    // to skip the warning on Session_Closed
+    env.session_terminated = true;
+    conf.sessionClosed = null;
+
     // we send it only to WOPI editor, Manticore session will
     // be terminated by Chwala backend
     if (is_wopi)
@@ -971,8 +977,8 @@ function document_editor_api(conf)
   {
     // If the specified type is not supported
     // TODO: https://bugs.documentfoundation.org/show_bug.cgi?id=104125
-    if ($.inArray(type, supported_formats) == -1)
-      type = supported_formats[0];
+    if ($.inArray(type, env.supported_formats || []) == -1)
+      type = (env.supported_formats || [])[0];
 
     if (type)
       this.post('actionExport', {value: type}, callback);
@@ -988,10 +994,10 @@ function document_editor_api(conf)
   {
     var items = [];
 
-    supported_formats = [];
+    env.supported_formats = [];
 
     $.each(formats || [], function(i, v) {
-      supported_formats.push(v.format);
+      env.supported_formats.push(v.format);
       items.push($('<li>').attr({role: 'menuitem'}).append(
         $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
           .text(v.label).click(function() { self.export(v.format); })
