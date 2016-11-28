@@ -100,7 +100,8 @@ class file_api_document extends file_api_common
      */
     protected function invitations()
     {
-        $timestamp = time();
+        $timestamp = new DateTime('now', new DateTimeZone('UTC'));
+        $timestamp = $timestamp->format('U');
 
         // Initial tracking request, return just the current timestamp
         if ($this->args['timestamp'] == -1) {

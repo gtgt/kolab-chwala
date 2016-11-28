@@ -35,12 +35,14 @@ class file_document
     protected $icache            = array();
     protected $file_meta_items   = array('type', 'name', 'size', 'modified');
 
-    const STATUS_INVITED   = 'invited';
-    const STATUS_REQUESTED = 'requested';
-    const STATUS_ACCEPTED  = 'accepted';
-    const STATUS_DECLINED  = 'declined';
+    const STATUS_INVITED        = 'invited';
+    const STATUS_REQUESTED      = 'requested';
+    const STATUS_ACCEPTED       = 'accepted';
+    const STATUS_DECLINED       = 'declined';
     const STATUS_DECLINED_OWNER = 'declined-owner'; // same as 'declined' but done by the session owner
     const STATUS_ACCEPTED_OWNER = 'accepted-owner'; // same as 'accepted' but done by the session owner
+
+    const DB_DATE_FORMAT = 'Y-m-d H:i:s';
 
 
     /**
@@ -514,7 +516,7 @@ class file_document
 
         foreach ($filter as $column => $value) {
             if ($column == 'timestamp') {
-                $where[] = "i.`changed` > " . $db->fromunixtime($value);
+                $where[] = "i.`changed` > " . $db->quote($this->db_datetime($value));
             }
             else if ($column == 'owner') {
                 $join[] = "`{$this->sessions_table}` s ON (i.`session_id` = s.`id`)";
@@ -622,8 +624,8 @@ class file_document
         $db     = $this->rc->get_dbh();
         $result = $db->query("INSERT INTO `{$this->invitations_table}`"
             . " (`session_id`, `user`, `user_name`, `status`, `comment`, `changed`)"
-            . " VALUES (?, ?, ?, ?, ?, " . $db->now() . ")",
-            $session_id, $user, $user_name, $status, $comment ?: '');
+            . " VALUES (?, ?, ?, ?, ?, ?)",
+            $session_id, $user, $user_name, $status, $comment ?: '', $this->db_datetime());
 
         if (!$db->affected_rows($result)) {
             throw new Exception("Failed to create an invitation.", file_api_core::ERROR_CODE);
@@ -690,9 +692,9 @@ class file_document
 
         $db     = $this->rc->get_dbh();
         $result = $db->query("UPDATE `{$this->invitations_table}`"
-            . " SET `status` = ?, `comment` = ?, `changed` = " . $db->now()
+            . " SET `status` = ?, `comment` = ?, `changed` = ?"
             . " WHERE `session_id` = ? AND `user` = ?",
-            $status, $comment ?: '', $session_id, $user);
+            $status, $comment ?: '', $this->db_datetime(), $session_id, $user);
 
         if (!$db->affected_rows($result)) {
             throw new Exception("Failed to update an invitation status.", file_api_core::ERROR_CODE);
@@ -860,5 +862,16 @@ class file_document
         }
 
         return $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'];
+    }
+
+    /**
+     * Return datetime in UTC timezone in SQL format
+     */
+    protected function db_datetime($dt = null)
+    {
+        $timezone = new DateTimeZone('UTC');
+        $datetime = new DateTime($dt ? '@'.$dt : 'now', $timezone);
+
+        return $datetime->format(self::DB_DATE_FORMAT);
     }
 }
