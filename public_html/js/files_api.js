@@ -1192,6 +1192,10 @@ function document_editor_api(conf)
 
   // Got editor iframe, use editor's API
   if (conf.iframe) {
+    // Use iframe's onload event to not send the message to early,
+    // if that happens WOPI will not accept any messages later
+    $(conf.iframe).on('load', function() { self.wopi_post('Host_PostmessageReady'); });
+
     editor = conf.iframe.contentWindow;
     domain = conf.domain;
 
@@ -1211,8 +1215,6 @@ function document_editor_api(conf)
 
     // Display loading message
     this.init_lock = this.set_busy(true, 'loading');
-
-    this.wopi_post('Host_PostmessageReady');
   }
 
   if (conf.api)
