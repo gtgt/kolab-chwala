@@ -129,6 +129,7 @@ class file_api_lib extends file_api_core
                 throw new Exception("Invalid method name", \file_storage::ERROR_UNSUPPORTED);
         }
 
+        require_once __DIR__ . "/api/common.php";
         require_once __DIR__ . "/api/$name.php";
 
         $class   = "file_api_$name";
@@ -142,54 +143,5 @@ class file_api_lib extends file_api_core
      */
     protected function init()
     {
-    }
-}
-
-
-/**
- * Common handler class, from which action handler classes inherit
- */
-class file_api_common
-{
-    protected $api;
-    protected $rc;
-    protected $args;
-
-
-    public function __construct($api, $args)
-    {
-        $this->rc   = rcube::get_instance();
-        $this->api  = $api;
-        $this->args = $args;
-    }
-
-    /**
-     * Request handler
-     */
-    public function handle()
-    {
-        // disable script execution time limit, so we can handle big files
-        @set_time_limit(0);
-    }
-
-    /**
-     * Parse driver metadata information
-     */
-    protected function parse_metadata($metadata, $default = false)
-    {
-        if ($default) {
-            unset($metadata['form']);
-            $metadata['name'] .= ' (' . $this->api->translate('localstorage') . ')';
-        }
-
-        // localize form labels
-        foreach ($metadata['form'] as $key => $val) {
-            $label = $this->api->translate('form.' . $val);
-            if (strpos($label, 'form.') !== 0) {
-                $metadata['form'][$key] = $label;
-            }
-        }
-
-        return $metadata;
     }
 }
