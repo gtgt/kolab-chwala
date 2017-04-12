@@ -269,7 +269,7 @@ class file_wopi extends file_document
      */
     protected function get_from_cache($key)
     {
-        if ($cache = $this->get_cache) {
+        if ($cache = $this->get_cache()) {
             return $cache->get($key);
         }
     }
@@ -279,7 +279,7 @@ class file_wopi extends file_document
      */
     protected function save_in_cache($key, $value)
     {
-        if ($cache = $this->get_cache) {
+        if ($cache = $this->get_cache()) {
             $cache->set($key, $value);
         }
     }
@@ -290,8 +290,7 @@ class file_wopi extends file_document
     protected function get_cache()
     {
         if ($this->cache === null) {
-            $cache = $this->rc->get_cache_shared('chwala');
-            $this->cache = $cache ?: false;
+            $this->cache = $this->rc->get_cache_shared('fileapi') ?: false;
         }
 
         return $this->cache;

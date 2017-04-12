@@ -58,11 +58,11 @@ $config['file_api_url'] = '';
 
 // Type of Chwala cache. Supported values: 'db', 'apc' and 'memcache'.
 // Note: This is only for some additional data like WOPI capabilities.
-$config['chwala_cache'] = 'db';
+$config['fileapi_cache'] = 'db';
 
 // lifetime of Chwala cache
 // possible units: s, m, h, d, w
-$config['chwala_cache_ttl'] = '1d';
+$config['fileapi_cache_ttl'] = '1d';
 
 // ------------------------------------------------
 // SeaFile driver settings
