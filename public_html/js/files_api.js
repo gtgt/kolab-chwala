@@ -397,9 +397,12 @@ function files_api()
     if (!type)
       return '';
 
-    type = type.replace(/[^a-z0-9]/g, '_');
+    var classes = [];
 
-    return type;
+    classes.push(type.replace(/\/.*/, ''));
+    classes.push(type.replace(/[^a-z0-9]/g, '_'));
+
+    return classes.join(' ');
   };
 
   // convert bytes into number with size unit
@@ -461,18 +464,37 @@ function files_api()
 
   // Checks if specified mimetype is supported natively by the browser (return 1)
   // or can be displayed in the browser using File API viewer (return 2)
-  // or is editable (using File API viewer or Manticore) (return 4)
+  // or is editable (using File API viewer, Manticore or WOPI) (return 4)
   this.file_type_supported = function(type, capabilities)
   {
     var i, t, res = 0, regexps = [], img = 'jpg|jpeg|gif|bmp|png',
       caps = this.env.browser_capabilities || {},
       doc = /^application\/vnd.oasis.opendocument.(text)$/i;
 
-    // Manticore?
-    if (capabilities && capabilities.MANTICORE && doc.test(type))
-      res |= 4;
+    type = String(type).toLowerCase();
 
-    if (caps.tif)
+    if (capabilities) {
+      // Manticore?
+      $.each(capabilities.MANTICORE_EDITABLE || [], function() {
+        if (type == this) {
+          res |= 4;
+          return false;
+        }
+      });
+      // old version of the check
+      if (capabilities && capabilities.MANTICORE && doc.test(type))
+        res |= 4;
+
+      // WOPI (Collabora Online)?
+      $.each(capabilities.WOPI_EDITABLE || [], function() {
+        if (type == this) {
+          res |= 4;
+          return false;
+        }
+      });
+    }
+
+    if (caps.tiff)
       img += '|tiff';
 
     if ((new RegExp('^image/(' + img + ')$', 'i')).test(type))
@@ -510,7 +532,7 @@ function files_api()
   // Return browser capabilities
   this.browser_capabilities = function()
   {
-    var i, caps = [], ctypes = ['pdf', 'flash', 'tif'];
+    var i, caps = [], ctypes = ['pdf', 'flash', 'tiff'];
 
     for (i in ctypes)
       if (this.env.browser_capabilities[ctypes[i]])
@@ -531,17 +553,17 @@ function files_api()
     if (this.env.browser_capabilities.flash === undefined)
       this.env.browser_capabilities.flash = this.flash_support_check();
 
-    if (this.env.browser_capabilities.tif === undefined)
-      this.tif_support_check();
+    if (this.env.browser_capabilities.tiff === undefined)
+      this.tiff_support_check();
   };
 
-  this.tif_support_check = function()
+  this.tiff_support_check = function()
   {
     var img = new Image(), ref = this;
 
-    img.onload = function() { ref.env.browser_capabilities.tif = 1; };
-    img.onerror = function() { ref.env.browser_capabilities.tif = 0; };
-    img.src = this.env.resources_dir + '/blank.tif';
+    img.onload = function() { ref.env.browser_capabilities.tiff = 1; };
+    img.onerror = function() { ref.env.browser_capabilities.tiff = 0; };
+    img.src = this.env.resources_dir + '/blank.tiff';
   };
 
   this.pdf_support_check = function()
@@ -635,15 +657,17 @@ function files_api()
 };
 
 /**
- * Class implementing Manticore Client API
+ * Class implementing Document Editor Host API
+ * supporting Manticore and Collabora Online
  *
  * Configuration:
- *    iframe - manticore iframe element
+ *    iframe - editor iframe element
  *    title_input - document title element
  *    export_menu - export formats list
  *    members_list - collaborators list
  *    photo_url - <img> src for a collaborator
  *    photo_default_url - default image of a collaborator
+ *    domain - iframe origin
  *
  *    set_busy, display_message, hide_message, gettext - common methods
  *
@@ -654,12 +678,14 @@ function files_api()
  *    invitationChange - method to handle invitation state updates
  *    invitationSave - method to handle invitation state update
  */
-function manticore_api(conf)
+function document_editor_api(conf)
 {
-  var domain, manticore,
+  var domain, editor,
+    is_wopi = false,
     locks = {},
     callbacks = {},
     members = {},
+    env = {},
     self = this;
 
   // Sets state
@@ -695,13 +721,18 @@ function manticore_api(conf)
     return label;
   };
 
-  // Handle messages from Manticore
+  // Handle messages from the editor
   this.message_handler = function(data)
   {
     var result;
 
-    if (callbacks[data.id])
+    data = this.message_convert(data);
+
+    if (data.id && callbacks[data.id])
       result = callbacks[data.id](data);
+    else if (typeof data.callback == 'function')
+      result = data.callback(data);
+
     if (result !== false && data.name && conf[data.name])
       result = conf[data.name](data);
 
@@ -734,20 +765,131 @@ function manticore_api(conf)
 
       case 'memberRemoved':
         // @TODO: display notification?
-        if (conf.members_list) {
+        if (conf.members_list && members[data.memberId]) {
           $('#' + members[data.memberId].id, conf.members_list).remove();
           delete members[data.memberId];
         }
         break;
 
       case 'sessionClosed':
-        this.display_message('sessionterminated', 'error');
+        if (!env.session_terminated)
+          this.display_message('sessionterminated', 'error');
         break;
     }
   };
 
+  // Convert WOPI postMessage into internal (Manticore) format
+  this.message_convert = function(data)
+  {
+    // In WOPI data is JSON-stringified
+    if ($.type(data) == 'string')
+      data = JSON.parse(data);
+
+    // non-WOPI format
+    if (!data.MessageId)
+      return data;
+
+    var value = data.Values,
+      result = {name: data.MessageId, wopi: true, id: data.MessageId},
+      member_fn = function(value) {
+        var color = value.Color;
+
+        // make sure color is in css hex format
+        if (color) {
+          if ($.type(color) == 'string' && color.charAt(0) != '#')
+            color = '#' + color;
+          else if ($.type(color) == 'number')
+            color = ((color)>>>0).toString(16).slice(-6);
+            color = '#' + ("000000").substring(0, 6 - color.length) + color;
+        }
+
+        return {
+          memberId: value.ViewId,
+          email: value.UserId,
+          fullName: value.UserName,
+          color: color
+        };
+      };
+
+    switch (result.name) {
+      // WOPI editor is ready
+      case 'App_LoadingStatus':
+        is_wopi = true;
+
+        // wait for 'Document_Loaded' status, this is when
+        // we can finally start using the CODE postMessage API
+        if (value.Status != 'Document_Loaded')
+          return result;
+
+        result.name = 'ready';
+
+        // Enable Save button, there's no documentChanged event in WOPI
+        if (typeof conf.documentChanged == 'function')
+          conf.documentChanged();
+        break;
+
+      // WOPI session member exited
+      case 'View_Removed':
+        result.name = 'memberRemoved';
+        result.memberId = value.ViewId;
+        break;
+
+      // WOPI session member entered
+      case 'View_Added':
+        result.name = 'memberAdded';
+        $.extend(result, member_fn(value));
+        break;
+
+      // Listing WOPI session members
+      case 'Get_Views_Resp':
+        result.list = $.map(value || [], member_fn);
+        result.callback = function(data) { self.members_list(data.list); return false; };
+        break;
+
+      case 'Session_Closed':
+        result.name = 'sessionClosed';
+        break;
+
+      case 'Get_Export_Formats_Resp':
+        result.list = $.map(value || [], function(v) { return {label: v.Label, format: v.Format}; });
+        result.callback = function(data) { self.export_menu_init(data.list); return false; };
+        break;
+    }
+
+    return result;
+  };
+
+  // Sends Manticore postMessage
   this.post = function(action, data, callback, lock_label)
   {
+    if (is_wopi) {
+      // replace Manticore messages with WOPI messages
+      // ignore unsupported functionality
+      switch (action) {
+        case 'getMembers':
+          // ignore, Collabora Online sends View_Added for current user
+          break;
+
+        case 'actionSave':
+          this.wopi_post('Action_Save', {DontTerminateEdit: true, DontSaveIfUnmodified: true});
+
+          // Enable Save button, there's no documentChanged event in WOPI
+          if (typeof conf.documentChanged == 'function')
+            conf.documentChanged();
+          break;
+
+        case 'actionExport':
+          this.wopi_post('Action_Export', {Format: data.value});
+          break;
+
+        case 'getExportFormats':
+          this.wopi_post('Get_Export_Formats');
+          break;
+      }
+
+      return;
+    }
+
     if (!data) data = {};
 
     if (lock_label) {
@@ -766,9 +908,22 @@ function manticore_api(conf)
 
     callbacks[data.id] = callback;
 
-    manticore.postMessage(data, domain);
+    editor.postMessage(data, domain);
   };
 
+  // Sends WOPI postMessage
+  this.wopi_post = function(action, data)
+  {
+    var msg = {
+        MessageId: action,
+        SendTime: Date.now(),
+        Values: data || {}
+      };
+
+    editor.postMessage(JSON.stringify(msg), domain);
+  };
+
+  // Callback for 'ready' message
   this.ready = function()
   {
     if (this.init_lock) {
@@ -778,16 +933,10 @@ function manticore_api(conf)
     }
 
     if (conf.export_menu)
-      this.export_menu(conf.export_menu);
+      this.export_menu_load();
 
     if (conf.members_list)
-      this.get_members(function(data) {
-        var images = [], id = (new Date).getTime();
-        $.each(data.value || [], function() {
-          images.push(self.member_item(this, id++));
-        });
-        $(conf.members_list).html('').append(images);
-      });
+      this.get_members(function(data) { self.members_list(data.value); });
 
     if (conf.title_input)
       this.get_title(function(data) {
@@ -801,27 +950,61 @@ function manticore_api(conf)
     this.post('actionSave', {}, callback, 'saving');
   };
 
+  // Terminate session
+  this.terminate = function()
+  {
+    // remember that user terminated the session
+    // to skip the warning on Session_Closed
+    env.session_terminated = true;
+    conf.sessionClosed = null;
+
+    // we send it only to WOPI editor, Manticore session will
+    // be terminated by Chwala backend
+    if (is_wopi)
+      this.wopi_post('Close_Session');
+  };
+
+  // Print document
+  this.print = function()
+  {
+    // this is implemented only by WOPI editor
+    if (is_wopi)
+      this.wopi_post('Action_Print');
+  };
+
   // Export/download current document
   this.export = function(type, callback)
   {
-    this.post('actionExport', {value: type}, callback);
+    // If the specified type is not supported
+    // TODO: https://bugs.documentfoundation.org/show_bug.cgi?id=104125
+    if ($.inArray(type, env.supported_formats || []) == -1)
+      type = (env.supported_formats || [])[0];
+
+    if (type)
+      this.post('actionExport', {value: type}, callback);
   };
 
   // Get supported export formats and create content of menu element
-  this.export_menu = function(menu)
+  this.export_menu_load = function()
   {
-    this.post('getExportFormats', {}, function(data) {
-      var items = [];
+    this.post('getExportFormats', {}, function(data) { self.export_menu_init(data.value); });
+  };
 
-      $.each(data.value || [], function(i, v) {
-        items.push($('<li>').attr({role: 'menuitem'}).append(
-          $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
-            .text(v.label).click(function() { self.export(v.format); })
-        ));
-      });
+  this.export_menu_init = function(formats)
+  {
+    var items = [];
 
-      $(menu).html('').append(items);
+    env.supported_formats = [];
+
+    $.each(formats || [], function(i, v) {
+      env.supported_formats.push(v.format);
+      items.push($('<li>').attr({role: 'menuitem'}).append(
+        $('<a>').attr({href: '#', role: 'button', tabindex: 0, 'aria-disabled': false, 'class': 'active'})
+          .text(v.label).click(function() { self.export(v.format); })
+      ));
     });
+
+    $(conf.export_menu).html('').append(items);
   };
 
   // Get document title
@@ -857,10 +1040,21 @@ function manticore_api(conf)
     if (conf.photo_url) {
       img.attr('src', conf.photo_url.replace(/%email/, urlencode(member.email)));
       if (conf.photo_default_url)
-        img.error(function() { this.src = conf.photo_default_url; });
+        img.on('error', function() { this.src = conf.photo_default_url; });
     }
 
     return img;
+  };
+
+  this.members_list = function(list)
+  {
+    var images = [], id = (new Date).getTime();
+
+    $.each(list || [], function() {
+      images.push(self.member_item(this, id++));
+    });
+
+    $(conf.members_list).html('').append(images);
   };
 
   // track changes in invitations
@@ -996,16 +1190,21 @@ function manticore_api(conf)
   if (!conf)
     conf = {};
 
-  // Got Manticore iframe, use Client API
+  // Got editor iframe, use editor's API
   if (conf.iframe) {
-    manticore = conf.iframe.contentWindow;
+    // Use iframe's onload event to not send the message to early,
+    // if that happens WOPI will not accept any messages later
+    $(conf.iframe).on('load', function() { self.wopi_post('Host_PostmessageReady'); });
 
-    if (/^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
+    editor = conf.iframe.contentWindow;
+    domain = conf.domain;
+
+    if (!domain && /^(https?:\/\/[^/]+)/i.test(conf.iframe.src))
       domain = RegExp.$1;
 
-    // Register 'message' event to receive messages from Manticore iframe
+    // Register 'message' event to receive messages from the editor iframe
     window.addEventListener('message', function(event) {
-      if (event.source == manticore && event.origin == domain) {
+      if (event.source == editor && event.origin == domain) {
         self.message_handler(event.data);
       }
     });

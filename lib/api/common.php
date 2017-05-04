@@ -29,10 +29,11 @@ class file_api_common
     protected $args = array();
 
 
-    public function __construct($api)
+    public function __construct($api, $args = array())
     {
-        $this->rc  = rcube::get_instance();
-        $this->api = $api;
+        $this->rc   = rcube::get_instance();
+        $this->api  = $api;
+        $this->args = (array) $args;
     }
 
     /**
@@ -41,7 +42,11 @@ class file_api_common
     public function handle()
     {
         // GET arguments
-        $this->args = &$_GET;
+        if (!empty($_GET)) {
+            foreach (array_keys($_GET) as $key) {
+                $this->args[$key] = &$_GET[$key];
+            }
+        }
 
         // POST arguments (JSON)
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -102,21 +107,29 @@ class file_api_common
      */
     protected function find_viewer($mimetype)
     {
-        $dir = RCUBE_INSTALL_PATH . 'lib/viewers';
+        $dir   = RCUBE_INSTALL_PATH . 'lib/viewers';
+        $files = array();
 
+        // First get viewers and sort by name to get priority
         if ($handle = opendir($dir)) {
             while (false !== ($file = readdir($handle))) {
                 if (preg_match('/^([a-z0-9_]+)\.php$/i', $file, $matches)) {
-                    include_once $dir . '/' . $file;
-                    $class  = 'file_viewer_' . $matches[1];
-                    $viewer = new $class($this->api);
-
-                    if ($viewer->supports($mimetype)) {
-                        return $viewer;
-                    }
+                    $files[$matches[1]] = $dir . '/' . $file;
                 }
             }
             closedir($handle);
+        }
+
+        ksort($files);
+
+        foreach ($files as $name => $file) {
+            include_once $file;
+            $class  = 'file_viewer_' . $name;
+            $viewer = new $class($this->api);
+
+            if ($viewer->supports($mimetype)) {
+                return $viewer;
+            }
         }
     }
 
@@ -165,18 +178,23 @@ class file_api_common
     }
 
     /**
-     * Update manticore session on file/folder move
+     * Update document session on file/folder move
      */
     protected function session_uri_update($from, $to, $is_folder = false)
     {
-        // check Manticore support. Note: we don't use config->get('fileapi_manticore')
+        // check Manticore/WOPI support. Note: we don't use config->get('fileapi_manticore')
         // here as it may be not properly set if backend driver wasn't initialized yet
         $capabilities = $this->api->capabilities(false);
-        if (empty($capabilities['MANTICORE'])) {
-            return;
+
+        if (!empty($capabilities['WOPI'])) {
+            $document = new file_wopi($this->api);
+        }
+        else if (!empty($capabilities['MANTICORE'])) {
+            $document = new file_manticore($this->api);
         }
 
-        $manticore = new file_manticore($this->api);
-        $manticore->session_uri_update($from, $to, $is_folder);
+        if (!empty($document)) {
+            $document->session_uri_update($from, $to, $is_folder);
+        }
     }
 }

@@ -26,7 +26,7 @@
 class file_locale
 {
     protected static $translation = array();
-
+    protected $language;
 
     /**
      * Localization initialization.
@@ -39,6 +39,8 @@ class file_locale
         if (!$language) {
             $language = 'en_US';
         }
+
+        $this->language = $language;
 
         @include __DIR__ . "/locale/en_US.php";
 
@@ -71,8 +73,11 @@ class file_locale
         if (!empty($_SESSION['user']) && !empty($_SESSION['user']['language'])) {
             array_unshift($langs, $_SESSION['user']['language']);
         }
+        if (!empty($_SESSION['env']) && !empty($_SESSION['env']['language'])) {
+            array_unshift($langs, $_SESSION['env']['language']);
+        }
 
-        while ($lang = array_shift($langs)) {
+        foreach (array_unique($langs) as $lang) {
             $lang = explode(';', $lang);
             $lang = $lang[0];
             $lang = str_replace('-', '_', $lang);

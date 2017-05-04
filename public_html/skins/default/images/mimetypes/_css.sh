@@ -3,6 +3,17 @@
 my %aliases = (
     'application_vnd_ms_word' => [
         'application_msword',
+        'application_vnd_openxmlformats_officedocument_wordprocessingml_document',
+        'application_vnd_openxmlformats_officedocument_wordprocessingml_template',
+    ],
+    'application_vnd_ms_excel' => [
+        'application_vnd_openxmlformats_officedocument_spreadsheetml_sheet',
+        'application_vnd_openxmlformats_officedocument_spreadsheetml_template',
+    ],
+    'application_vnd_ms_powerpoint' => [
+        'application_vnd_openxmlformats_officedocument_presentationml_presentation',
+        'application_vnd_openxmlformats_officedocument_presentationml_template',
+        'application_vnd_openxmlformats_officedocument_presentationml_slideshow',
     ],
     'application_pgp_keys' => [
         'application_pkcs7_mime',

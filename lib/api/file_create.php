@@ -72,7 +72,7 @@ class file_api_file_create extends file_api_common
         }
 
         // Get file content from a template
-        if ($request == 'file_create' && empty($file['path']) && !strlen($file['content'])) {
+        if ($request == 'file_create' && empty($file['path']) && empty($file['content'])) {
             $this->use_file_template($file);
         }
 
